@@ -1,0 +1,12 @@
+include README.md
+include LICENSE
+include CHANGELOG.md
+include requirements.txt
+include requirements-test.txt
+include pytest.ini
+# recursive-include docs *.md  # docs directory is empty
+recursive-include miso_client *.py
+include miso_client/py.typed
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]
+

@@ -1,0 +1,161 @@
+"""
+Redis service for caching and log queuing.
+
+This module provides Redis connectivity with graceful degradation when Redis
+is unavailable. It handles caching of roles and permissions, and log queuing.
+"""
+
+import redis.asyncio as redis
+from typing import Optional
+from ..models.config import RedisConfig
+
+
+class RedisService:
+    """Redis service for caching and log queuing."""
+    
+    def __init__(self, config: Optional[RedisConfig] = None):
+        """
+        Initialize Redis service.
+        
+        Args:
+            config: Optional Redis configuration
+        """
+        self.config = config
+        self.redis: Optional[redis.Redis] = None
+        self.connected = False
+
+    async def connect(self) -> None:
+        """
+        Connect to Redis.
+        
+        Raises:
+            Exception: If connection fails and config is provided
+        """
+        if not self.config:
+            print("Redis not configured, using controller fallback")
+            return
+
+        try:
+            self.redis = redis.Redis(
+                host=self.config.host,
+                port=self.config.port,
+                password=self.config.password,
+                db=self.config.db,
+                decode_responses=True,
+                retry_on_timeout=True,
+                socket_connect_timeout=5,
+                socket_timeout=5,
+            )
+            
+            # Test connection
+            await self.redis.ping()
+            self.connected = True
+            print("Connected to Redis")
+            
+        except Exception as error:
+            print(f"Failed to connect to Redis: {error}")
+            self.connected = False
+            if self.config:  # Only raise if Redis was configured
+                raise error
+
+    async def disconnect(self) -> None:
+        """Disconnect from Redis."""
+        if self.redis:
+            await self.redis.aclose()
+            self.connected = False
+            print("Disconnected from Redis")
+
+    def is_connected(self) -> bool:
+        """
+        Check if Redis is connected.
+        
+        Returns:
+            True if connected, False otherwise
+        """
+        return self.connected and self.redis is not None
+
+    async def get(self, key: str) -> Optional[str]:
+        """
+        Get value from Redis.
+        
+        Args:
+            key: Redis key
+            
+        Returns:
+            Value if found, None otherwise
+        """
+        if not self.is_connected():
+            return None
+
+        try:
+            prefixed_key = f"{self.config.key_prefix}{key}" if self.config else key
+            return await self.redis.get(prefixed_key)
+        except Exception as error:
+            print(f"Redis get error: {error}")
+            return None
+
+    async def set(self, key: str, value: str, ttl: int) -> bool:
+        """
+        Set value in Redis with TTL.
+        
+        Args:
+            key: Redis key
+            value: Value to store
+            ttl: Time to live in seconds
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self.is_connected():
+            return False
+
+        try:
+            prefixed_key = f"{self.config.key_prefix}{key}" if self.config else key
+            await self.redis.setex(prefixed_key, ttl, value)
+            return True
+        except Exception as error:
+            print(f"Redis set error: {error}")
+            return False
+
+    async def delete(self, key: str) -> bool:
+        """
+        Delete key from Redis.
+        
+        Args:
+            key: Redis key
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self.is_connected():
+            return False
+
+        try:
+            prefixed_key = f"{self.config.key_prefix}{key}" if self.config else key
+            await self.redis.delete(prefixed_key)
+            return True
+        except Exception as error:
+            print(f"Redis delete error: {error}")
+            return False
+
+    async def rpush(self, queue: str, value: str) -> bool:
+        """
+        Push value to Redis list (for log queuing).
+        
+        Args:
+            queue: Queue name
+            value: Value to push
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self.is_connected():
+            return False
+
+        try:
+            prefixed_queue = f"{self.config.key_prefix}{queue}" if self.config else queue
+            await self.redis.rpush(prefixed_queue, value)
+            return True
+        except Exception as error:
+            print(f"Redis rpush error: {error}")
+            return False

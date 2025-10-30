@@ -1,0 +1,99 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "miso-client"
+version = "0.1.0"
+description = "Python client SDK for AI Fabrix authentication, authorization, and logging"
+readme = "README.md"
+requires-python = ">=3.8"
+license = "MIT"
+authors = [
+    {name = "AI Fabrix Team", email = "team@aifabrix.ai"}
+]
+maintainers = [
+    {name = "AI Fabrix Team", email = "team@aifabrix.ai"}
+]
+keywords = ["authentication", "authorization", "rbac", "jwt", "redis", "logging", "aifabrix", "miso"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Security",
+    "Topic :: System :: Logging",
+]
+
+dependencies = [
+    "pydantic>=2.0.0",
+    "httpx>=0.25.0",
+    "redis[hiredis]>=5.0.0",
+    "PyJWT>=2.8.0",
+    "cryptography>=41.0.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.3",
+    "pytest-asyncio>=0.21.1",
+    "pytest-mock>=3.12.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "mypy>=1.5.0",
+    "ruff>=0.1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/aifabrix/miso-client-python"
+Documentation = "https://docs.aifabrix.ai/miso-client-python"
+Repository = "https://github.com/aifabrix/miso-client-python"
+Issues = "https://github.com/aifabrix/miso-client-python/issues"
+
+[tool.setuptools]
+packages = ["miso_client", "miso_client.models", "miso_client.services", "miso_client.utils"]
+
+[tool.setuptools.package-data]
+miso_client = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "--strict-markers --strict-config --cov=miso_client --cov-report=term-missing --cov-report=html --cov-report=xml"
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "slow: Slow running tests"
+]
+asyncio_mode = "auto"
+
+[tool.black]
+line-length = 100
+target-version = ["py38", "py39", "py310", "py311", "py312"]
+include = '\.pyi?$'
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py38"
+
