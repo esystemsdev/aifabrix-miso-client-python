@@ -7,7 +7,7 @@ Optimized to extract userId from JWT token before API calls for cache optimizati
 """
 
 import time
-from typing import List
+from typing import List, cast
 from ..models.config import RoleResult
 from ..services.cache import CacheService
 from ..utils.http_client import HttpClient
@@ -51,7 +51,7 @@ class RoleService:
             if cache_key:
                 cached_data = await self.cache.get(cache_key)
                 if cached_data and isinstance(cached_data, dict):
-                    return cached_data.get("roles", [])
+                    return cast(List[str], cached_data.get("roles", []))
 
             # Cache miss or no userId in token - fetch from controller
             # If we don't have userId, get it from validate endpoint
@@ -77,6 +77,7 @@ class RoleService:
             roles = role_data.roles or []
 
             # Cache the result (CacheService handles Redis + in-memory automatically)
+            assert cache_key is not None
             await self.cache.set(
                 cache_key,
                 {"roles": roles, "timestamp": int(time.time() * 1000)},

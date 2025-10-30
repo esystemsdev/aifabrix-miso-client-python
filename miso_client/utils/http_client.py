@@ -63,6 +63,7 @@ class HttpClient:
             self.token_expires_at and 
             self.token_expires_at > now + timedelta(seconds=60)
         ):
+            assert self.client_token is not None
             return self.client_token
         
         # Acquire lock to prevent concurrent token fetches
@@ -73,10 +74,12 @@ class HttpClient:
                 self.token_expires_at and 
                 self.token_expires_at > now + timedelta(seconds=60)
             ):
+                assert self.client_token is not None
                 return self.client_token
             
             # Fetch new token
             await self._fetch_client_token()
+            assert self.client_token is not None
             return self.client_token
     
     async def _fetch_client_token(self) -> None:
@@ -161,8 +164,10 @@ class HttpClient:
         Raises:
             MisoClientError: If request fails
         """
+        await self._initialize_client()
         await self._ensure_client_token()
         try:
+            assert self.client is not None
             response = await self.client.get(url, **kwargs)
             
             # Handle 401 - clear token to force refresh
@@ -196,8 +201,10 @@ class HttpClient:
         Raises:
             MisoClientError: If request fails
         """
+        await self._initialize_client()
         await self._ensure_client_token()
         try:
+            assert self.client is not None
             response = await self.client.post(url, json=data, **kwargs)
             
             if response.status_code == 401:
@@ -230,8 +237,10 @@ class HttpClient:
         Raises:
             MisoClientError: If request fails
         """
+        await self._initialize_client()
         await self._ensure_client_token()
         try:
+            assert self.client is not None
             response = await self.client.put(url, json=data, **kwargs)
             
             if response.status_code == 401:
@@ -263,8 +272,10 @@ class HttpClient:
         Raises:
             MisoClientError: If request fails
         """
+        await self._initialize_client()
         await self._ensure_client_token()
         try:
+            assert self.client is not None
             response = await self.client.delete(url, **kwargs)
             
             if response.status_code == 401:

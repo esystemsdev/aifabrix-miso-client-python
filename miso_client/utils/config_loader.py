@@ -5,6 +5,7 @@ Automatically loads environment variables with sensible defaults.
 """
 
 import os
+from typing import Literal, cast
 from ..models.config import MisoClientConfig, RedisConfig
 from ..errors import ConfigurationError
 
@@ -49,9 +50,13 @@ def load_config() -> MisoClientConfig:
     if not client_secret:
         raise ConfigurationError("MISO_CLIENTSECRET environment variable is required")
     
-    log_level = os.environ.get("MISO_LOG_LEVEL", "info")
-    if log_level not in ["debug", "info", "warn", "error"]:
-        log_level = "info"
+    log_level_str = os.environ.get("MISO_LOG_LEVEL", "info")
+    if log_level_str not in ["debug", "info", "warn", "error"]:
+        log_level_str = "info"
+    # Constrain to Literal for type-checker
+    log_level: Literal["debug", "info", "warn", "error"] = cast(
+        Literal["debug", "info", "warn", "error"], log_level_str
+    )
     
     config: MisoClientConfig = MisoClientConfig(
         controller_url=controller_url,

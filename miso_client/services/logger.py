@@ -365,11 +365,15 @@ class LoggerService:
     
     def with_performance(self) -> "LoggerChain":
         """Create logger chain with performance metrics."""
-        return LoggerChain(self, {}, ClientLoggingOptions(performanceMetrics=True))
+        opts = ClientLoggingOptions()
+        opts.performanceMetrics = True
+        return LoggerChain(self, {}, opts)
     
     def without_masking(self) -> "LoggerChain":
         """Create logger chain without data masking."""
-        return LoggerChain(self, {}, ClientLoggingOptions(maskSensitiveData=False))
+        opts = ClientLoggingOptions()
+        opts.maskSensitiveData = False
+        return LoggerChain(self, {}, opts)
 
 
 class LoggerChain:
@@ -378,8 +382,8 @@ class LoggerChain:
     def __init__(
         self,
         logger: LoggerService,
-        context: Dict[str, Any] = None,
-        options: ClientLoggingOptions = None
+        context: Optional[Dict[str, Any]] = None,
+        options: Optional[ClientLoggingOptions] = None
     ):
         """
         Initialize logger chain.

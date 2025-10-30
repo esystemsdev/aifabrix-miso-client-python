@@ -114,17 +114,18 @@ class MisoClient:
         Returns:
             Bearer token string or None if not found
         """
-        headers = req.get("headers", {}) if isinstance(req, dict) else getattr(req, "headers", {})
-        auth_header = headers.get("authorization") or headers.get("Authorization")
-        if not auth_header:
+        headers_obj = req.get("headers", {}) if isinstance(req, dict) else getattr(req, "headers", {})
+        headers: dict[str, Any] = headers_obj if isinstance(headers_obj, dict) else {}
+        auth_value = headers.get("authorization") or headers.get("Authorization")
+        if not isinstance(auth_value, str):
             return None
 
         # Support "Bearer <token>" format
-        if auth_header.startswith("Bearer "):
-            return auth_header[7:]
+        if auth_value.startswith("Bearer "):
+            return auth_value[7:]
         
         # If no Bearer prefix, assume the whole header is the token
-        return auth_header
+        return auth_value
 
     async def get_environment_token(self) -> str:
         """

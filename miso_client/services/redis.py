@@ -48,7 +48,10 @@ class RedisService:
             )
             
             # Test connection
-            await self.redis.ping()
+            # Some redis stubs type ping as possibly non-awaitable; support both
+            resp = self.redis.ping()
+            if hasattr(resp, "__await__"):
+                await resp  # type: ignore[misc]
             self.connected = True
             print("Connected to Redis")
             
@@ -88,8 +91,14 @@ class RedisService:
             return None
 
         try:
+            assert self.redis is not None
             prefixed_key = f"{self.config.key_prefix}{key}" if self.config else key
-            return await self.redis.get(prefixed_key)
+            resp = self.redis.get(prefixed_key)
+            if hasattr(resp, "__await__"):
+                result = await resp  # type: ignore[misc]
+            else:
+                result = resp
+            return None if result is None else str(result)
         except Exception as error:
             print(f"Redis get error: {error}")
             return None
@@ -110,8 +119,11 @@ class RedisService:
             return False
 
         try:
+            assert self.redis is not None
             prefixed_key = f"{self.config.key_prefix}{key}" if self.config else key
-            await self.redis.setex(prefixed_key, ttl, value)
+            resp = self.redis.setex(prefixed_key, ttl, value)
+            if hasattr(resp, "__await__"):
+                await resp  # type: ignore[misc]
             return True
         except Exception as error:
             print(f"Redis set error: {error}")
@@ -131,8 +143,11 @@ class RedisService:
             return False
 
         try:
+            assert self.redis is not None
             prefixed_key = f"{self.config.key_prefix}{key}" if self.config else key
-            await self.redis.delete(prefixed_key)
+            resp = self.redis.delete(prefixed_key)
+            if hasattr(resp, "__await__"):
+                await resp  # type: ignore[misc]
             return True
         except Exception as error:
             print(f"Redis delete error: {error}")
@@ -153,8 +168,11 @@ class RedisService:
             return False
 
         try:
+            assert self.redis is not None
             prefixed_queue = f"{self.config.key_prefix}{queue}" if self.config else queue
-            await self.redis.rpush(prefixed_queue, value)
+            resp = self.redis.rpush(prefixed_queue, value)
+            if hasattr(resp, "__await__"):
+                await resp  # type: ignore[misc]
             return True
         except Exception as error:
             print(f"Redis rpush error: {error}")

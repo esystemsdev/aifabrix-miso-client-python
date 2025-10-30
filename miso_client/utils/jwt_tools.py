@@ -6,7 +6,7 @@ without verification, used for cache optimization and context extraction.
 """
 
 import jwt
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, cast
 
 
 def decode_token(token: str) -> Optional[Dict[str, Any]]:
@@ -25,7 +25,7 @@ def decode_token(token: str) -> Optional[Dict[str, Any]]:
     """
     try:
         # Decode without verification (no secret key needed)
-        decoded = jwt.decode(token, options={"verify_signature": False})
+        decoded = cast(Dict[str, Any], jwt.decode(token, options={"verify_signature": False}))
         return decoded
     except Exception:
         # Token is invalid or malformed
@@ -73,5 +73,6 @@ def extract_session_id(token: str) -> Optional[str]:
     if not decoded:
         return None
     
-    return decoded.get("sid") or decoded.get("sessionId")
+    value = decoded.get("sid") or decoded.get("sessionId")
+    return value if isinstance(value, str) else None
 
