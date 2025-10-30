@@ -2,7 +2,6 @@
 Unit tests for JWT tools.
 """
 
-import pytest
 import jwt
 from miso_client.utils.jwt_tools import decode_token, extract_user_id, extract_session_id
 

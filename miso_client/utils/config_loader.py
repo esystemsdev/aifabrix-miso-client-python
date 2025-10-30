@@ -5,7 +5,6 @@ Automatically loads environment variables with sensible defaults.
 """
 
 import os
-from typing import Optional
 from ..models.config import MisoClientConfig, RedisConfig
 from ..errors import ConfigurationError
 

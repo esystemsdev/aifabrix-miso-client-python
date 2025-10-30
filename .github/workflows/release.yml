@@ -41,13 +41,24 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
     
+    - name: Get current version
+      id: get_version
+      run: |
+        CURRENT_VERSION=$(grep 'current_version' .bumpversion.cfg | cut -d'=' -f2 | tr -d ' ')
+        echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+    
     - name: Bump version
+      id: bump_version
       run: |
         if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
           bump2version ${{ github.event.inputs.version_type }}
         else
           bump2version patch
         fi
+        
+        # Get the new version
+        NEW_VERSION=$(grep 'current_version' .bumpversion.cfg | cut -d'=' -f2 | tr -d ' ')
+        echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
     
     - name: Push changes
       run: |
@@ -55,14 +66,10 @@ jobs:
         git push --tags
     
     - name: Create Release
-      uses: actions/create-release@v1
+      run: |
+        gh release create "v${{ steps.bump_version.outputs.new_version }}" \
+          --title "Release v${{ steps.bump_version.outputs.new_version }}" \
+          --notes "Changes in this Release
+        - See CHANGELOG.md for details"
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ steps.get_version.outputs.version }}
-        release_name: Release ${{ steps.get_version.outputs.version }}
-        body: |
-          Changes in this Release
-          - See CHANGELOG.md for details
-        draft: false
-        prerelease: false

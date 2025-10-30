@@ -2,7 +2,6 @@
 Unit tests for error types.
 """
 
-import pytest
 from miso_client.errors import (
     MisoClientError,
     AuthenticationError,

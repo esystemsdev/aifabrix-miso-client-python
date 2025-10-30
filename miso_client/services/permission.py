@@ -7,8 +7,8 @@ Optimized to extract userId from JWT token before API calls for cache optimizati
 """
 
 import time
-from typing import List, Optional
-from ..models.config import MisoClientConfig, PermissionResult
+from typing import List
+from ..models.config import PermissionResult
 from ..services.cache import CacheService
 from ..utils.http_client import HttpClient
 from ..utils.jwt_tools import extract_user_id

@@ -39,7 +39,6 @@ class CacheService:
         if len(self._memory_cache) <= self._cleanup_threshold:
             return
         
-        current_time = time.time()
         expired_keys = [
             key for key, (_, expiration) in self._memory_cache.items()
             if self._is_expired(expiration)

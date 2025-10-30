@@ -5,16 +5,13 @@ This module provides structured logging with Redis queuing and HTTP fallback.
 Includes JWT context extraction, data masking, correlation IDs, and performance metrics.
 """
 
-import json
 import os
 import random
 import sys
 from datetime import datetime
 from typing import Optional, Dict, Any, Literal
 from ..models.config import (
-    MisoClientConfig, 
     LogEntry, 
-    PerformanceMetrics as PerfMetrics,
     ClientLoggingOptions
 )
 from ..services.redis import RedisService

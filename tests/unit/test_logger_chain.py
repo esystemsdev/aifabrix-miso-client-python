@@ -3,7 +3,7 @@ Unit tests for LoggerChain fluent API.
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 from miso_client.services.logger import LoggerService, LoggerChain
 from miso_client.models.config import ClientLoggingOptions
 

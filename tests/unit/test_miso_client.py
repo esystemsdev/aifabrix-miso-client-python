@@ -6,14 +6,12 @@ mirroring the test coverage from the TypeScript version.
 """
 
 import pytest
-import json
 from unittest.mock import AsyncMock, MagicMock, patch
-from miso_client import MisoClient
 from miso_client.services.auth import AuthService
 from miso_client.services.role import RoleService
 from miso_client.services.permission import PermissionService
 from miso_client.services.logger import LoggerService, LoggerChain
-from miso_client.models.config import UserInfo, AuthResult, RoleResult, PermissionResult
+from miso_client.models.config import UserInfo, RoleResult, PermissionResult
 
 
 class TestMisoClient:

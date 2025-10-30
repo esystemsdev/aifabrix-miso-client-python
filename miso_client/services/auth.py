@@ -6,7 +6,7 @@ token validation, user information retrieval, and logout functionality.
 """
 
 from typing import Optional
-from ..models.config import MisoClientConfig, UserInfo, AuthResult
+from ..models.config import UserInfo, AuthResult
 from ..services.redis import RedisService
 from ..utils.http_client import HttpClient
 

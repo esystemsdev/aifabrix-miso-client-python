@@ -5,7 +5,7 @@ Unit tests for CacheService.
 import pytest
 import json
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from miso_client.services.cache import CacheService
 from miso_client.services.redis import RedisService
 

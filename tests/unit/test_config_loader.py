@@ -4,10 +4,9 @@ Unit tests for config loader.
 
 import pytest
 import os
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from miso_client.utils.config_loader import load_config
 from miso_client.errors import ConfigurationError
-from miso_client.models.config import MisoClientConfig, RedisConfig
 
 
 class TestConfigLoader:
@@ -125,10 +124,9 @@ class TestConfigLoader:
             "MISO_CLIENTID": "test-client",
             "MISO_CLIENTSECRET": "test-secret",
         }, clear=False):
-            with patch('miso_client.utils.config_loader.load_dotenv', create=True) as mock_dotenv:
+            with patch('miso_client.utils.config_loader.load_dotenv', create=True):
                 # Simulate dotenv available
                 try:
-                    from dotenv import load_dotenv
                     load_config()
                     # If no ImportError, dotenv should be called
                 except ImportError:

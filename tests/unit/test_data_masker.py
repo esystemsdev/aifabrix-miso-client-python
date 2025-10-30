@@ -2,7 +2,6 @@
 Unit tests for DataMasker.
 """
 
-import pytest
 from miso_client.utils.data_masker import DataMasker
 
 

@@ -3,12 +3,12 @@ Unit tests for HTTP client with automatic client token management.
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch, call
+from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime, timedelta
 import httpx
 from miso_client.utils.http_client import HttpClient
-from miso_client.models.config import MisoClientConfig, ClientTokenResponse
-from miso_client.errors import AuthenticationError, ConnectionError, MisoClientError
+from miso_client.models.config import MisoClientConfig
+from miso_client.errors import AuthenticationError, MisoClientError
 
 
 class TestHttpClient:
