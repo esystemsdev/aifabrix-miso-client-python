@@ -317,6 +317,40 @@ ENCRYPTION_KEY=your-32-byte-encryption-key
 
 ---
 
+### Testing with API Key
+
+**What happens:** When `API_KEY` is set in your `.env` file, you can authenticate requests using the API key as a bearer token, bypassing OAuth2 authentication. This is useful for testing without setting up Keycloak.
+
+```python
+from miso_client import MisoClient, load_config
+
+client = MisoClient(load_config())
+await client.initialize()
+
+# Use API_KEY as bearer token (for testing only)
+api_key_token = "your-api-key-from-env"
+is_valid = await client.validate_token(api_key_token)
+# Returns True if token matches API_KEY from .env
+
+user = await client.get_user(api_key_token)
+# Returns None (API key auth doesn't provide user info)
+```
+
+**Configuration:**
+
+```bash
+# Add to .env for testing
+API_KEY=your-test-api-key-here
+```
+
+**Important:** 
+- API_KEY authentication bypasses OAuth2 validation completely
+- User information methods (`get_user()`, `get_user_info()`) return `None` when using API_KEY
+- Token validation returns `True` if the bearer token matches the configured `API_KEY`
+- This feature is intended for testing and development only
+
+---
+
 ## 🔧 Configuration
 
 ```python
@@ -331,6 +365,7 @@ config = MisoClientConfig(
         port=6379,
     ),
     log_level="info",                         # Optional: 'debug' | 'info' | 'warn' | 'error'
+    api_key="your-test-api-key",              # Optional: API key for testing (bypasses OAuth2)
     cache={                                   # Optional: Cache TTL settings
         "role_ttl": 900,       # Role cache TTL (default: 900s)
         "permission_ttl": 900, # Permission cache TTL (default: 900s)
@@ -441,6 +476,7 @@ MISO_CONTROLLER_URL=http://localhost:3000
 REDIS_HOST=localhost
 REDIS_PORT=6379
 MISO_LOG_LEVEL=info
+API_KEY=your-test-api-key  # Optional: For testing (bypasses OAuth2)
 ```
 
 ---

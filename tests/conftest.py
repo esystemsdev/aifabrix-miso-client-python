@@ -2,13 +2,15 @@
 Shared pytest fixtures for MisoClient tests.
 """
 
-import pytest
 import os
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
 from miso_client import MisoClient, MisoClientConfig, RedisConfig
-from miso_client.utils.http_client import HttpClient
-from miso_client.services.redis import RedisService
 from miso_client.services.cache import CacheService
+from miso_client.services.redis import RedisService
+from miso_client.utils.http_client import HttpClient
 
 # Set test environment variables
 os.environ["ENCRYPTION_KEY"] = "_-aheB8oQwob2XxUyN1JK2RLOs_Hpi3WSkKluxLZzmE="
@@ -30,7 +32,7 @@ def config():
         cache={
             "roleTTL": 900,
             "permissionTTL": 900,
-        }
+        },
     )
 
 
@@ -102,4 +104,3 @@ def mock_http_client(config):
 def client(config):
     """Test MisoClient instance."""
     return MisoClient(config)
-

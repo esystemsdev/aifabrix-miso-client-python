@@ -41,6 +41,12 @@ clean: ## Clean build artifacts
 	rm -rf .mypy_cache/
 	rm -f coverage.xml
 
+validate: ## Run lint + format + test
+	python -m ruff check miso_client/ tests/
+	python -m black miso_client/ tests/
+	python -m isort miso_client/ tests/
+	python -m pytest tests/ -v
+
 publish: ## Publish to PyPI
 	python -m twine upload dist/*
 

@@ -7,11 +7,13 @@ This module defines custom exceptions for the MisoClient SDK.
 
 class MisoClientError(Exception):
     """Base exception for MisoClient SDK errors."""
-    
-    def __init__(self, message: str, status_code: int | None = None, error_body: dict | None = None):
+
+    def __init__(
+        self, message: str, status_code: int | None = None, error_body: dict | None = None
+    ):
         """
         Initialize MisoClient error.
-        
+
         Args:
             message: Error message
             status_code: HTTP status code if applicable
@@ -25,20 +27,23 @@ class MisoClientError(Exception):
 
 class AuthenticationError(MisoClientError):
     """Raised when authentication fails."""
+
     pass
 
 
 class AuthorizationError(MisoClientError):
     """Raised when authorization check fails."""
+
     pass
 
 
 class ConnectionError(MisoClientError):
     """Raised when connection to controller or Redis fails."""
+
     pass
 
 
 class ConfigurationError(MisoClientError):
     """Raised when configuration is invalid."""
-    pass
 
+    pass

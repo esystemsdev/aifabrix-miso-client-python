@@ -5,18 +5,20 @@ This module provides Redis connectivity with graceful degradation when Redis
 is unavailable. It handles caching of roles and permissions, and log queuing.
 """
 
-import redis.asyncio as redis
 from typing import Optional
+
+import redis.asyncio as redis
+
 from ..models.config import RedisConfig
 
 
 class RedisService:
     """Redis service for caching and log queuing."""
-    
+
     def __init__(self, config: Optional[RedisConfig] = None):
         """
         Initialize Redis service.
-        
+
         Args:
             config: Optional Redis configuration
         """
@@ -27,7 +29,7 @@ class RedisService:
     async def connect(self) -> None:
         """
         Connect to Redis.
-        
+
         Raises:
             Exception: If connection fails and config is provided
         """
@@ -46,7 +48,7 @@ class RedisService:
                 socket_connect_timeout=5,
                 socket_timeout=5,
             )
-            
+
             # Test connection
             # Some redis stubs type ping as possibly non-awaitable; support both
             resp = self.redis.ping()
@@ -54,7 +56,7 @@ class RedisService:
                 await resp  # type: ignore[misc]
             self.connected = True
             print("Connected to Redis")
-            
+
         except Exception as error:
             print(f"Failed to connect to Redis: {error}")
             self.connected = False
@@ -71,7 +73,7 @@ class RedisService:
     def is_connected(self) -> bool:
         """
         Check if Redis is connected.
-        
+
         Returns:
             True if connected, False otherwise
         """
@@ -80,10 +82,10 @@ class RedisService:
     async def get(self, key: str) -> Optional[str]:
         """
         Get value from Redis.
-        
+
         Args:
             key: Redis key
-            
+
         Returns:
             Value if found, None otherwise
         """
@@ -106,12 +108,12 @@ class RedisService:
     async def set(self, key: str, value: str, ttl: int) -> bool:
         """
         Set value in Redis with TTL.
-        
+
         Args:
             key: Redis key
             value: Value to store
             ttl: Time to live in seconds
-            
+
         Returns:
             True if successful, False otherwise
         """
@@ -132,10 +134,10 @@ class RedisService:
     async def delete(self, key: str) -> bool:
         """
         Delete key from Redis.
-        
+
         Args:
             key: Redis key
-            
+
         Returns:
             True if successful, False otherwise
         """
@@ -156,11 +158,11 @@ class RedisService:
     async def rpush(self, queue: str, value: str) -> bool:
         """
         Push value to Redis list (for log queuing).
-        
+
         Args:
             queue: Queue name
             value: Value to push
-            
+
         Returns:
             True if successful, False otherwise
         """

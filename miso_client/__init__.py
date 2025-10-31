@@ -7,34 +7,34 @@ for authentication, role-based access control, permission management, and loggin
 
 from typing import Any, Optional
 
-from .models.config import (
-    RedisConfig,
-    MisoClientConfig,
-    UserInfo,
-    AuthResult,
-    LogEntry,
-    RoleResult,
-    PermissionResult,
-    ClientTokenResponse,
-    PerformanceMetrics,
-    ClientLoggingOptions,
-)
-from .services.auth import AuthService
-from .services.role import RoleService
-from .services.permission import PermissionService
-from .services.logger import LoggerService, LoggerChain
-from .services.redis import RedisService
-from .services.encryption import EncryptionService
-from .services.cache import CacheService
-from .utils.http_client import HttpClient
-from .utils.config_loader import load_config
 from .errors import (
-    MisoClientError,
     AuthenticationError,
     AuthorizationError,
-    ConnectionError,
     ConfigurationError,
+    ConnectionError,
+    MisoClientError,
 )
+from .models.config import (
+    AuthResult,
+    ClientLoggingOptions,
+    ClientTokenResponse,
+    LogEntry,
+    MisoClientConfig,
+    PerformanceMetrics,
+    PermissionResult,
+    RedisConfig,
+    RoleResult,
+    UserInfo,
+)
+from .services.auth import AuthService
+from .services.cache import CacheService
+from .services.encryption import EncryptionService
+from .services.logger import LoggerChain, LoggerService
+from .services.permission import PermissionService
+from .services.redis import RedisService
+from .services.role import RoleService
+from .utils.config_loader import load_config
+from .utils.http_client import HttpClient
 
 __version__ = "0.1.0"
 __author__ = "AI Fabrix Team"
@@ -44,18 +44,18 @@ __license__ = "MIT"
 class MisoClient:
     """
     Main MisoClient SDK class for authentication, authorization, and logging.
-    
+
     This client provides a unified interface for:
     - Token validation and user management
     - Role-based access control
     - Permission management
     - Application logging with Redis caching
     """
-    
+
     def __init__(self, config: MisoClientConfig):
         """
         Initialize MisoClient with configuration.
-        
+
         Args:
             config: MisoClient configuration including controller URL, client credentials, etc.
         """
@@ -75,7 +75,7 @@ class MisoClient:
     async def initialize(self) -> None:
         """
         Initialize the client (connect to Redis if configured).
-        
+
         This method should be called before using the client. It will attempt
         to connect to Redis if configured, but will gracefully fall back to
         controller-only mode if Redis is unavailable.
@@ -105,16 +105,18 @@ class MisoClient:
     def get_token(self, req: dict) -> str | None:
         """
         Extract Bearer token from request headers.
-        
+
         Supports common request object patterns (dict with headers).
-        
+
         Args:
             req: Request object with headers dict containing 'authorization' key
-            
+
         Returns:
             Bearer token string or None if not found
         """
-        headers_obj = req.get("headers", {}) if isinstance(req, dict) else getattr(req, "headers", {})
+        headers_obj = (
+            req.get("headers", {}) if isinstance(req, dict) else getattr(req, "headers", {})
+        )
         headers: dict[str, Any] = headers_obj if isinstance(headers_obj, dict) else {}
         auth_value = headers.get("authorization") or headers.get("Authorization")
         if not isinstance(auth_value, str):
@@ -123,16 +125,16 @@ class MisoClient:
         # Support "Bearer <token>" format
         if auth_value.startswith("Bearer "):
             return auth_value[7:]
-        
+
         # If no Bearer prefix, assume the whole header is the token
         return auth_value
 
     async def get_environment_token(self) -> str:
         """
         Get environment token using client credentials.
-        
+
         This is called automatically by HttpClient but can be called manually.
-        
+
         Returns:
             Client token string
         """
@@ -141,12 +143,12 @@ class MisoClient:
     def login(self, redirect_uri: str) -> str:
         """
         Initiate login flow by redirecting to controller.
-        
+
         Returns the login URL for browser redirect or manual navigation.
-        
+
         Args:
             redirect_uri: URI to redirect to after successful login
-            
+
         Returns:
             Login URL string
         """
@@ -155,10 +157,10 @@ class MisoClient:
     async def validate_token(self, token: str) -> bool:
         """
         Validate token with controller.
-        
+
         Args:
             token: JWT token to validate
-            
+
         Returns:
             True if token is valid, False otherwise
         """
@@ -167,10 +169,10 @@ class MisoClient:
     async def get_user(self, token: str) -> UserInfo | None:
         """
         Get user information from token.
-        
+
         Args:
             token: JWT token
-            
+
         Returns:
             UserInfo if token is valid, None otherwise
         """
@@ -179,10 +181,10 @@ class MisoClient:
     async def get_user_info(self, token: str) -> UserInfo | None:
         """
         Get user information from GET /api/auth/user endpoint.
-        
+
         Args:
             token: JWT token
-            
+
         Returns:
             UserInfo if token is valid, None otherwise
         """
@@ -191,10 +193,10 @@ class MisoClient:
     async def is_authenticated(self, token: str) -> bool:
         """
         Check if user is authenticated.
-        
+
         Args:
             token: JWT token
-            
+
         Returns:
             True if user is authenticated, False otherwise
         """
@@ -209,10 +211,10 @@ class MisoClient:
     async def get_roles(self, token: str) -> list[str]:
         """
         Get user roles (cached in Redis if available).
-        
+
         Args:
             token: JWT token
-            
+
         Returns:
             List of user roles
         """
@@ -221,11 +223,11 @@ class MisoClient:
     async def has_role(self, token: str, role: str) -> bool:
         """
         Check if user has specific role.
-        
+
         Args:
             token: JWT token
             role: Role to check
-            
+
         Returns:
             True if user has the role, False otherwise
         """
@@ -234,11 +236,11 @@ class MisoClient:
     async def has_any_role(self, token: str, roles: list[str]) -> bool:
         """
         Check if user has any of the specified roles.
-        
+
         Args:
             token: JWT token
             roles: List of roles to check
-            
+
         Returns:
             True if user has any of the roles, False otherwise
         """
@@ -247,11 +249,11 @@ class MisoClient:
     async def has_all_roles(self, token: str, roles: list[str]) -> bool:
         """
         Check if user has all of the specified roles.
-        
+
         Args:
             token: JWT token
             roles: List of roles to check
-            
+
         Returns:
             True if user has all roles, False otherwise
         """
@@ -260,10 +262,10 @@ class MisoClient:
     async def refresh_roles(self, token: str) -> list[str]:
         """
         Force refresh roles from controller (bypass cache).
-        
+
         Args:
             token: JWT token
-            
+
         Returns:
             Fresh list of user roles
         """
@@ -272,10 +274,10 @@ class MisoClient:
     async def get_permissions(self, token: str) -> list[str]:
         """
         Get user permissions (cached in Redis if available).
-        
+
         Args:
             token: JWT token
-            
+
         Returns:
             List of user permissions
         """
@@ -284,11 +286,11 @@ class MisoClient:
     async def has_permission(self, token: str, permission: str) -> bool:
         """
         Check if user has specific permission.
-        
+
         Args:
             token: JWT token
             permission: Permission to check
-            
+
         Returns:
             True if user has the permission, False otherwise
         """
@@ -297,11 +299,11 @@ class MisoClient:
     async def has_any_permission(self, token: str, permissions: list[str]) -> bool:
         """
         Check if user has any of the specified permissions.
-        
+
         Args:
             token: JWT token
             permissions: List of permissions to check
-            
+
         Returns:
             True if user has any of the permissions, False otherwise
         """
@@ -310,11 +312,11 @@ class MisoClient:
     async def has_all_permissions(self, token: str, permissions: list[str]) -> bool:
         """
         Check if user has all of the specified permissions.
-        
+
         Args:
             token: JWT token
             permissions: List of permissions to check
-            
+
         Returns:
             True if user has all permissions, False otherwise
         """
@@ -323,10 +325,10 @@ class MisoClient:
     async def refresh_permissions(self, token: str) -> list[str]:
         """
         Force refresh permissions from controller (bypass cache).
-        
+
         Args:
             token: JWT token
-            
+
         Returns:
             Fresh list of user permissions
         """
@@ -335,7 +337,7 @@ class MisoClient:
     async def clear_permissions_cache(self, token: str) -> None:
         """
         Clear cached permissions for a user.
-        
+
         Args:
             token: JWT token
         """
@@ -347,7 +349,7 @@ class MisoClient:
     def log(self) -> LoggerService:
         """
         Get logger service for application logging.
-        
+
         Returns:
             LoggerService instance
         """
@@ -358,12 +360,12 @@ class MisoClient:
     def encrypt(self, plaintext: str) -> str:
         """
         Encrypt sensitive data.
-        
+
         Convenience method that delegates to encryption service.
-        
+
         Args:
             plaintext: Plain text string to encrypt
-            
+
         Returns:
             Base64-encoded encrypted string
         """
@@ -372,12 +374,12 @@ class MisoClient:
     def decrypt(self, encrypted_text: str) -> str:
         """
         Decrypt sensitive data.
-        
+
         Convenience method that delegates to encryption service.
-        
+
         Args:
             encrypted_text: Base64-encoded encrypted string
-            
+
         Returns:
             Decrypted plain text string
         """
@@ -388,12 +390,12 @@ class MisoClient:
     async def cache_get(self, key: str) -> Optional[Any]:
         """
         Get cached value.
-        
+
         Convenience method that delegates to cache service.
-        
+
         Args:
             key: Cache key
-            
+
         Returns:
             Cached value if found, None otherwise
         """
@@ -402,14 +404,14 @@ class MisoClient:
     async def cache_set(self, key: str, value: Any, ttl: int) -> bool:
         """
         Set cached value with TTL.
-        
+
         Convenience method that delegates to cache service.
-        
+
         Args:
             key: Cache key
             value: Value to cache
             ttl: Time to live in seconds
-            
+
         Returns:
             True if successful, False otherwise
         """
@@ -418,12 +420,12 @@ class MisoClient:
     async def cache_delete(self, key: str) -> bool:
         """
         Delete cached value.
-        
+
         Convenience method that delegates to cache service.
-        
+
         Args:
             key: Cache key
-            
+
         Returns:
             True if deleted, False otherwise
         """
@@ -432,7 +434,7 @@ class MisoClient:
     async def cache_clear(self) -> None:
         """
         Clear all cached values.
-        
+
         Convenience method that delegates to cache service.
         """
         await self.cache.clear()
@@ -442,7 +444,7 @@ class MisoClient:
     def get_config(self) -> MisoClientConfig:
         """
         Get current configuration.
-        
+
         Returns:
             Copy of current configuration
         """
@@ -451,7 +453,7 @@ class MisoClient:
     def is_redis_connected(self) -> bool:
         """
         Check if Redis is connected.
-        
+
         Returns:
             True if Redis is connected, False otherwise
         """

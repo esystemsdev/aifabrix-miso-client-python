@@ -5,6 +5,44 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2025-10-31
+
+### Added
+
+- **API_KEY Support for Testing**: Added optional `API_KEY` environment variable that allows bypassing OAuth2 authentication for testing purposes
+  - When `API_KEY` is set in environment, bearer tokens matching the key will automatically validate without OAuth2
+  - `validate_token()` returns `True` for matching API_KEY tokens without calling controller
+  - `get_user()` and `get_user_info()` return `None` when using API_KEY (by design for testing scenarios)
+  - Configuration supports `api_key` field in `MisoClientConfig`
+  - Comprehensive test coverage for API_KEY authentication flows
+  - Useful for testing without requiring Keycloak setup
+
+- **PowerShell Makefile**: Added `Makefile.ps1` with all development commands for Windows PowerShell users
+  - Replaces `dev.bat` and `dev.ps1` scripts with unified PowerShell Makefile
+  - Supports all standard development commands (install, test, lint, format, build, etc.)
+  - Consistent interface with Unix Makefile
+
+- **Validate Command**: Added new `validate` target to both Makefile and Makefile.ps1
+  - Runs lint + format + test in sequence
+  - Useful for pre-commit validation and CI/CD pipelines
+  - Usage: `make validate` or `.\Makefile.ps1 validate`
+
+### Changed
+
+- **Development Scripts**: Replaced `dev.bat` and `dev.ps1` with `Makefile.ps1` for better consistency
+  - All development commands now available through Makefile interface
+  - Improved cross-platform compatibility
+
+### Testing
+
+- Added comprehensive test suite for API_KEY functionality
+  - Tests for `validate_token()` with API_KEY matching and non-matching scenarios
+  - Tests for `get_user()` and `get_user_info()` with API_KEY
+  - Tests for config loader API_KEY loading
+  - All tests verify OAuth2 fallback behavior when API_KEY doesn't match
+
+---
+
 ## [1.1.0] - 2025-10-30
 
 ### Added

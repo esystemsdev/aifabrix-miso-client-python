@@ -1,17 +1,16 @@
-# PowerShell development script for miso-client
-# Usage: .\dev.ps1 [command]
+# PowerShell Makefile for miso-client development
+# Usage: .\Makefile.ps1 <target>
 
 param(
-    [string]$Command = "help"
+    [Parameter(Position=0)]
+    [string]$Target = "help"
 )
 
 function Show-Help {
-    Write-Host "Miso Client Development Script" -ForegroundColor Green
-    Write-Host "==============================" -ForegroundColor Green
+    Write-Host "Available commands:" -ForegroundColor Green
     Write-Host ""
-    Write-Host "Available commands:"
     Write-Host "  install      - Install the package"
-    Write-Host "  install-dev  - Install with development dependencies"
+    Write-Host "  install-dev  - Install the package with development dependencies"
     Write-Host "  test         - Run tests"
     Write-Host "  test-cov     - Run tests with coverage"
     Write-Host "  lint         - Run linting"
@@ -20,13 +19,14 @@ function Show-Help {
     Write-Host "  build        - Build the package"
     Write-Host "  check        - Check the built package"
     Write-Host "  clean        - Clean build artifacts"
+    Write-Host "  validate     - Run lint + format + test"
     Write-Host "  all          - Run all checks and build"
     Write-Host "  help         - Show this help"
     Write-Host ""
     Write-Host "Examples:"
-    Write-Host "  .\dev.ps1 install-dev"
-    Write-Host "  .\dev.ps1 test"
-    Write-Host "  .\dev.ps1 all"
+    Write-Host "  .\Makefile.ps1 install-dev"
+    Write-Host "  .\Makefile.ps1 test"
+    Write-Host "  .\Makefile.ps1 all"
 }
 
 function Install-Package {
@@ -79,12 +79,20 @@ function Clean-Artifacts {
     Write-Host "Cleaning build artifacts..." -ForegroundColor Yellow
     if (Test-Path "build") { Remove-Item -Recurse -Force "build" }
     if (Test-Path "dist") { Remove-Item -Recurse -Force "dist" }
-    if (Test-Path "*.egg-info") { Remove-Item -Recurse -Force "*.egg-info" }
+    Get-ChildItem -Path . -Filter "*.egg-info" -Directory | Remove-Item -Recurse -Force
     if (Test-Path "htmlcov") { Remove-Item -Recurse -Force "htmlcov" }
     if (Test-Path ".pytest_cache") { Remove-Item -Recurse -Force ".pytest_cache" }
     if (Test-Path ".mypy_cache") { Remove-Item -Recurse -Force ".mypy_cache" }
     if (Test-Path "coverage.xml") { Remove-Item -Force "coverage.xml" }
     Write-Host "Cleaned build artifacts" -ForegroundColor Green
+}
+
+function Run-Validate {
+    Write-Host "Running validation (lint + format + test)..." -ForegroundColor Yellow
+    Run-Linting
+    Format-Code
+    Run-Tests
+    Write-Host "Validation completed!" -ForegroundColor Green
 }
 
 function Run-All {
@@ -100,7 +108,7 @@ function Run-All {
 }
 
 # Main script logic
-switch ($Command.ToLower()) {
+switch ($Target.ToLower()) {
     "install" { Install-Package }
     "install-dev" { Install-DevPackage }
     "test" { Run-Tests }
@@ -111,10 +119,13 @@ switch ($Command.ToLower()) {
     "build" { Build-Package }
     "check" { Check-Package }
     "clean" { Clean-Artifacts }
+    "validate" { Run-Validate }
     "all" { Run-All }
     "help" { Show-Help }
     default { 
-        Write-Host "Unknown command: $Command" -ForegroundColor Red
+        Write-Host "Unknown target: $Target" -ForegroundColor Red
         Show-Help
+        exit 1
     }
 }
+

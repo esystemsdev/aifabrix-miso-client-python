@@ -8,6 +8,7 @@ Optimized to extract userId from JWT token before API calls for cache optimizati
 
 import time
 from typing import List, cast
+
 from ..models.config import PermissionResult
 from ..services.cache import CacheService
 from ..utils.http_client import HttpClient
@@ -16,11 +17,11 @@ from ..utils.jwt_tools import extract_user_id
 
 class PermissionService:
     """Permission service for user authorization with caching."""
-    
+
     def __init__(self, http_client: HttpClient, cache: CacheService):
         """
         Initialize permission service.
-        
+
         Args:
             http_client: HTTP client instance
             cache: Cache service instance (handles Redis + in-memory fallback)
@@ -33,12 +34,12 @@ class PermissionService:
     async def get_permissions(self, token: str) -> List[str]:
         """
         Get user permissions with Redis caching.
-        
+
         Optimized to extract userId from token first to check cache before API call.
-        
+
         Args:
             token: JWT token
-            
+
         Returns:
             List of user permissions
         """
@@ -57,9 +58,7 @@ class PermissionService:
             # If we don't have userId, get it from validate endpoint
             if not user_id:
                 user_info = await self.http_client.authenticated_request(
-                    "POST",
-                    "/api/auth/validate",
-                    token
+                    "POST", "/api/auth/validate", token
                 )
                 user_id = user_info.get("user", {}).get("id") if user_info else None
                 if not user_id:
@@ -68,9 +67,7 @@ class PermissionService:
 
             # Cache miss - fetch from controller
             permission_result = await self.http_client.authenticated_request(
-                "GET",
-                "/api/auth/permissions",  # Backend knows app/env from client token
-                token
+                "GET", "/api/auth/permissions", token  # Backend knows app/env from client token
             )
 
             permission_data = PermissionResult(**permission_result)
@@ -81,11 +78,11 @@ class PermissionService:
             await self.cache.set(
                 cache_key,
                 {"permissions": permissions, "timestamp": int(time.time() * 1000)},
-                self.permission_ttl
+                self.permission_ttl,
             )
 
             return permissions
-            
+
         except Exception:
             # Failed to get permissions, return empty list
             return []
@@ -93,11 +90,11 @@ class PermissionService:
     async def has_permission(self, token: str, permission: str) -> bool:
         """
         Check if user has specific permission.
-        
+
         Args:
             token: JWT token
             permission: Permission to check
-            
+
         Returns:
             True if user has the permission, False otherwise
         """
@@ -107,11 +104,11 @@ class PermissionService:
     async def has_any_permission(self, token: str, permissions: List[str]) -> bool:
         """
         Check if user has any of the specified permissions.
-        
+
         Args:
             token: JWT token
             permissions: List of permissions to check
-            
+
         Returns:
             True if user has any of the permissions, False otherwise
         """
@@ -121,11 +118,11 @@ class PermissionService:
     async def has_all_permissions(self, token: str, permissions: List[str]) -> bool:
         """
         Check if user has all of the specified permissions.
-        
+
         Args:
             token: JWT token
             permissions: List of permissions to check
-            
+
         Returns:
             True if user has all permissions, False otherwise
         """
@@ -135,21 +132,19 @@ class PermissionService:
     async def refresh_permissions(self, token: str) -> List[str]:
         """
         Force refresh permissions from controller (bypass cache).
-        
+
         Args:
             token: JWT token
-            
+
         Returns:
             Fresh list of user permissions
         """
         try:
             # Get user info to extract userId
             user_info = await self.http_client.authenticated_request(
-                "POST",
-                "/api/auth/validate",
-                token
+                "POST", "/api/auth/validate", token
             )
-            
+
             user_id = user_info.get("user", {}).get("id") if user_info else None
             if not user_id:
                 return []
@@ -158,9 +153,7 @@ class PermissionService:
 
             # Fetch fresh permissions from controller using refresh endpoint
             permission_result = await self.http_client.authenticated_request(
-                "GET",
-                "/api/auth/permissions/refresh",
-                token
+                "GET", "/api/auth/permissions/refresh", token
             )
 
             permission_data = PermissionResult(**permission_result)
@@ -170,11 +163,11 @@ class PermissionService:
             await self.cache.set(
                 cache_key,
                 {"permissions": permissions, "timestamp": int(time.time() * 1000)},
-                self.permission_ttl
+                self.permission_ttl,
             )
 
             return permissions
-            
+
         except Exception:
             # Failed to refresh permissions, return empty list
             return []
@@ -182,18 +175,16 @@ class PermissionService:
     async def clear_permissions_cache(self, token: str) -> None:
         """
         Clear cached permissions for a user.
-        
+
         Args:
             token: JWT token
         """
         try:
             # Get user info to extract userId
             user_info = await self.http_client.authenticated_request(
-                "POST",
-                "/api/auth/validate",
-                token
+                "POST", "/api/auth/validate", token
             )
-            
+
             user_id = user_info.get("user", {}).get("id") if user_info else None
             if not user_id:
                 return
@@ -202,7 +193,7 @@ class PermissionService:
 
             # Clear from cache (CacheService handles Redis + in-memory automatically)
             await self.cache.delete(cache_key)
-                
+
         except Exception:
             # Failed to clear cache, silently continue
             pass
