@@ -10,6 +10,7 @@ import pytest
 
 from miso_client.errors import AuthenticationError, MisoClientError
 from miso_client.models.config import MisoClientConfig
+from miso_client.models.error_response import ErrorResponse
 from miso_client.utils.http_client import HttpClient
 
 
@@ -243,3 +244,132 @@ class TestHttpClient:
 
         if http_client.client:
             http_client.client.aclose.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_request_with_structured_error_response(self, http_client):
+        """Test GET request with structured error response."""
+        await http_client._initialize_client()
+        http_client.client_token = "test-token"
+
+        mock_response = MagicMock()
+        mock_response.status_code = 400
+        mock_response.text = '{"errors": ["Bad request"], "type": "/Errors/Bad Input", "title": "Bad Request", "statusCode": 400, "instance": "/api/test"}'
+        mock_response.headers.get.return_value = "application/json"
+        mock_response.json.return_value = {
+            "errors": ["Bad request"],
+            "type": "/Errors/Bad Input",
+            "title": "Bad Request",
+            "statusCode": 400,
+            "instance": "/api/test",
+        }
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "400", request=MagicMock(), response=mock_response
+        )
+
+        http_client.client.get = AsyncMock(return_value=mock_response)
+
+        with patch.object(http_client, "_ensure_client_token", new_callable=AsyncMock):
+            with pytest.raises(MisoClientError) as exc_info:
+                await http_client.get("/api/test")
+
+            error = exc_info.value
+            assert error.status_code == 400
+            assert error.error_response is not None
+            assert error.error_response.errors == ["Bad request"]
+            assert error.error_response.type == "/Errors/Bad Input"
+            assert error.error_response.title == "Bad Request"
+            assert error.error_response.statusCode == 400
+            assert error.error_response.instance == "/api/test"
+
+    @pytest.mark.asyncio
+    async def test_post_request_with_structured_error_response(self, http_client):
+        """Test POST request with structured error response."""
+        await http_client._initialize_client()
+        http_client.client_token = "test-token"
+
+        mock_response = MagicMock()
+        mock_response.status_code = 422
+        mock_response.text = "Validation error"
+        mock_response.headers.get.return_value = "application/json"
+        mock_response.json.return_value = {
+            "errors": [
+                "The user has provided input that the browser is unable to convert.",
+                "There are multiple rows in the database for the same value",
+            ],
+            "type": "/Errors/Bad Input",
+            "title": "Bad Request",
+            "statusCode": 422,
+            "instance": "/OpenApi/rest/Xzy",
+        }
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "422", request=MagicMock(), response=mock_response
+        )
+
+        http_client.client.post = AsyncMock(return_value=mock_response)
+
+        with patch.object(http_client, "_ensure_client_token", new_callable=AsyncMock):
+            with pytest.raises(MisoClientError) as exc_info:
+                await http_client.post("/OpenApi/rest/Xzy", {"data": "test"})
+
+            error = exc_info.value
+            assert error.status_code == 422
+            assert error.error_response is not None
+            assert len(error.error_response.errors) == 2
+            assert error.error_response.instance == "/OpenApi/rest/Xzy"
+
+    @pytest.mark.asyncio
+    async def test_error_response_fallback_to_error_body(self, http_client):
+        """Test fallback to error_body when response doesn't match structured format."""
+        await http_client._initialize_client()
+        http_client.client_token = "test-token"
+
+        mock_response = MagicMock()
+        mock_response.status_code = 500
+        mock_response.text = "Internal server error"
+        mock_response.headers.get.return_value = "application/json"
+        mock_response.json.return_value = {"code": "ERR500", "message": "Internal server error"}
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "500", request=MagicMock(), response=mock_response
+        )
+
+        http_client.client.get = AsyncMock(return_value=mock_response)
+
+        with patch.object(http_client, "_ensure_client_token", new_callable=AsyncMock):
+            with pytest.raises(MisoClientError) as exc_info:
+                await http_client.get("/api/test")
+
+            error = exc_info.value
+            assert error.status_code == 500
+            assert error.error_response is None
+            assert error.error_body == {"code": "ERR500", "message": "Internal server error"}
+
+    @pytest.mark.asyncio
+    async def test_error_response_instance_extraction_from_url(self, http_client):
+        """Test that instance URI is extracted from request URL when not in response."""
+        await http_client._initialize_client()
+        http_client.client_token = "test-token"
+
+        mock_response = MagicMock()
+        mock_response.status_code = 400
+        mock_response.text = "Bad request"
+        mock_response.headers.get.return_value = "application/json"
+        mock_response.json.return_value = {
+            "errors": ["Bad request"],
+            "type": "/Errors/Bad Input",
+            "title": "Bad Request",
+            "statusCode": 400,
+            # instance not provided
+        }
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "400", request=MagicMock(), response=mock_response
+        )
+
+        http_client.client.get = AsyncMock(return_value=mock_response)
+
+        with patch.object(http_client, "_ensure_client_token", new_callable=AsyncMock):
+            with pytest.raises(MisoClientError) as exc_info:
+                await http_client.get("/api/custom/endpoint")
+
+            error = exc_info.value
+            assert error.error_response is not None
+            assert error.error_response.instance == "/api/custom/endpoint"

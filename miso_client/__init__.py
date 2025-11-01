@@ -26,6 +26,7 @@ from .models.config import (
     RoleResult,
     UserInfo,
 )
+from .models.error_response import ErrorResponse
 from .services.auth import AuthService
 from .services.cache import CacheService
 from .services.encryption import EncryptionService
@@ -473,6 +474,7 @@ __all__ = [
     "ClientTokenResponse",
     "PerformanceMetrics",
     "ClientLoggingOptions",
+    "ErrorResponse",
     "AuthService",
     "RoleService",
     "PermissionService",

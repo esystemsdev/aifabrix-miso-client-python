@@ -14,6 +14,7 @@ import httpx
 
 from ..errors import AuthenticationError, ConnectionError, MisoClientError
 from ..models.config import ClientTokenResponse, MisoClientConfig
+from ..models.error_response import ErrorResponse
 
 
 class HttpClient:
@@ -138,6 +139,40 @@ class HttpClient:
         if self.client:
             self.client.headers["x-client-token"] = token
 
+    def _parse_error_response(self, response: httpx.Response, url: str) -> Optional[ErrorResponse]:
+        """
+        Parse structured error response from HTTP response.
+
+        Args:
+            response: HTTP response object
+            url: Request URL (used for instance URI if not in response)
+
+        Returns:
+            ErrorResponse if response matches structure, None otherwise
+        """
+        if not response.headers.get("content-type", "").startswith("application/json"):
+            return None
+
+        try:
+            response_data = response.json()
+            # Check if response matches ErrorResponse structure
+            if (
+                isinstance(response_data, dict)
+                and "errors" in response_data
+                and "type" in response_data
+                and "title" in response_data
+                and "statusCode" in response_data
+            ):
+                # Set instance from URL if not provided
+                if "instance" not in response_data or not response_data["instance"]:
+                    response_data["instance"] = url
+                return ErrorResponse(**response_data)
+        except (ValueError, TypeError, KeyError):
+            # JSON parsing failed or structure doesn't match
+            pass
+
+        return None
+
     async def close(self):
         """Close the HTTP client."""
         if self.client:
@@ -180,12 +215,23 @@ class HttpClient:
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
+            # Try to parse structured error response
+            error_response = self._parse_error_response(e.response, url)
+            error_body = {}
+            if (
+                e.response.headers.get("content-type", "").startswith("application/json")
+                and not error_response
+            ):
+                try:
+                    error_body = e.response.json()
+                except (ValueError, TypeError):
+                    pass
+
             raise MisoClientError(
                 f"HTTP {e.response.status_code}: {e.response.text}",
                 status_code=e.response.status_code,
-                error_body=e.response.json()
-                if e.response.headers.get("content-type", "").startswith("application/json")
-                else {},
+                error_body=error_body,
+                error_response=error_response,
             )
         except httpx.RequestError as e:
             raise ConnectionError(f"Request failed: {str(e)}")
@@ -218,12 +264,23 @@ class HttpClient:
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
+            # Try to parse structured error response
+            error_response = self._parse_error_response(e.response, url)
+            error_body = {}
+            if (
+                e.response.headers.get("content-type", "").startswith("application/json")
+                and not error_response
+            ):
+                try:
+                    error_body = e.response.json()
+                except (ValueError, TypeError):
+                    pass
+
             raise MisoClientError(
                 f"HTTP {e.response.status_code}: {e.response.text}",
                 status_code=e.response.status_code,
-                error_body=e.response.json()
-                if e.response.headers.get("content-type", "").startswith("application/json")
-                else {},
+                error_body=error_body,
+                error_response=error_response,
             )
         except httpx.RequestError as e:
             raise ConnectionError(f"Request failed: {str(e)}")
@@ -256,12 +313,23 @@ class HttpClient:
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
+            # Try to parse structured error response
+            error_response = self._parse_error_response(e.response, url)
+            error_body = {}
+            if (
+                e.response.headers.get("content-type", "").startswith("application/json")
+                and not error_response
+            ):
+                try:
+                    error_body = e.response.json()
+                except (ValueError, TypeError):
+                    pass
+
             raise MisoClientError(
                 f"HTTP {e.response.status_code}: {e.response.text}",
                 status_code=e.response.status_code,
-                error_body=e.response.json()
-                if e.response.headers.get("content-type", "").startswith("application/json")
-                else {},
+                error_body=error_body,
+                error_response=error_response,
             )
         except httpx.RequestError as e:
             raise ConnectionError(f"Request failed: {str(e)}")
@@ -293,12 +361,23 @@ class HttpClient:
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
+            # Try to parse structured error response
+            error_response = self._parse_error_response(e.response, url)
+            error_body = {}
+            if (
+                e.response.headers.get("content-type", "").startswith("application/json")
+                and not error_response
+            ):
+                try:
+                    error_body = e.response.json()
+                except (ValueError, TypeError):
+                    pass
+
             raise MisoClientError(
                 f"HTTP {e.response.status_code}: {e.response.text}",
                 status_code=e.response.status_code,
-                error_body=e.response.json()
-                if e.response.headers.get("content-type", "").startswith("application/json")
-                else {},
+                error_body=error_body,
+                error_response=error_response,
             )
         except httpx.RequestError as e:
             raise ConnectionError(f"Request failed: {str(e)}")

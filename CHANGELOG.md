@@ -5,6 +5,30 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Structured Error Response Interface**: Added generic `ErrorResponse` model following RFC 7807-style format for consistent error handling across applications
+  - `ErrorResponse` Pydantic model with fields: `errors`, `type`, `title`, `statusCode`, `instance`
+  - Automatic parsing of structured error responses from HTTP responses in `HttpClient`
+  - Support for both camelCase (`statusCode`) and snake_case (`status_code`) field names
+  - `MisoClientError` now includes optional `error_response` field with structured error information
+  - Enhanced error messages automatically generated from structured error responses
+  - Instance URI automatically extracted from request URL when not provided in response
+  - Backward compatible - falls back to traditional `error_body` dict when structured format is not available
+  - Export `ErrorResponse` from main module for reuse in other applications
+  - Comprehensive test coverage for error response parsing and fallback behavior
+  - Full type safety with Pydantic models
+
+### Changed
+
+- **Error Handling**: `MisoClientError` now prioritizes structured error information when available
+  - Error messages are automatically enhanced from structured error responses
+  - Status codes are extracted from structured responses when provided
+
+---
+
 ## [1.2.0] - 2025-10-31
 
 ### Added

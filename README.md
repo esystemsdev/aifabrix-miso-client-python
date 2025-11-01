@@ -436,6 +436,83 @@ The SDK consists of five core services:
 - [Flask Decorators](docs/examples.md#flask-decorators) - Decorator-based auth
 - [Error Handling](docs/examples.md#error-handling) - Best practices
 
+---
+
+### Structured Error Responses
+
+**What happens:** The SDK automatically parses structured error responses from the API (RFC 7807-style format) and makes them available through the `MisoClientError` exception.
+
+```python
+from miso_client import MisoClient, MisoClientError, ErrorResponse, load_config
+
+client = MisoClient(load_config())
+await client.initialize()
+
+try:
+    result = await client.http_client.get("/api/some-endpoint")
+except MisoClientError as e:
+    # Check if structured error response is available
+    if e.error_response:
+        print(f"Error Type: {e.error_response.type}")
+        print(f"Error Title: {e.error_response.title}")
+        print(f"Status Code: {e.error_response.statusCode}")
+        print(f"Errors: {e.error_response.errors}")
+        print(f"Instance: {e.error_response.instance}")
+    else:
+        # Fallback to traditional error handling
+        print(f"Error: {e.message}")
+        print(f"Status Code: {e.status_code}")
+        print(f"Error Body: {e.error_body}")
+```
+
+**Error Response Structure:**
+
+The `ErrorResponse` model follows RFC 7807-style format:
+
+```json
+{
+   "errors": [
+      "The user has provided input that the browser is unable to convert.",
+      "There are multiple rows in the database for the same value"
+   ],
+   "type": "/Errors/Bad Input",
+   "title": "Bad Request",
+   "statusCode": 400,
+   "instance": "/OpenApi/rest/Xzy"
+}
+```
+
+**Features:**
+
+- **Automatic Parsing**: Structured error responses are automatically parsed from HTTP responses
+- **Backward Compatible**: Falls back to traditional error handling when structured format is not available
+- **Type Safety**: Full type hints with Pydantic models for reliable error handling
+- **Generic Interface**: `ErrorResponse` model can be reused across different applications
+- **Instance URI**: Automatically extracted from request URL if not provided in response
+
+**Using ErrorResponse directly:**
+
+```python
+from miso_client import ErrorResponse
+
+# Create ErrorResponse from dict
+error_data = {
+    "errors": ["Validation failed"],
+    "type": "/Errors/Validation",
+    "title": "Validation Error",
+    "statusCode": 422,
+    "instance": "/api/endpoint"
+}
+error_response = ErrorResponse(**error_data)
+
+# Access fields
+print(error_response.errors)  # ["Validation failed"]
+print(error_response.type)    # "/Errors/Validation"
+print(error_response.title)   # "Validation Error"
+print(error_response.statusCode)  # 422
+print(error_response.instance)   # "/api/endpoint"
+```
+
 ### Common Tasks
 
 **Add authentication middleware (FastAPI):**
