@@ -38,7 +38,7 @@ from .utils.config_loader import load_config
 from .utils.http_client import HttpClient
 from .utils.internal_http_client import InternalHttpClient
 
-__version__ = "0.1.0"
+__version__ = "0.4.0"
 __author__ = "AI Fabrix Team"
 __license__ = "MIT"
 
