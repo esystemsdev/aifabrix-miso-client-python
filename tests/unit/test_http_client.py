@@ -1,7 +1,11 @@
 """
 Unit tests for HTTP client with automatic client token management.
+
+This module contains tests for both InternalHttpClient (core HTTP functionality)
+and public HttpClient (with ISO 27001 compliant audit and debug logging).
 """
 
+import asyncio
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -10,11 +14,14 @@ import pytest
 
 from miso_client.errors import AuthenticationError, MisoClientError
 from miso_client.models.config import MisoClientConfig
-from miso_client.models.error_response import ErrorResponse
+from miso_client.services.logger import LoggerService
+from miso_client.services.redis import RedisService
+from miso_client.utils.data_masker import DataMasker
 from miso_client.utils.http_client import HttpClient
+from miso_client.utils.internal_http_client import InternalHttpClient
 
 
-class TestHttpClient:
+class TestInternalHttpClient:
     """Test cases for HttpClient."""
 
     @pytest.fixture
@@ -27,7 +34,7 @@ class TestHttpClient:
 
     @pytest.fixture
     def http_client(self, config):
-        return HttpClient(config)
+        return InternalHttpClient(config)
 
     @pytest.mark.asyncio
     async def test_fetch_client_token_success(self, http_client):
@@ -373,3 +380,600 @@ class TestHttpClient:
             error = exc_info.value
             assert error.error_response is not None
             assert error.error_response.instance == "/api/custom/endpoint"
+
+
+class TestHttpClient:
+    """Test cases for public HttpClient with ISO 27001 compliant logging."""
+
+    @pytest.fixture
+    def config(self):
+        return MisoClientConfig(
+            controller_url="https://controller.aifabrix.ai",
+            client_id="test-client",
+            client_secret="test-secret",
+            log_level="info",
+        )
+
+    @pytest.fixture
+    def redis_service(self, config):
+        return RedisService(config.redis)
+
+    @pytest.fixture
+    def internal_http_client(self, config):
+        return InternalHttpClient(config)
+
+    @pytest.fixture
+    def logger_service(self, internal_http_client, redis_service):
+        return LoggerService(internal_http_client, redis_service)
+
+    @pytest.fixture
+    def http_client(self, config, logger_service):
+        return HttpClient(config, logger_service)
+
+    @pytest.mark.asyncio
+    async def test_get_request_with_audit_logging(self, http_client):
+        """Test GET request with audit logging."""
+        # Mock InternalHttpClient
+        mock_internal_client = AsyncMock()
+        mock_internal_client.get = AsyncMock(return_value={"data": "test"})
+        http_client._internal_client = mock_internal_client
+
+        # Mock logger
+        http_client.logger.audit = AsyncMock()
+        http_client.logger.debug = AsyncMock()
+
+        result = await http_client.get("/api/test")
+
+        assert result == {"data": "test"}
+        # Verify audit logging was called
+        http_client.logger.audit.assert_called_once()
+        call_args = http_client.logger.audit.call_args
+        assert call_args[0][0] == "http.request.GET"
+        assert call_args[0][1] == "/api/test"
+
+    @pytest.mark.asyncio
+    async def test_post_request_with_data_masking(self, http_client):
+        """Test POST request with data masking in logs."""
+        # Mock InternalHttpClient
+        mock_internal_client = AsyncMock()
+        mock_internal_client.post = AsyncMock(return_value={"success": True})
+        http_client._internal_client = mock_internal_client
+
+        # Mock logger
+        http_client.logger.audit = AsyncMock()
+        http_client.logger.debug = AsyncMock()
+
+        # Request with sensitive data
+        sensitive_data = {"password": "secret123", "username": "user"}
+        result = await http_client.post("/api/login", sensitive_data)
+
+        assert result == {"success": True}
+        # Verify audit logging was called
+        http_client.logger.audit.assert_called_once()
+        # Verify sensitive data was masked in context
+        call_args = http_client.logger.audit.call_args
+        context = call_args[0][2]  # Third argument is context
+        # Context should not contain raw password
+        context_str = str(context)
+        assert "secret123" not in context_str
+
+    @pytest.mark.asyncio
+    async def test_debug_logging_when_enabled(self, http_client):
+        """Test debug logging when log_level is debug."""
+        # Set log level to debug
+        http_client.config.log_level = "debug"
+
+        # Mock InternalHttpClient
+        mock_internal_client = AsyncMock()
+        mock_internal_client.get = AsyncMock(return_value={"data": "test"})
+        http_client._internal_client = mock_internal_client
+
+        # Mock logger
+        http_client.logger.audit = AsyncMock()
+        http_client.logger.debug = AsyncMock()
+
+        result = await http_client.get("/api/test")
+
+        assert result == {"data": "test"}
+        # Verify audit logging was called
+        http_client.logger.audit.assert_called_once()
+        # Verify debug logging was called when log_level is debug
+        http_client.logger.debug.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_skip_logging_for_logs_endpoint(self, http_client):
+        """Test that /api/logs endpoint is not audited."""
+        # Mock InternalHttpClient
+        mock_internal_client = AsyncMock()
+        mock_internal_client.post = AsyncMock(return_value={"success": True})
+        http_client._internal_client = mock_internal_client
+
+        # Mock logger
+        http_client.logger.audit = AsyncMock()
+
+        result = await http_client.post("/api/logs", {"log": "entry"})
+
+        assert result == {"success": True}
+        # Verify audit logging was NOT called for /api/logs
+        http_client.logger.audit.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_skip_logging_for_token_endpoint(self, http_client):
+        """Test that /api/auth/token endpoint is not audited."""
+        # Mock InternalHttpClient
+        mock_internal_client = AsyncMock()
+        mock_internal_client.post = AsyncMock(return_value={"token": "abc123"})
+        http_client._internal_client = mock_internal_client
+
+        # Mock logger
+        http_client.logger.audit = AsyncMock()
+
+        result = await http_client.post("/api/auth/token", {})
+
+        assert result == {"token": "abc123"}
+        # Verify audit logging was NOT called for /api/auth/token
+        http_client.logger.audit.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_error_logging_with_masked_data(self, http_client):
+        """Test error logging with masked sensitive data."""
+        # Mock InternalHttpClient to raise error
+        mock_internal_client = AsyncMock()
+        from miso_client.errors import MisoClientError
+
+        mock_internal_client.get = AsyncMock(
+            side_effect=MisoClientError("Request failed with password: secret123", status_code=400)
+        )
+        http_client._internal_client = mock_internal_client
+
+        # Mock logger
+        http_client.logger.audit = AsyncMock()
+
+        with pytest.raises(MisoClientError):
+            await http_client.get("/api/test")
+
+        # Verify audit logging was called
+        http_client.logger.audit.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_all_methods_wrapped(self, http_client):
+        """Test that all HTTP methods are wrapped with logging."""
+        # Mock InternalHttpClient
+        mock_internal_client = AsyncMock()
+        mock_internal_client.get = AsyncMock(return_value={"get": True})
+        mock_internal_client.post = AsyncMock(return_value={"post": True})
+        mock_internal_client.put = AsyncMock(return_value={"put": True})
+        mock_internal_client.delete = AsyncMock(return_value={"delete": True})
+        http_client._internal_client = mock_internal_client
+
+        # Mock logger
+        http_client.logger.audit = AsyncMock()
+
+        # Test all methods
+        await http_client.get("/test")
+        await http_client.post("/test", {"data": "test"})
+        await http_client.put("/test", {"data": "test"})
+        await http_client.delete("/test")
+
+        # Verify audit logging was called for each method
+        assert http_client.logger.audit.call_count == 4
+
+    @pytest.mark.asyncio
+    async def test_authenticated_request_with_logging(self, http_client):
+        """Test authenticated request with logging."""
+        # Mock InternalHttpClient
+        mock_internal_client = AsyncMock()
+        mock_internal_client.get = AsyncMock(return_value={"user": "data"})
+        http_client._internal_client = mock_internal_client
+
+        # Mock logger
+        http_client.logger.audit = AsyncMock()
+
+        result = await http_client.authenticated_request("GET", "/api/user", "token123")
+
+        assert result == {"user": "data"}
+        # Verify audit logging was called
+        http_client.logger.audit.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_close_delegates_to_internal(self, http_client):
+        """Test that close() delegates to InternalHttpClient."""
+        # Mock InternalHttpClient
+        mock_internal_client = AsyncMock()
+        mock_internal_client.close = AsyncMock()
+        http_client._internal_client = mock_internal_client
+
+        await http_client.close()
+
+        mock_internal_client.close.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_environment_token_delegates(self, http_client):
+        """Test that get_environment_token() delegates to InternalHttpClient."""
+        # Mock InternalHttpClient
+        mock_internal_client = AsyncMock()
+        mock_internal_client.get_environment_token = AsyncMock(return_value="token123")
+        http_client._internal_client = mock_internal_client
+
+        token = await http_client.get_environment_token()
+
+        assert token == "token123"
+        mock_internal_client.get_environment_token.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_headers_masking_in_debug_logs(self, http_client):
+        """Test that request headers are masked in debug logs."""
+        http_client.config.log_level = "debug"
+
+        # Mock InternalHttpClient
+        mock_internal_client = AsyncMock()
+        mock_internal_client.get = AsyncMock(return_value={"data": "test"})
+        http_client._internal_client = mock_internal_client
+
+        # Mock logger
+        http_client.logger.audit = AsyncMock()
+        http_client.logger.debug = AsyncMock()
+
+        # Request with sensitive headers
+        headers = {
+            "Authorization": "Bearer secret-token-123",
+            "x-client-token": "client-token-456",
+            "Cookie": "session=abc123",
+        }
+
+        await http_client.get("/api/test", headers=headers)
+
+        # Verify debug logging was called
+        http_client.logger.debug.assert_called_once()
+        call_args = http_client.logger.debug.call_args
+        debug_context = call_args[0][1]  # Second argument is context
+
+        # Verify headers are present and masked
+        assert "requestHeaders" in debug_context
+        masked_headers = debug_context["requestHeaders"]
+        # Verify sensitive headers are masked
+        assert masked_headers.get("Authorization") == DataMasker.MASKED_VALUE
+        assert masked_headers.get("x-client-token") == DataMasker.MASKED_VALUE
+        assert masked_headers.get("Cookie") == DataMasker.MASKED_VALUE
+        # Verify raw values are not present
+        assert "secret-token-123" not in str(debug_context)
+        assert "client-token-456" not in str(debug_context)
+        assert "abc123" not in str(debug_context)
+
+    @pytest.mark.asyncio
+    async def test_response_body_masking_in_debug_logs(self, http_client):
+        """Test that response bodies with sensitive data are masked in debug logs."""
+        http_client.config.log_level = "debug"
+
+        # Mock InternalHttpClient
+        mock_internal_client = AsyncMock()
+        # Response with sensitive data
+        mock_internal_client.get = AsyncMock(
+            return_value={"user": {"password": "secret123", "username": "john"}}
+        )
+        http_client._internal_client = mock_internal_client
+
+        # Mock logger
+        http_client.logger.audit = AsyncMock()
+        http_client.logger.debug = AsyncMock()
+
+        await http_client.get("/api/users")
+
+        # Verify debug logging was called
+        http_client.logger.debug.assert_called_once()
+        call_args = http_client.logger.debug.call_args
+        debug_context = call_args[0][1]
+
+        # Verify response body is present and masked
+        assert "responseBody" in debug_context
+        response_body_str = str(debug_context["responseBody"])
+        # Verify sensitive data is masked
+        assert "secret123" not in response_body_str
+        assert DataMasker.MASKED_VALUE in response_body_str
+
+    @pytest.mark.asyncio
+    async def test_query_parameter_masking(self, http_client):
+        """Test that query parameters are masked in debug logs."""
+        http_client.config.log_level = "debug"
+
+        # Mock InternalHttpClient
+        mock_internal_client = AsyncMock()
+        mock_internal_client.get = AsyncMock(return_value={"data": "test"})
+        http_client._internal_client = mock_internal_client
+
+        # Mock logger
+        http_client.logger.audit = AsyncMock()
+        http_client.logger.debug = AsyncMock()
+
+        # Request with sensitive query parameters
+        await http_client.get("/api/test?token=secret123&api_key=key456&username=john")
+
+        # Verify debug logging was called
+        http_client.logger.debug.assert_called_once()
+        call_args = http_client.logger.debug.call_args
+        debug_context = call_args[0][1]
+
+        # Verify query params are present and masked
+        assert "queryParams" in debug_context
+        query_params = debug_context["queryParams"]
+        # Verify sensitive query params are masked
+        assert query_params.get("token") == DataMasker.MASKED_VALUE
+        assert query_params.get("api_key") == DataMasker.MASKED_VALUE
+        # Non-sensitive param should not be masked
+        assert query_params.get("username") == "john"
+
+    @pytest.mark.asyncio
+    async def test_nested_data_masking(self, http_client):
+        """Test that nested objects and arrays are masked recursively."""
+        http_client.config.log_level = "debug"
+
+        # Mock InternalHttpClient
+        mock_internal_client = AsyncMock()
+        mock_internal_client.post = AsyncMock(return_value={"success": True})
+        http_client._internal_client = mock_internal_client
+
+        # Mock logger
+        http_client.logger.audit = AsyncMock()
+        http_client.logger.debug = AsyncMock()
+
+        # Request with nested sensitive data
+        nested_data = {
+            "user": {
+                "credentials": {
+                    "password": "secret123",
+                    "token": "token456",
+                },
+                "username": "john",
+            },
+            "settings": [{"api_key": "key789"}, {"session": "session123"}],
+        }
+
+        await http_client.post("/api/users", nested_data)
+
+        # Verify debug logging was called
+        http_client.logger.debug.assert_called_once()
+        call_args = http_client.logger.debug.call_args
+        debug_context = call_args[0][1]
+
+        # Verify nested data is masked
+        assert "requestBody" in debug_context
+        masked_body = debug_context["requestBody"]
+        masked_str = str(masked_body)
+        # Verify sensitive data at all nesting levels is masked
+        assert "secret123" not in masked_str
+        assert "token456" not in masked_str
+        assert "key789" not in masked_str
+        assert "session123" not in masked_str
+        # Verify non-sensitive data is preserved
+        assert "john" in masked_str
+
+    @pytest.mark.asyncio
+    async def test_jwt_user_id_extraction(self, http_client):
+        """Test that user ID is extracted from JWT token in Authorization header."""
+        from unittest.mock import patch
+
+        # Mock JWT decoding
+        with patch("miso_client.utils.http_client.decode_token") as mock_decode:
+            mock_decode.return_value = {"sub": "user-123", "username": "john"}
+
+            # Mock InternalHttpClient
+            mock_internal_client = AsyncMock()
+            mock_internal_client.get = AsyncMock(return_value={"data": "test"})
+            http_client._internal_client = mock_internal_client
+
+            # Mock logger
+            http_client.logger.audit = AsyncMock()
+
+            # Request with JWT token in Authorization header
+            headers = {"Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."}
+            await http_client.get("/api/test", headers=headers)
+
+            # Verify audit logging was called with user ID
+            http_client.logger.audit.assert_called_once()
+            call_args = http_client.logger.audit.call_args
+            audit_context = call_args[0][2]  # Third argument is context
+            assert audit_context["userId"] == "user-123"
+
+    @pytest.mark.asyncio
+    async def test_duration_tracking(self, http_client):
+        """Test that request duration is tracked correctly."""
+        # Mock InternalHttpClient with delay
+        mock_internal_client = AsyncMock()
+
+        async def delayed_get(*args, **kwargs):
+            await asyncio.sleep(0.01)  # 10ms delay
+            return {"data": "test"}
+
+        mock_internal_client.get = delayed_get
+        http_client._internal_client = mock_internal_client
+
+        # Mock logger
+        http_client.logger.audit = AsyncMock()
+
+        await http_client.get("/api/test")
+
+        # Verify audit logging was called
+        http_client.logger.audit.assert_called_once()
+        call_args = http_client.logger.audit.call_args
+        audit_context = call_args[0][2]
+        assert "duration" in audit_context
+        # Duration should be positive and reasonable (> 10ms due to sleep)
+        assert audit_context["duration"] >= 10
+
+    @pytest.mark.asyncio
+    async def test_audit_log_structure(self, http_client):
+        """Test that audit log has correct structure with all required fields."""
+        # Mock InternalHttpClient
+        mock_internal_client = AsyncMock()
+        mock_internal_client.get = AsyncMock(return_value={"data": "test"})
+        http_client._internal_client = mock_internal_client
+
+        # Mock logger
+        http_client.logger.audit = AsyncMock()
+
+        await http_client.get("/api/test?param=value")
+
+        # Verify audit logging was called with correct structure
+        http_client.logger.audit.assert_called_once()
+        call_args = http_client.logger.audit.call_args
+        action = call_args[0][0]
+        resource = call_args[0][1]
+        context = call_args[0][2]
+
+        # Verify action format
+        assert action == "http.request.GET"
+
+        # Verify resource is URL path
+        assert resource == "/api/test?param=value"
+
+        # Verify context has all required fields
+        assert "method" in context
+        assert context["method"] == "GET"
+        assert "url" in context
+        assert "statusCode" in context
+        assert context["statusCode"] == 200
+        assert "duration" in context
+        assert isinstance(context["duration"], int)
+        assert context["duration"] >= 0
+
+    @pytest.mark.asyncio
+    async def test_debug_log_structure(self, http_client):
+        """Test that debug log has correct structure with all required fields."""
+        http_client.config.log_level = "debug"
+
+        # Mock InternalHttpClient
+        mock_internal_client = AsyncMock()
+        mock_internal_client.get = AsyncMock(return_value={"data": "test"})
+        http_client._internal_client = mock_internal_client
+
+        # Mock logger
+        http_client.logger.audit = AsyncMock()
+        http_client.logger.debug = AsyncMock()
+
+        await http_client.get("/api/test")
+
+        # Verify debug logging was called with correct structure
+        http_client.logger.debug.assert_called_once()
+        call_args = http_client.logger.debug.call_args
+        message = call_args[0][0]
+        debug_context = call_args[0][1]
+
+        # Verify message contains key information
+        assert "HTTP" in message
+        assert "GET" in message
+        assert "/api/test" in message
+
+        # Verify debug context has all required fields
+        assert "method" in debug_context
+        assert "url" in debug_context
+        assert "statusCode" in debug_context
+        assert "duration" in debug_context
+        assert "baseURL" in debug_context
+        assert "timeout" in debug_context
+        # Optional fields may be present
+        # requestHeaders, requestBody, responseBody, queryParams may be None or present
+
+    @pytest.mark.asyncio
+    async def test_logging_errors_dont_break_requests(self, http_client):
+        """Test that logging errors don't break HTTP requests."""
+        # Mock InternalHttpClient
+        mock_internal_client = AsyncMock()
+        mock_internal_client.get = AsyncMock(return_value={"data": "test"})
+        http_client._internal_client = mock_internal_client
+
+        # Mock logger to raise exception
+        http_client.logger.audit = AsyncMock(side_effect=Exception("Logging failed"))
+
+        # Request should still succeed despite logging error
+        result = await http_client.get("/api/test")
+
+        assert result == {"data": "test"}
+        # Verify request succeeded despite logging error
+
+    @pytest.mark.asyncio
+    async def test_response_body_truncation(self, http_client):
+        """Test that response body is truncated to 1000 characters in debug logs."""
+        http_client.config.log_level = "debug"
+
+        # Create large response (over 1000 chars when converted to string)
+        # Using a string response that's definitely over 1000 chars
+        large_response = "x" * 1500
+
+        # Mock InternalHttpClient
+        mock_internal_client = AsyncMock()
+        mock_internal_client.get = AsyncMock(return_value=large_response)
+        http_client._internal_client = mock_internal_client
+
+        # Mock logger
+        http_client.logger.audit = AsyncMock()
+        http_client.logger.debug = AsyncMock()
+
+        await http_client.get("/api/test")
+
+        # Verify debug logging was called
+        http_client.logger.debug.assert_called_once()
+        call_args = http_client.logger.debug.call_args
+        debug_context = call_args[0][1]
+
+        # Verify response body is truncated (for non-dict responses)
+        if "responseBody" in debug_context:
+            response_body = debug_context["responseBody"]
+            # For string responses, truncation happens before masking
+            # Response body should be truncated (approximately 1000 chars + "...")
+            response_str = str(response_body)
+            # Note: Truncation happens on string representation, so should be around 1003 chars
+            assert len(response_str) <= 1010  # Allow some buffer for dict formatting
+
+    @pytest.mark.asyncio
+    async def test_datamasker_called_for_headers(self, http_client):
+        """Test that DataMasker.mask_sensitive_data is called for headers."""
+        http_client.config.log_level = "debug"
+
+        from unittest.mock import patch
+
+        # Mock InternalHttpClient
+        mock_internal_client = AsyncMock()
+        mock_internal_client.get = AsyncMock(return_value={"data": "test"})
+        http_client._internal_client = mock_internal_client
+
+        # Mock logger
+        http_client.logger.audit = AsyncMock()
+        http_client.logger.debug = AsyncMock()
+
+        # Mock DataMasker.mask_sensitive_data
+        with patch("miso_client.utils.http_client.DataMasker.mask_sensitive_data") as mock_mask:
+            mock_mask.return_value = {"Authorization": DataMasker.MASKED_VALUE}
+
+            headers = {"Authorization": "Bearer token123"}
+            await http_client.get("/api/test", headers=headers)
+
+            # Verify DataMasker was called for headers
+            # It should be called at least once (for request headers)
+            assert mock_mask.call_count >= 1
+
+    @pytest.mark.asyncio
+    async def test_datamasker_called_for_request_body(self, http_client):
+        """Test that DataMasker.mask_sensitive_data is called for request body."""
+        http_client.config.log_level = "debug"
+
+        from unittest.mock import patch
+
+        # Mock InternalHttpClient
+        mock_internal_client = AsyncMock()
+        mock_internal_client.post = AsyncMock(return_value={"success": True})
+        http_client._internal_client = mock_internal_client
+
+        # Mock logger
+        http_client.logger.audit = AsyncMock()
+        http_client.logger.debug = AsyncMock()
+
+        # Mock DataMasker.mask_sensitive_data
+        with patch("miso_client.utils.http_client.DataMasker.mask_sensitive_data") as mock_mask:
+            mock_mask.return_value = {"password": DataMasker.MASKED_VALUE, "username": "john"}
+
+            request_data = {"password": "secret123", "username": "john"}
+            await http_client.post("/api/login", request_data)
+
+            # Verify DataMasker was called for request body
+            # It should be called at least once (for request body)
+            assert mock_mask.call_count >= 1

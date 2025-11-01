@@ -31,10 +31,13 @@ The **AI Fabrix Miso Client SDK** provides authentication, authorization, and lo
 ### 📊 Compliance & Audit
 
 **ISO 27001 Compliance**
-- Comprehensive audit trails for all user actions
+- Comprehensive audit trails for all user actions and HTTP requests
+- Automatic data masking for all sensitive information in logs
+- HTTP request/response audit logging with masked sensitive data
 - Data access logging and monitoring
 - Security event tracking
 - Accountability and non-repudiation
+- Configurable sensitive fields via JSON configuration
 
 **Regulatory Compliance**
 - GDPR-ready data protection
@@ -85,9 +88,13 @@ The **AI Fabrix Miso Client SDK** provides authentication, authorization, and lo
 
 **Observability**
 - Centralized logging with correlation IDs
+- Automatic HTTP request/response audit logging (ISO 27001 compliant)
+- Debug logging with detailed request/response information (when `log_level='debug'`)
 - Performance tracking and metrics
 - Error tracking and debugging
 - Health monitoring
+- Automatic data masking for sensitive information in logs
+- Configurable sensitive fields via JSON configuration
 
 ---
 
@@ -213,7 +220,7 @@ if is_admin:
 
 ### Step 5: Activate Logging
 
-**What happens:** Application logs are sent to the Miso Controller with client token authentication.
+**What happens:** Application logs are sent to the Miso Controller with client token authentication. All HTTP requests are automatically audited with ISO 27001 compliant data masking.
 
 ```python
 from miso_client import MisoClient, load_config
@@ -229,9 +236,16 @@ user = await client.get_user(token)
 await client.log.info('User accessed dashboard', {'userId': user.id if user else None})
 await client.log.error('Operation failed', {'error': str(err)})
 await client.log.warn('Unusual activity', {'details': '...'})
+
+# HTTP requests are automatically audited
+# All sensitive data is automatically masked before logging
+result = await client.http_client.get('/api/users')
+# This automatically creates an audit log: http.request.GET with masked sensitive data
 ```
 
 **What happens to logs?** They're sent to the Miso Controller for centralized monitoring and analysis. Client token is automatically included.
+
+**ISO 27001 Compliance:** All HTTP requests are automatically audited with sensitive data masked. Set `log_level='debug'` to enable detailed request/response logging (all sensitive data is still masked).
 
 → [Complete logging example](examples/step-5-logging.py)  
 → [Logging Reference](docs/api-reference.md#logger-service)
@@ -365,6 +379,7 @@ config = MisoClientConfig(
         port=6379,
     ),
     log_level="info",                         # Optional: 'debug' | 'info' | 'warn' | 'error'
+                                              # Set to 'debug' for detailed HTTP request/response logging
     api_key="your-test-api-key",              # Optional: API key for testing (bypasses OAuth2)
     cache={                                   # Optional: Cache TTL settings
         "role_ttl": 900,       # Role cache TTL (default: 900s)
@@ -374,6 +389,18 @@ config = MisoClientConfig(
 ```
 
 **Recommended:** Use `load_config()` to load from `.env` file automatically.
+
+**ISO 27001 Data Masking Configuration:**
+
+Sensitive fields are configured via `miso_client/utils/sensitive_fields_config.json`. You can customize this by:
+
+1. Setting `MISO_SENSITIVE_FIELDS_CONFIG` environment variable to point to a custom JSON file
+2. Using `DataMasker.set_config_path()` to set a custom path programmatically
+
+The default configuration includes ISO 27001 compliant sensitive fields:
+- Authentication: password, token, secret, key, auth, authorization
+- PII: ssn, creditcard, cc, cvv, pin, otp
+- Security: apikey, accesstoken, refreshtoken, privatekey, secretkey, cookie, session
 
 → [Complete Configuration Reference](docs/configuration.md)
 
@@ -398,6 +425,28 @@ The SDK consists of five core services:
 - **PermissionService** - Fine-grained permissions
 - **LoggerService** - Centralized logging with API key authentication
 - **RedisService** - Caching and queue management (optional)
+
+### HTTP Client Architecture
+
+The SDK uses a two-layer HTTP client architecture for ISO 27001 compliance:
+
+- **InternalHttpClient** - Core HTTP functionality with automatic client token management (internal)
+- **HttpClient** - Public wrapper that adds automatic ISO 27001 compliant audit and debug logging
+
+**Features:**
+- Automatic audit logging for all HTTP requests (`http.request.{METHOD}`)
+- Debug logging when `log_level === 'debug'` with detailed request/response information
+- Automatic data masking using `DataMasker` before logging (ISO 27001 compliant)
+- Sensitive endpoints (`/api/logs`, `/api/auth/token`) are excluded from audit logging to prevent infinite loops
+- All sensitive data (headers, bodies, query params) is automatically masked before logging
+
+**ISO 27001 Compliance:**
+- All request headers are masked (Authorization, x-client-token, Cookie, etc.)
+- All request bodies are recursively masked for sensitive fields (password, token, secret, SSN, etc.)
+- All response bodies are masked (limited to first 1000 characters)
+- Query parameters are automatically masked
+- Error messages are masked if they contain sensitive data
+- Sensitive fields configuration can be customized via `sensitive_fields_config.json`
 
 → [Architecture Details](docs/api-reference.md#architecture)
 

@@ -684,7 +684,7 @@ class TestLoggerService:
         logger_service.redis.is_connected.return_value = False
 
         with patch.object(
-            logger_service.http_client, "request", new_callable=AsyncMock
+            logger_service.internal_http_client, "request", new_callable=AsyncMock
         ) as mock_request:
             await logger_service.info("Test message", {"key": "value"})
             mock_request.assert_called_once()
@@ -698,7 +698,7 @@ class TestLoggerService:
         logger_service.redis.is_connected.return_value = False
 
         with patch.object(
-            logger_service.http_client, "request", new_callable=AsyncMock
+            logger_service.internal_http_client, "request", new_callable=AsyncMock
         ) as mock_request:
             await logger_service.audit("user.login", "authentication", {"ip": "192.168.1.1"})
             mock_request.assert_called_once()
@@ -709,7 +709,7 @@ class TestLoggerService:
         logger_service.redis.is_connected.return_value = False
 
         with patch.object(
-            logger_service.http_client, "request", new_callable=AsyncMock
+            logger_service.internal_http_client, "request", new_callable=AsyncMock
         ) as mock_request:
             await logger_service.error(
                 "Error occurred", {"error": "test"}, stack_trace="Traceback..."
@@ -723,7 +723,7 @@ class TestLoggerService:
         logger_service.redis.is_connected.return_value = False
 
         with patch.object(
-            logger_service.http_client, "request", new_callable=AsyncMock
+            logger_service.internal_http_client, "request", new_callable=AsyncMock
         ) as mock_request:
             await logger_service.debug("Debug message")
             mock_request.assert_called_once()
@@ -735,7 +735,7 @@ class TestLoggerService:
         logger_service.redis.is_connected.return_value = False
 
         with patch.object(
-            logger_service.http_client, "request", new_callable=AsyncMock
+            logger_service.internal_http_client, "request", new_callable=AsyncMock
         ) as mock_request:
             await logger_service.debug("Debug message")
             mock_request.assert_not_called()
@@ -755,7 +755,7 @@ class TestLoggerService:
         logger_service.redis.is_connected.return_value = False
 
         with patch.object(
-            logger_service.http_client, "request", new_callable=AsyncMock
+            logger_service.internal_http_client, "request", new_callable=AsyncMock
         ) as mock_request:
             await logger_service.info("Test", {"password": "secret123", "username": "john"})
 

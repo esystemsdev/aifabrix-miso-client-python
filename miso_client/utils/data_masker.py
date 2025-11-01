@@ -5,7 +5,9 @@ Implements ISO 27001 data protection controls by masking sensitive fields
 in log entries and context data.
 """
 
-from typing import Any, Set
+from typing import Any, Optional, Set
+
+from .sensitive_fields_loader import get_sensitive_fields_array
 
 
 class DataMasker:
@@ -13,8 +15,8 @@ class DataMasker:
 
     MASKED_VALUE = "***MASKED***"
 
-    # Set of sensitive field names (normalized)
-    _sensitive_fields: Set[str] = {
+    # Hardcoded set of sensitive field names (normalized) - fallback if JSON cannot be loaded
+    _hardcoded_sensitive_fields: Set[str] = {
         "password",
         "passwd",
         "pwd",
@@ -38,6 +40,73 @@ class DataMasker:
         "secretkey",
     }
 
+    # Cached merged sensitive fields (loaded on first use)
+    _sensitive_fields: Optional[Set[str]] = None
+    _config_loaded: bool = False
+
+    @classmethod
+    def _load_config(cls, config_path: Optional[str] = None) -> None:
+        """
+        Load sensitive fields configuration from JSON and merge with hardcoded defaults.
+
+        This method is called automatically on first use. It loads JSON configuration
+        and merges it with hardcoded defaults, ensuring backward compatibility.
+
+        Args:
+            config_path: Optional custom path to JSON config file
+        """
+        if cls._config_loaded:
+            return
+
+        # Start with hardcoded fields as base
+        merged_fields = set(cls._hardcoded_sensitive_fields)
+
+        try:
+            # Try to load fields from JSON configuration
+            json_fields = get_sensitive_fields_array(config_path)
+            if json_fields:
+                # Normalize and add JSON fields (same normalization as hardcoded fields)
+                for field in json_fields:
+                    if isinstance(field, str):
+                        # Normalize: lowercase and remove underscores/hyphens
+                        normalized = field.lower().replace("_", "").replace("-", "")
+                        merged_fields.add(normalized)
+        except Exception:
+            # If JSON loading fails, fall back to hardcoded fields only
+            pass
+
+        cls._sensitive_fields = merged_fields
+        cls._config_loaded = True
+
+    @classmethod
+    def _get_sensitive_fields(cls) -> Set[str]:
+        """
+        Get the set of sensitive fields (loads config on first call).
+
+        Returns:
+            Set of normalized sensitive field names
+        """
+        if not cls._config_loaded:
+            cls._load_config()
+        assert cls._sensitive_fields is not None
+        return cls._sensitive_fields
+
+    @classmethod
+    def set_config_path(cls, config_path: str) -> None:
+        """
+        Set custom path for sensitive fields configuration.
+
+        Must be called before first use of DataMasker methods if custom path is needed.
+        Otherwise, default path or environment variable will be used.
+
+        Args:
+            config_path: Path to JSON configuration file
+        """
+        # Reset cache to force reload with new path
+        cls._config_loaded = False
+        cls._sensitive_fields = None
+        cls._load_config(config_path)
+
     @classmethod
     def is_sensitive_field(cls, key: str) -> bool:
         """
@@ -52,12 +121,15 @@ class DataMasker:
         # Normalize key: lowercase and remove underscores/hyphens
         normalized_key = key.lower().replace("_", "").replace("-", "")
 
+        # Get sensitive fields (loads config on first use)
+        sensitive_fields = cls._get_sensitive_fields()
+
         # Check exact match
-        if normalized_key in cls._sensitive_fields:
+        if normalized_key in sensitive_fields:
             return True
 
         # Check if field contains sensitive keywords
-        for sensitive_field in cls._sensitive_fields:
+        for sensitive_field in sensitive_fields:
             if sensitive_field in normalized_key:
                 return True
 

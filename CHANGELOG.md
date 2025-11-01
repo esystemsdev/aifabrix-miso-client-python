@@ -5,7 +5,97 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.0] - 2025-11-02
+
+### Added
+
+- **ISO 27001 Compliant HTTP Client with Automatic Audit and Debug Logging**: New public `HttpClient` class that wraps `InternalHttpClient` with automatic ISO 27001 compliant audit and debug logging
+  - Automatic audit logging for all HTTP requests (`http.request.{METHOD}` format)
+  - Debug logging when `log_level === 'debug'` with detailed request/response information
+  - Automatic data masking using `DataMasker` before logging (ISO 27001 compliant)
+  - All request headers are masked (Authorization, x-client-token, Cookie, etc.)
+  - All request bodies are recursively masked for sensitive fields (password, token, secret, SSN, etc.)
+  - All response bodies are masked (limited to first 1000 characters)
+  - Query parameters are automatically masked
+  - Error messages are masked if they contain sensitive data
+  - Sensitive endpoints (`/api/logs`, `/api/auth/token`) are excluded from audit logging to prevent infinite loops
+  - JWT user ID extraction from Authorization headers for audit context
+  - Request duration tracking for performance monitoring
+  - Request/response size tracking for observability
+
+- **JSON Configuration Support for DataMasker**: Enhanced `DataMasker` with JSON configuration file support for sensitive fields
+  - New `sensitive_fields_config.json` file with default ISO 27001 compliant sensitive fields
+  - Categories: authentication, pii, security
+  - Support for custom configuration path via `MISO_SENSITIVE_FIELDS_CONFIG` environment variable
+  - `DataMasker.set_config_path()` method for programmatic configuration
+  - Automatic merging of JSON fields with hardcoded defaults (fallback if JSON cannot be loaded)
+  - Backward compatible - existing hardcoded fields still work as fallback
+
+- **New InternalHttpClient Class**: Separated core HTTP functionality into `InternalHttpClient` class
+  - Pure HTTP functionality with automatic client token management (no logging)
+  - Used internally by public `HttpClient` for actual HTTP requests
+  - Used by `LoggerService` for sending logs to prevent circular dependencies
+  - Not exported in public API (internal use only)
+
+- **New sensitive_fields_loader Module**: Utility module for loading and merging sensitive fields configuration
+  - `load_sensitive_fields_config()` function for loading JSON configuration
+  - `get_sensitive_fields_array()` function for flattened sensitive fields list
+  - `get_field_patterns()` function for pattern matching rules
+  - Support for custom configuration paths via environment variables
+
+### Changed
+
+- **Breaking Change: HttpClient Constructor**: Public `HttpClient` constructor now requires `logger` parameter
+  - Old: `HttpClient(config)`
+  - New: `HttpClient(config, logger)`
+  - This is handled automatically when using `MisoClient` - no changes needed for typical usage
+  - Only affects code that directly instantiates `HttpClient`
+
+- **Breaking Change: LoggerService Constructor**: `LoggerService` constructor now uses `InternalHttpClient` instead of `HttpClient`
+  - Old: `LoggerService(http_client: HttpClient, redis: RedisService)`
+  - New: `LoggerService(internal_http_client: InternalHttpClient, redis: RedisService)`
+  - This is handled automatically when using `MisoClient` - no changes needed for typical usage
+  - Prevents circular dependency (LoggerService uses InternalHttpClient for log sending)
+
+- **MisoClient Architecture**: Updated `MisoClient` constructor to use new HttpClient architecture
+  - Creates `InternalHttpClient` first (pure HTTP functionality)
+  - Creates `LoggerService` with `InternalHttpClient` (prevents circular dependency)
+  - Creates public `HttpClient` wrapping `InternalHttpClient` with logger (adds audit/debug logging)
+  - All services now use public `HttpClient` with automatic audit logging
+
+- **DataMasker Enhancement**: Updated `DataMasker` to load sensitive fields from JSON configuration
+  - Maintains backward compatibility with hardcoded fields as fallback
+  - Automatic loading on first use with caching
+  - Support for custom configuration paths
+
+### ISO 27001 Compliance Features
+
+- **Automatic Data Masking**: All sensitive data is automatically masked before logging
+  - Request headers: Authorization, x-client-token, Cookie, Set-Cookie, and any header containing sensitive keywords
+  - Request bodies: Recursively masks password, token, secret, SSN, creditcard, CVV, PIN, OTP, API keys, etc.
+  - Response bodies: Especially important for error responses that might contain sensitive data
+  - Query parameters: Automatically extracted and masked
+  - Error messages: Masked if containing sensitive data
+
+- **Audit Log Structure**: Standardized audit log format for all HTTP requests
+  - Action: `http.request.{METHOD}` (e.g., `http.request.GET`, `http.request.POST`)
+  - Resource: Request URL path
+  - Context: method, url, statusCode, duration, userId, requestSize, responseSize, error (all sensitive data masked)
+
+- **Debug Log Structure**: Detailed debug logging when `log_level === 'debug'`
+  - All audit context fields plus: requestHeaders, responseHeaders, requestBody, responseBody (all masked)
+  - Additional context: baseURL, timeout, queryParams (all sensitive data masked)
+
+### Technical Improvements
+
+- Improved error handling: Logging errors never break HTTP requests (all errors caught and swallowed)
+- Performance: Async logging that doesn't block request/response flow
+- Safety: Sensitive endpoints excluded from audit logging to prevent infinite loops
+- Flexibility: Configurable sensitive fields via JSON configuration file
+
+---
+
+## [0.3.0] - 2025-11-01
 
 ### Added
 
@@ -29,7 +119,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [1.2.0] - 2025-10-31
+## [0.2.0] - 2025-10-31
 
 ### Added
 
@@ -67,7 +157,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [1.1.0] - 2025-10-30
+## [0.1.0] - 2025-10-30
 
 ### Added
 
@@ -106,7 +196,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [1.0.0] - 2025-10-01
+## [0.1.0] - 2025-10-01
 
 ### Added
 

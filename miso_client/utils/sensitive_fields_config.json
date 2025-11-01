@@ -1,0 +1,33 @@
+{
+  "fields": {
+    "authentication": [
+      "password",
+      "passwd",
+      "pwd",
+      "token",
+      "secret",
+      "key",
+      "auth",
+      "authorization"
+    ],
+    "pii": [
+      "ssn",
+      "creditcard",
+      "cc",
+      "cvv",
+      "pin",
+      "otp"
+    ],
+    "security": [
+      "apikey",
+      "accesstoken",
+      "refreshtoken",
+      "privatekey",
+      "secretkey",
+      "cookie",
+      "session"
+    ]
+  },
+  "fieldPatterns": []
+}
+

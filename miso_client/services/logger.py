@@ -14,23 +14,23 @@ from typing import Any, Dict, Literal, Optional
 from ..models.config import ClientLoggingOptions, LogEntry
 from ..services.redis import RedisService
 from ..utils.data_masker import DataMasker
-from ..utils.http_client import HttpClient
+from ..utils.internal_http_client import InternalHttpClient
 from ..utils.jwt_tools import decode_token
 
 
 class LoggerService:
     """Logger service for application logging and audit events."""
 
-    def __init__(self, http_client: HttpClient, redis: RedisService):
+    def __init__(self, internal_http_client: InternalHttpClient, redis: RedisService):
         """
         Initialize logger service.
 
         Args:
-            http_client: HTTP client instance
+            internal_http_client: Internal HTTP client instance (used for log sending)
             redis: Redis service instance
         """
-        self.config = http_client.config
-        self.http_client = http_client
+        self.config = internal_http_client.config
+        self.internal_http_client = internal_http_client
         self.redis = redis
         self.mask_sensitive_data = True  # Default: mask sensitive data
         self.correlation_counter = 0
@@ -357,12 +357,13 @@ class LoggerService:
                 return  # Successfully queued in Redis
 
         # Fallback to unified logging endpoint with client credentials
+        # Use InternalHttpClient to avoid circular dependency with HttpClient
         try:
             # Backend extracts environment and application from client credentials
             log_payload = log_entry.model_dump(
                 exclude={"environment", "application"}, exclude_none=True
             )
-            await self.http_client.request("POST", "/api/logs", log_payload)
+            await self.internal_http_client.request("POST", "/api/logs", log_payload)
         except Exception:
             # Failed to send log to controller
             # Silently fail to avoid infinite logging loops

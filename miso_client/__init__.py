@@ -36,6 +36,7 @@ from .services.redis import RedisService
 from .services.role import RoleService
 from .utils.config_loader import load_config
 from .utils.http_client import HttpClient
+from .utils.internal_http_client import InternalHttpClient
 
 __version__ = "0.1.0"
 __author__ = "AI Fabrix Team"
@@ -61,14 +62,29 @@ class MisoClient:
             config: MisoClient configuration including controller URL, client credentials, etc.
         """
         self.config = config
-        self.http_client = HttpClient(config)
+
+        # Create InternalHttpClient first (pure HTTP functionality, no logging)
+        self._internal_http_client = InternalHttpClient(config)
+
+        # Create Redis service
         self.redis = RedisService(config.redis)
+
+        # Create LoggerService with InternalHttpClient (to avoid circular dependency)
+        # LoggerService uses InternalHttpClient for sending logs to prevent audit loops
+        self.logger = LoggerService(self._internal_http_client, self.redis)
+
+        # Create public HttpClient wrapping InternalHttpClient with logger
+        # This HttpClient adds automatic ISO 27001 compliant audit and debug logging
+        self.http_client = HttpClient(config, self.logger)
+
         # Cache service (uses Redis if available, falls back to in-memory)
         self.cache = CacheService(self.redis)
+
+        # Services use public HttpClient (with audit logging)
         self.auth = AuthService(self.http_client, self.redis)
         self.roles = RoleService(self.http_client, self.cache)
         self.permissions = PermissionService(self.http_client, self.cache)
-        self.logger = LoggerService(self.http_client, self.redis)
+
         # Encryption service (reads ENCRYPTION_KEY from environment by default)
         self.encryption = EncryptionService()
         self.initialized = False
