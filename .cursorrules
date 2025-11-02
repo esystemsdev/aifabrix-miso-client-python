@@ -103,7 +103,7 @@ All controller endpoints use `/api` prefix:
 
 ### API Data Conventions (camelCase)
 - **All outgoing data must use camelCase naming convention**
-  - All Pydantic model fields sent to API must be camelCase (e.g., `pageSize`, `totalItems`, `currentPage`, `userId`, `statusCode`, `requestKey`)
+  - All Pydantic model fields sent to API must be camelCase (e.g., `pageSize`, `totalItems`, `currentPage`, `userId`, `statusCode`, `correlationId`)
   - All JSON request bodies must use camelCase field names
   - All query parameters must use camelCase (e.g., `pageSize`, not `page_size`)
   - All response data from API is expected in camelCase format
