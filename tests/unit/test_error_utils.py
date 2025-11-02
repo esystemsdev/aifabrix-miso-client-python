@@ -53,13 +53,13 @@ class TestTransformErrorToSnakeCase:
             "title": "Bad Request",
             "statusCode": 400,
             "instance": "/api/endpoint",
-            "requestKey": "req-123",
+            "correlationId": "req-123",
         }
         error_response = transform_error_to_snake_case(error_data)
 
         assert isinstance(error_response, ErrorResponse)
         assert error_response.statusCode == 400
-        assert error_response.requestKey == "req-123"
+        assert error_response.correlationId == "req-123"
 
     def test_transform_error_multiple_errors(self):
         """Test transforming error with multiple error messages."""
@@ -87,17 +87,17 @@ class TestTransformErrorToSnakeCase:
         assert error_response.instance is None
 
     def test_transform_error_with_request_key(self):
-        """Test transforming error with requestKey field."""
+        """Test transforming error with correlationId field."""
         error_data = {
             "errors": ["Error message"],
             "type": "/Errors/Bad Input",
             "title": "Bad Request",
             "statusCode": 400,
-            "requestKey": "req-123",
+            "correlationId": "req-123",
         }
         error_response = transform_error_to_snake_case(error_data)
 
-        assert error_response.requestKey == "req-123"
+        assert error_response.correlationId == "req-123"
 
 
 class TestHandleApiErrorSnakeCase:
@@ -225,14 +225,14 @@ class TestHandleApiErrorSnakeCase:
         assert error.error_response.errors == ["Error message"]
 
     def test_handle_error_with_request_key(self):
-        """Test handling error with requestKey field."""
+        """Test handling error with correlationId field."""
         response_data = {
             "errors": ["Error message"],
             "type": "/Errors/Bad Input",
             "title": "Bad Request",
             "statusCode": 400,
-            "requestKey": "req-123",
+            "correlationId": "req-123",
         }
         error = handle_api_error_snake_case(response_data, 400)
 
-        assert error.error_response.requestKey == "req-123"
+        assert error.error_response.correlationId == "req-123"

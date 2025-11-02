@@ -5,12 +5,12 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.8.0] - 2025-11-02
+## [1.8.1] - 2025-11-02
 
 ### Changed
 
 - **Breaking Change: All Outgoing Data Now Uses camelCase Naming Convention**
-  - All Pydantic model fields sent to API now use camelCase (e.g., `pageSize`, `totalItems`, `currentPage`, `userId`, `statusCode`, `requestKey`)
+  - All Pydantic model fields sent to API now use camelCase (e.g., `pageSize`, `totalItems`, `currentPage`, `userId`, `statusCode`, `correlationId`)
   - All JSON request bodies now use camelCase field names
   - All query parameters now use camelCase (e.g., `pageSize` instead of `page_size`)
   - All response data from API is expected in camelCase format
@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Model Field Updates**:
   - `FilterQuery`: Changed `page_size` → `pageSize`
   - `Meta`: Changed `total_items` → `totalItems`, `current_page` → `currentPage`, `page_size` → `pageSize`
-  - `ErrorResponse`: Changed `request_key` → `requestKey`, removed `status_code` alias (now only `statusCode`)
+  - `ErrorResponse`: Changed `request_key` → `correlationId`, removed `status_code` alias (now only `statusCode`)
   - `LogEntry`: Removed all aliases (already camelCase): `applicationId`, `userId`, `correlationId`, `requestId`, `sessionId`, `stackTrace`, `ipAddress`, `userAgent`
   - `UserInfo`: Removed `first_name`/`last_name` aliases (now only `firstName`/`lastName`)
   - `RoleResult`: Removed `user_id` alias (now only `userId`)
@@ -59,7 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    - Old: `response.meta.current_page` → New: `response.meta.currentPage`
    - Old: `response.meta.page_size` → New: `response.meta.pageSize`
    - Old: `error_response.status_code` → New: `error_response.statusCode`
-   - Old: `error_response.request_key` → New: `error_response.requestKey`
+   - Old: `error_response.request_key` → New: `error_response.correlationId`
 
 2. **Update model instantiation**: Use camelCase field names when creating models
    - Old: `FilterQuery(page_size=25)` → New: `FilterQuery(pageSize=25)`
@@ -125,7 +125,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Flexible response parsing (returns `PaginatedListResponse` when format matches, raw response otherwise)
 
 - **ErrorResponse Model Enhancements**:
-  - Added `request_key` field for error tracking (supports both `request_key` and `requestKey` aliases)
+  - Added `request_key` field for error tracking (supports both `request_key` and `correlationId` aliases)
   - Made `title` field optional (defaults to `None`) for graceful handling of missing titles
   - Added `status_code` property getter for snake_case access (complements `statusCode` camelCase field)
   - Full support for both snake_case and camelCase attribute access
