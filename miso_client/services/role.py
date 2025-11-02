@@ -6,6 +6,7 @@ Roles are cached with Redis and in-memory fallback using CacheService.
 Optimized to extract userId from JWT token before API calls for cache optimization.
 """
 
+import logging
 import time
 from typing import List, cast
 
@@ -13,6 +14,8 @@ from ..models.config import RoleResult
 from ..services.cache import CacheService
 from ..utils.http_client import HttpClient
 from ..utils.jwt_tools import extract_user_id
+
+logger = logging.getLogger(__name__)
 
 
 class RoleService:
@@ -81,8 +84,8 @@ class RoleService:
 
             return roles
 
-        except Exception:
-            # Failed to get roles, return empty list
+        except Exception as error:
+            logger.error("Failed to get roles", exc_info=error)
             return []
 
     async def has_role(self, token: str, role: str) -> bool:
@@ -164,6 +167,6 @@ class RoleService:
 
             return roles
 
-        except Exception:
-            # Failed to refresh roles, return empty list
+        except Exception as error:
+            logger.error("Failed to refresh roles", exc_info=error)
             return []

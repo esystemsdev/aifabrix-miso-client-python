@@ -48,7 +48,7 @@ class FilterQuery(BaseModel):
         filters: Optional list of filter options
         sort: Optional list of sort options (field strings with optional '-' prefix for desc)
         page: Optional page number (1-based)
-        page_size: Optional number of items per page
+        pageSize: Optional number of items per page
         fields: Optional list of fields to include in response
     """
 
@@ -60,7 +60,7 @@ class FilterQuery(BaseModel):
         description="List of sort options (e.g., ['-updated_at', 'created_at'])",
     )
     page: Optional[int] = Field(default=None, description="Page number (1-based)")
-    page_size: Optional[int] = Field(default=None, description="Number of items per page")
+    pageSize: Optional[int] = Field(default=None, description="Number of items per page")
     fields: Optional[List[str]] = Field(
         default=None, description="List of fields to include in response"
     )

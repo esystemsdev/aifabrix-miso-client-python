@@ -6,6 +6,7 @@ Permissions are cached with Redis and in-memory fallback using CacheService.
 Optimized to extract userId from JWT token before API calls for cache optimization.
 """
 
+import logging
 import time
 from typing import List, cast
 
@@ -13,6 +14,8 @@ from ..models.config import PermissionResult
 from ..services.cache import CacheService
 from ..utils.http_client import HttpClient
 from ..utils.jwt_tools import extract_user_id
+
+logger = logging.getLogger(__name__)
 
 
 class PermissionService:
@@ -83,8 +86,8 @@ class PermissionService:
 
             return permissions
 
-        except Exception:
-            # Failed to get permissions, return empty list
+        except Exception as error:
+            logger.error("Failed to get permissions", exc_info=error)
             return []
 
     async def has_permission(self, token: str, permission: str) -> bool:
@@ -168,8 +171,8 @@ class PermissionService:
 
             return permissions
 
-        except Exception:
-            # Failed to refresh permissions, return empty list
+        except Exception as error:
+            logger.error("Failed to refresh permissions", exc_info=error)
             return []
 
     async def clear_permissions_cache(self, token: str) -> None:
@@ -194,6 +197,6 @@ class PermissionService:
             # Clear from cache (CacheService handles Redis + in-memory automatically)
             await self.cache.delete(cache_key)
 
-        except Exception:
-            # Failed to clear cache, silently continue
-            pass
+        except Exception as error:
+            logger.error("Failed to clear permissions cache", exc_info=error)
+            # Silently continue per service method pattern

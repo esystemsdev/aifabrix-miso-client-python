@@ -93,23 +93,23 @@ def build_query_string(filter_query: FilterQuery) -> str:
     """
     Convert FilterQuery object to query string.
 
-    Builds query string with filter, sort, page, page_size, and fields parameters.
+    Builds query string with filter, sort, page, pageSize, and fields parameters.
 
     Args:
         filter_query: FilterQuery object with filters, sort, pagination, and fields
 
     Returns:
-        Query string (e.g., '?filter=status:eq:active&page=1&page_size=25&sort=-updated_at')
+        Query string (e.g., '?filter=status:eq:active&page=1&pageSize=25&sort=-updated_at')
 
     Examples:
         >>> from miso_client.models.filter import FilterQuery, FilterOption
         >>> query = FilterQuery(
         ...     filters=[FilterOption(field='status', op='eq', value='active')],
         ...     page=1,
-        ...     page_size=25
+        ...     pageSize=25
         ... )
         >>> build_query_string(query)
-        'filter=status:eq:active&page=1&page_size=25'
+        'filter=status:eq:active&page=1&pageSize=25'
     """
     query_parts: List[str] = []
 
@@ -139,8 +139,8 @@ def build_query_string(filter_query: FilterQuery) -> str:
     if filter_query.page is not None:
         query_parts.append(f"page={filter_query.page}")
 
-    if filter_query.page_size is not None:
-        query_parts.append(f"page_size={filter_query.page_size}")
+    if filter_query.pageSize is not None:
+        query_parts.append(f"pageSize={filter_query.pageSize}")
 
     # Add fields
     if filter_query.fields:

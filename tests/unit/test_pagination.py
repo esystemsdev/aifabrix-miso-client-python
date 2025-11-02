@@ -129,13 +129,13 @@ class TestCreateMetaObject:
         """Test creating basic meta object."""
         meta = create_meta_object(total_items=120, current_page=1, page_size=25, type="item")
 
-        assert meta.total_items == 120
-        assert meta.current_page == 1
-        assert meta.page_size == 25
+        assert meta.totalItems == 120
+        assert meta.currentPage == 1
+        assert meta.pageSize == 25
         assert meta.type == "item"
 
     def test_create_meta_with_aliases(self):
-        """Test creating meta object with camelCase aliases."""
+        """Test creating meta object with camelCase field names."""
         meta = create_meta_object(total_items=120, current_page=1, page_size=25, type="item")
 
         # Test camelCase access
@@ -148,15 +148,15 @@ class TestCreateMetaObject:
         meta = create_meta_object(total_items=50, current_page=2, page_size=10, type="user")
 
         assert meta.type == "user"
-        assert meta.total_items == 50
+        assert meta.totalItems == 50
 
     def test_create_meta_large_values(self):
         """Test creating meta object with large values."""
         meta = create_meta_object(total_items=10000, current_page=100, page_size=100, type="item")
 
-        assert meta.total_items == 10000
-        assert meta.current_page == 100
-        assert meta.page_size == 100
+        assert meta.totalItems == 10000
+        assert meta.currentPage == 100
+        assert meta.pageSize == 100
 
 
 class TestApplyPaginationToArray:
@@ -248,9 +248,9 @@ class TestCreatePaginatedListResponse:
             items, total_items=10, current_page=1, page_size=2, type="item"
         )
 
-        assert response.meta.total_items == 10
-        assert response.meta.current_page == 1
-        assert response.meta.page_size == 2
+        assert response.meta.totalItems == 10
+        assert response.meta.currentPage == 1
+        assert response.meta.pageSize == 2
         assert response.meta.type == "item"
         assert len(response.data) == 2
         assert response.data == items
@@ -262,8 +262,8 @@ class TestCreatePaginatedListResponse:
             items, total_items=0, current_page=1, page_size=25, type="item"
         )
 
-        assert response.meta.total_items == 0
-        assert response.meta.current_page == 1
+        assert response.meta.totalItems == 0
+        assert response.meta.currentPage == 1
         assert len(response.data) == 0
 
     def test_create_paginated_response_type_safety(self):
@@ -277,7 +277,7 @@ class TestCreatePaginatedListResponse:
         assert all(isinstance(item, str) for item in response.data)
 
     def test_create_paginated_response_with_meta_aliases(self):
-        """Test that paginated response supports camelCase meta aliases."""
+        """Test that paginated response uses camelCase field names."""
         items = [{"id": 1}]
         response = create_paginated_list_response(
             items, total_items=1, current_page=1, page_size=1, type="item"

@@ -215,16 +215,16 @@ class TestAuthService:
 
     @pytest.mark.asyncio
     async def test_logout_exception(self, auth_service):
-        """Test logout with exception."""
-        from miso_client.errors import MisoClientError
-
+        """Test logout with exception - should silently fail per service method pattern."""
         with patch.object(
             auth_service.http_client, "request", new_callable=AsyncMock
         ) as mock_request:
             mock_request.side_effect = Exception("Logout failed")
 
-            with pytest.raises(MisoClientError, match="Logout failed"):
-                await auth_service.logout()
+            # Service methods should not raise uncaught errors - they should silently fail
+            # Verify logout doesn't raise an exception
+            await auth_service.logout()  # Should complete without raising
+            mock_request.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_is_authenticated(self, auth_service):
@@ -249,19 +249,16 @@ class TestAuthService:
 
     @pytest.mark.asyncio
     async def test_logout_exception_re_raising(self, auth_service):
-        """Test logout exception re-raising with different exception types."""
-        from miso_client.errors import MisoClientError
-
+        """Test logout with exception - should silently fail per service method pattern."""
         with patch.object(
             auth_service.http_client, "request", new_callable=AsyncMock
         ) as mock_request:
             mock_request.side_effect = ValueError("Invalid request")
 
-            with pytest.raises(MisoClientError) as exc_info:
-                await auth_service.logout()
-
-            assert "Logout failed" in str(exc_info.value)
-            assert "Invalid request" in str(exc_info.value)
+            # Service methods should not raise uncaught errors - they should silently fail
+            # Verify logout doesn't raise an exception
+            await auth_service.logout()  # Should complete without raising
+            mock_request.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_validate_token_with_api_key_match(self, mock_http_client, mock_redis):

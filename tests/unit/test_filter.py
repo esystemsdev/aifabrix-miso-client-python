@@ -163,13 +163,13 @@ class TestBuildQueryString:
         filter_query = FilterQuery(
             filters=[FilterOption(field="status", op="eq", value="active")],
             page=1,
-            page_size=25,
+            pageSize=25,
         )
         query_string = build_query_string(filter_query)
 
         assert "filter=status:eq:active" in query_string
         assert "page=1" in query_string
-        assert "page_size=25" in query_string
+        assert "pageSize=25" in query_string
 
     def test_build_query_string_with_fields(self):
         """Test building query string with fields selection."""
@@ -191,7 +191,7 @@ class TestBuildQueryString:
             ],
             sort=["-updated_at"],
             page=2,
-            page_size=50,
+            pageSize=50,
             fields=["id", "name"],
         )
         query_string = build_query_string(filter_query)
@@ -200,7 +200,7 @@ class TestBuildQueryString:
         assert "filter=region:in:eu,us" in query_string
         assert "sort=-updated_at" in query_string
         assert "page=2" in query_string
-        assert "page_size=50" in query_string
+        assert "pageSize=50" in query_string
         assert "fields=" in query_string
 
     def test_build_query_string_empty(self):
