@@ -562,6 +562,225 @@ print(error_response.statusCode)  # 422
 print(error_response.instance)   # "/api/endpoint"
 ```
 
+---
+
+### Pagination, Filtering, and Sorting Utilities
+
+**What happens:** The SDK provides reusable utilities for pagination, filtering, sorting, and error handling that work with any API endpoint.
+
+#### Pagination
+
+**Pagination Parameters:**
+- `page`: Page number (1-based, defaults to 1)
+- `page_size`: Number of items per page (defaults to 25)
+
+```python
+from miso_client import (
+    parse_pagination_params,
+    create_paginated_list_response,
+    PaginatedListResponse,
+)
+
+# Parse pagination from query parameters
+params = {"page": "1", "page_size": "25"}
+current_page, page_size = parse_pagination_params(params)
+
+# Create paginated response
+items = [{"id": 1}, {"id": 2}]
+response = create_paginated_list_response(
+    items,
+    total_items=120,
+    current_page=1,
+    page_size=25,
+    type="item"
+)
+
+# Response structure:
+# {
+#   "meta": {
+#     "total_items": 120,
+#     "current_page": 1,
+#     "page_size": 25,
+#     "type": "item"
+#   },
+#   "data": [{"id": 1}, {"id": 2}]
+# }
+```
+
+#### Filtering
+
+**Filter Operators:** `eq`, `neq`, `in`, `nin`, `gt`, `lt`, `gte`, `lte`, `contains`, `like`
+
+**Filter Format:** `field:op:value` (e.g., `status:eq:active`)
+
+```python
+from miso_client import FilterBuilder, parse_filter_params, build_query_string
+
+# Dynamic filter building with FilterBuilder
+filter_builder = FilterBuilder() \
+    .add('status', 'eq', 'active') \
+    .add('region', 'in', ['eu', 'us']) \
+    .add('created_at', 'gte', '2024-01-01')
+
+# Get query string
+query_string = filter_builder.to_query_string()
+# Returns: "filter=status:eq:active&filter=region:in:eu,us&filter=created_at:gte:2024-01-01"
+
+# Parse existing filter parameters
+params = {'filter': ['status:eq:active', 'region:in:eu,us']}
+filters = parse_filter_params(params)
+# Returns: [FilterOption(field='status', op='eq', value='active'), ...]
+
+# Use with HTTP client
+response = await client.http_client.get_with_filters(
+    '/api/items',
+    filter_builder=filter_builder
+)
+```
+
+**Building Complete Filter Queries:**
+
+```python
+from miso_client import FilterQuery, FilterOption, build_query_string
+
+# Create filter query with filters, sort, pagination, and fields
+filter_query = FilterQuery(
+    filters=[
+        FilterOption(field='status', op='eq', value='active'),
+        FilterOption(field='region', op='in', value=['eu', 'us'])
+    ],
+    sort=['-updated_at', 'created_at'],
+    page=1,
+    page_size=25,
+    fields=['id', 'name', 'status']
+)
+
+# Build query string
+query_string = build_query_string(filter_query)
+```
+
+#### Sorting
+
+**Sort Format:** `-field` for descending, `field` for ascending (e.g., `-updated_at`, `created_at`)
+
+```python
+from miso_client import parse_sort_params, build_sort_string, SortOption
+
+# Parse sort parameters
+params = {'sort': '-updated_at'}
+sort_options = parse_sort_params(params)
+# Returns: [SortOption(field='updated_at', order='desc')]
+
+# Parse multiple sorts
+params = {'sort': ['-updated_at', 'created_at']}
+sort_options = parse_sort_params(params)
+# Returns: [
+#   SortOption(field='updated_at', order='desc'),
+#   SortOption(field='created_at', order='asc')
+# ]
+
+# Build sort string
+sort_options = [
+    SortOption(field='updated_at', order='desc'),
+    SortOption(field='created_at', order='asc')
+]
+sort_string = build_sort_string(sort_options)
+# Returns: "-updated_at,created_at"
+```
+
+#### Combined Usage
+
+**Pagination + Filter + Sort:**
+
+```python
+from miso_client import (
+    FilterBuilder,
+    FilterQuery,
+    build_query_string,
+    parse_pagination_params,
+)
+
+# Build filters
+filter_builder = FilterBuilder() \
+    .add('status', 'eq', 'active') \
+    .add('region', 'in', ['eu', 'us'])
+
+# Parse pagination
+params = {'page': '1', 'page_size': '25'}
+current_page, page_size = parse_pagination_params(params)
+
+# Create complete query
+filter_query = FilterQuery(
+    filters=filter_builder.build(),
+    sort=['-updated_at'],
+    page=current_page,
+    page_size=page_size
+)
+
+# Build query string
+query_string = build_query_string(filter_query)
+
+# Use with HTTP client
+response = await client.http_client.get_with_filters(
+    '/api/items',
+    filter_builder=filter_builder,
+    params={'page': current_page, 'page_size': page_size}
+)
+```
+
+**Or use pagination helper:**
+
+```python
+# Get paginated response
+response = await client.http_client.get_paginated(
+    '/api/items',
+    page=1,
+    page_size=25
+)
+
+# Response is automatically parsed as PaginatedListResponse
+print(response.meta.total_items)  # 120
+print(response.meta.current_page)  # 1
+print(len(response.data))  # 25
+```
+
+#### Metadata Filter Integration
+
+**Working with `/metadata/filter` endpoint:**
+
+```python
+# Get metadata filters from endpoint
+metadata_response = await client.http_client.post(
+    "/api/v1/metadata/filter",
+    {"documentStorageKey": "my-doc-storage"}
+)
+
+# Convert AccessFieldFilter to FilterBuilder
+filter_builder = FilterBuilder()
+for access_filter in metadata_response.mandatoryFilters:
+    filter_builder.add(access_filter.field, 'in', access_filter.values)
+
+# Use with query utilities
+query_string = filter_builder.to_query_string()
+
+# Apply to API requests
+response = await client.http_client.get_with_filters(
+    '/api/items',
+    filter_builder=filter_builder
+)
+```
+
+**Features:**
+
+- **Snake_case Convention**: All utilities use snake_case to match Miso/Dataplane API
+- **Type Safety**: Full type hints with Pydantic models
+- **Dynamic Filtering**: FilterBuilder supports method chaining for complex filters
+- **Local Testing**: `apply_filters()` and `apply_pagination_to_array()` for local filtering/pagination in tests
+- **URL Encoding**: Automatic URL encoding for field names and values
+- **Backward Compatible**: Works alongside existing HTTP client methods
+
+---
+
 ### Common Tasks
 
 **Add authentication middleware (FastAPI):**

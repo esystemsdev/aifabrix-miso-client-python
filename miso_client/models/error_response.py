@@ -33,9 +33,18 @@ class ErrorResponse(BaseModel):
 
     errors: List[str] = Field(..., description="List of error messages")
     type: str = Field(..., description="Error type URI (e.g., '/Errors/Bad Input')")
-    title: str = Field(..., description="Human-readable error title")
+    title: Optional[str] = Field(default=None, description="Human-readable error title")
     statusCode: int = Field(..., alias="status_code", description="HTTP status code")
     instance: Optional[str] = Field(default=None, description="Request instance URI")
+    request_key: Optional[str] = Field(
+        default=None, alias="requestKey", description="Request key for error tracking"
+    )
 
     class Config:
         populate_by_name = True  # Allow both camelCase and snake_case
+
+    # Support snake_case attribute access
+    @property
+    def status_code(self) -> int:
+        """Get statusCode as status_code (snake_case)."""
+        return self.statusCode

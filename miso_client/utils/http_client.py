@@ -583,3 +583,110 @@ class HttpClient:
         kwargs["headers"] = headers
 
         return await self.request(method, url, data, **kwargs)
+
+    async def get_with_filters(
+        self,
+        url: str,
+        filter_builder: Optional[Any] = None,
+        **kwargs,
+    ) -> Any:
+        """
+        Make GET request with filter builder support.
+
+        Args:
+            url: Request URL
+            filter_builder: Optional FilterBuilder instance with filters
+            **kwargs: Additional httpx request parameters
+
+        Returns:
+            Response data (JSON parsed)
+
+        Raises:
+            MisoClientError: If request fails
+
+        Examples:
+            >>> from miso_client.models.filter import FilterBuilder
+            >>> filter_builder = FilterBuilder().add('status', 'eq', 'active')
+            >>> response = await client.http_client.get_with_filters('/api/items', filter_builder)
+        """
+        from ..models.filter import FilterQuery
+        from ..utils.filter import build_query_string
+
+        # Build query string from filter builder
+        if filter_builder:
+            # Create FilterQuery from FilterBuilder
+            filter_query = FilterQuery(filters=filter_builder.build())
+            query_string = build_query_string(filter_query)
+
+            # Parse query string into params
+            if query_string:
+                from urllib.parse import parse_qs
+
+                # Parse query string into dict
+                query_params = parse_qs(query_string)
+                # Convert single-item lists to values
+                params = {k: v[0] if len(v) == 1 else v for k, v in query_params.items()}
+
+                # Merge with existing params
+                existing_params = kwargs.get("params", {})
+                if existing_params:
+                    # Merge params (filter builder takes precedence)
+                    merged_params = {**existing_params, **params}
+                else:
+                    merged_params = params
+
+                kwargs["params"] = merged_params
+
+        return await self.get(url, **kwargs)
+
+    async def get_paginated(
+        self,
+        url: str,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        **kwargs,
+    ) -> Any:
+        """
+        Make GET request with pagination support.
+
+        Args:
+            url: Request URL
+            page: Optional page number (1-based)
+            page_size: Optional number of items per page
+            **kwargs: Additional httpx request parameters
+
+        Returns:
+            PaginatedListResponse with meta and data (or raw response if format doesn't match)
+
+        Raises:
+            MisoClientError: If request fails
+
+        Examples:
+            >>> response = await client.http_client.get_paginated('/api/items', page=1, page_size=25)
+            >>> response.meta.total_items
+            120
+            >>> len(response.data)
+            25
+        """
+        from ..models.pagination import PaginatedListResponse
+
+        # Add pagination params
+        params = kwargs.get("params", {})
+        if page is not None:
+            params["page"] = page
+        if page_size is not None:
+            params["page_size"] = page_size
+
+        if params:
+            kwargs["params"] = params
+
+        # Make request
+        response_data = await self.get(url, **kwargs)
+
+        # Try to parse as PaginatedListResponse
+        try:
+            return PaginatedListResponse(**response_data)
+        except Exception:
+            # If response doesn't match PaginatedListResponse format, return as-is
+            # This allows flexibility for different response formats
+            return response_data

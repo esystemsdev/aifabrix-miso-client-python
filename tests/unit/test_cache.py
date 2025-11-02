@@ -219,6 +219,135 @@ class TestCacheService:
         assert value == "value"
 
     @pytest.mark.asyncio
+    async def test_serialize_complex_nested_object(self, cache_no_redis):
+        """Test serialization of complex nested objects."""
+        complex_obj = {
+            "users": [
+                {"id": 1, "name": "Alice", "roles": ["admin", "user"]},
+                {"id": 2, "name": "Bob", "roles": ["user"]},
+            ],
+            "metadata": {"timestamp": 1234567890, "version": "1.0.0"},
+        }
+
+        await cache_no_redis.set("complex_key", complex_obj, 60)
+        value = await cache_no_redis.get("complex_key")
+
+        assert value == complex_obj
+
+    def test_serialize_primitive_types(self, cache_no_redis):
+        """Test serialization of primitive types."""
+        # Test integer
+        serialized_int = cache_no_redis._serialize_value(123)
+        assert serialized_int == "123"
+
+        # Test float
+        serialized_float = cache_no_redis._serialize_value(45.67)
+        assert serialized_float == "45.67"
+
+        # Test boolean
+        serialized_bool = cache_no_redis._serialize_value(True)
+        assert serialized_bool == "true"
+
+        # Test None
+        serialized_none = cache_no_redis._serialize_value(None)
+        assert serialized_none == "null"
+
+    def test_deserialize_with_cached_value_marker(self, cache_no_redis):
+        """Test deserialization with __cached_value__ marker."""
+        # Serialize complex object
+        obj = {"key": "value", "nested": {"inner": 123}}
+        serialized = cache_no_redis._serialize_value(obj)
+
+        # Deserialize
+        deserialized = cache_no_redis._deserialize_value(serialized)
+
+        assert deserialized == obj
+
+    def test_deserialize_plain_string_no_json(self, cache_no_redis):
+        """Test deserialization of plain string that's not valid JSON."""
+        # Plain string that's not JSON
+        value = cache_no_redis._deserialize_value("just a string")
+
+        assert value == "just a string"
+
+    @pytest.mark.asyncio
+    async def test_cleanup_expired_when_threshold_exceeded(self, cache_no_redis):
+        """Test cleanup of expired entries when cache exceeds threshold."""
+        # Set cleanup threshold to a small value for testing
+        cache_no_redis._cleanup_threshold = 5
+
+        # Add many entries, some expired
+        for i in range(10):
+            await cache_no_redis.set(f"key_{i}", f"value_{i}", -1 if i % 2 == 0 else 60)
+
+        # Trigger cleanup by adding another entry
+        await cache_no_redis.set("new_key", "new_value", 60)
+
+        # Expired entries should be cleaned up
+        # Check that expired keys are gone
+        for i in range(10):
+            if i % 2 == 0:
+                value = await cache_no_redis.get(f"key_{i}")
+                assert value is None
+            else:
+                value = await cache_no_redis.get(f"key_{i}")
+                assert value == f"value_{i}"
+
+    def test_is_expired(self, cache_no_redis):
+        """Test expiration checking."""
+        import time
+
+        # Future expiration (not expired)
+        future_exp = time.time() + 3600
+        assert cache_no_redis._is_expired(future_exp) is False
+
+        # Past expiration (expired)
+        past_exp = time.time() - 3600
+        assert cache_no_redis._is_expired(past_exp) is True
+
+    @pytest.mark.asyncio
+    async def test_clear_operation(self, cache_no_redis):
+        """Test clear operation."""
+        # Add some entries
+        await cache_no_redis.set("key1", "value1", 60)
+        await cache_no_redis.set("key2", "value2", 60)
+
+        # Clear cache
+        await cache_no_redis.clear()
+
+        # Verify entries are gone
+        assert await cache_no_redis.get("key1") is None
+        assert await cache_no_redis.get("key2") is None
+
+    @pytest.mark.asyncio
+    async def test_get_when_redis_raises_exception(self, cache_with_redis, mock_redis):
+        """Test get when Redis raises exception (should fallback to memory)."""
+        mock_redis.is_connected.return_value = True
+        mock_redis.get = AsyncMock(side_effect=Exception("Redis error"))
+
+        # Set in memory
+        await cache_with_redis.set("test_key", "memory_value", 60)
+
+        # Get should fallback to memory
+        value = await cache_with_redis.get("test_key")
+
+        assert value == "memory_value"
+
+    @pytest.mark.asyncio
+    async def test_set_when_redis_raises_exception(self, cache_with_redis, mock_redis):
+        """Test set when Redis raises exception (should continue to memory)."""
+        mock_redis.is_connected.return_value = True
+        mock_redis.set = AsyncMock(side_effect=Exception("Redis error"))
+
+        # Should still cache in memory
+        result = await cache_with_redis.set("test_key", "value", 60)
+
+        assert result is True
+        # Verify memory cache has it
+        value = await cache_with_redis.get("test_key")
+        assert value == "value"
+
+    @pytest.mark.asyncio
     async def test_cleanup_expired_entries(self, cache_no_redis):
         """Test automatic cleanup of expired entries."""
         # Set multiple keys with short TTL

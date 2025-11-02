@@ -5,6 +5,93 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2025-11-02
+
+### Added
+
+- **Pagination Utilities**: Complete pagination support for list responses
+  - `Meta` and `PaginatedListResponse` Pydantic models for standardized paginated responses
+  - `parse_pagination_params()` function to parse `page` and `page_size` query parameters
+  - `create_meta_object()` function to construct pagination metadata objects
+  - `apply_pagination_to_array()` function for local pagination in tests/mocks
+  - `create_paginated_list_response()` function to wrap data with pagination metadata
+  - Support for both snake_case (`total_items`, `current_page`, `page_size`) and camelCase (`totalItems`, `currentPage`, `pageSize`) attribute access
+  - Full type safety with Pydantic models and generic type support
+
+- **Filtering Utilities**: Comprehensive filtering support for API queries
+  - `FilterOption`, `FilterQuery`, and `FilterBuilder` classes for building filter queries
+  - `FilterOperator` type supporting: `eq`, `neq`, `in`, `nin`, `gt`, `lt`, `gte`, `lte`, `contains`, `like`
+  - `parse_filter_params()` function to parse `filter=field:op:value` query parameters
+  - `build_query_string()` function to convert `FilterQuery` objects to URL query strings
+  - `apply_filters()` function for local filtering in tests/mocks
+  - `FilterBuilder` class with fluent API for method chaining (e.g., `FilterBuilder().add('status', 'eq', 'active').add('region', 'in', ['eu', 'us'])`)
+  - URL encoding support for field names and values (comma separators preserved for array values)
+  - Integration with `/metadata/filter` endpoint through `FilterBuilder` compatibility with `AccessFieldFilter`
+
+- **Sorting Utilities**: Sort parameter parsing and building
+  - `SortOption` Pydantic model with `field` and `order` (asc/desc) properties
+  - `parse_sort_params()` function to parse `sort=-field` query parameters
+  - `build_sort_string()` function to convert `SortOption` lists to query string format
+  - Support for multiple sort fields with ascending/descending order
+  - URL encoding for field names with special characters
+
+- **Error Handling Utilities**: Enhanced error response transformation and handling
+  - `transform_error_to_snake_case()` function for converting error dictionaries to `ErrorResponse` objects
+  - `handle_api_error_snake_case()` function for creating `MisoClientError` from API error responses
+  - Support for both camelCase and snake_case field names in error responses
+  - Automatic parameter overriding (instance and status_code parameters override response data)
+  - Graceful handling of missing optional fields (title, instance, request_key)
+
+- **HTTP Client Enhancements**: New helper methods for filtered and paginated requests
+  - `get_with_filters()` method for making GET requests with `FilterBuilder` support
+  - `get_paginated()` method for making GET requests with pagination parameters
+  - Automatic query string building from filter/sort/pagination options
+  - Flexible response parsing (returns `PaginatedListResponse` when format matches, raw response otherwise)
+
+- **ErrorResponse Model Enhancements**:
+  - Added `request_key` field for error tracking (supports both `request_key` and `requestKey` aliases)
+  - Made `title` field optional (defaults to `None`) for graceful handling of missing titles
+  - Added `status_code` property getter for snake_case access (complements `statusCode` camelCase field)
+  - Full support for both snake_case and camelCase attribute access
+
+- **Model Exports**: All new models and utilities exported from main module
+  - Pagination: `Meta`, `PaginatedListResponse`, `parse_pagination_params`, `create_meta_object`, `apply_pagination_to_array`, `create_paginated_list_response`
+  - Filtering: `FilterOperator`, `FilterOption`, `FilterQuery`, `FilterBuilder`, `parse_filter_params`, `build_query_string`, `apply_filters`
+  - Sorting: `SortOption`, `parse_sort_params`, `build_sort_string`
+  - Error: `transform_error_to_snake_case`, `handle_api_error_snake_case`
+  - All utilities follow snake_case naming convention matching Miso/Dataplane API conventions
+
+### Changed
+
+- **ErrorResponse Model**: Made `title` field optional to support APIs that don't provide titles
+  - Old: `title: str = Field(..., description="Human-readable error title")`
+  - New: `title: Optional[str] = Field(default=None, description="Human-readable error title")`
+  - Backward compatible - existing code with required titles still works
+
+- **handle_api_error_snake_case Function**: Enhanced parameter override behavior
+  - `instance` parameter now overrides instance in response_data (was only set if missing)
+  - `status_code` parameter now always overrides status_code in response_data (was only set if missing)
+  - Better error message generation when title is missing
+
+### Technical Improvements
+
+- **Type Safety**: Full type hints throughout all new utilities and models
+- **Pydantic Models**: All new data structures use Pydantic for validation and serialization
+- **Property Getters**: Added property getters to support both snake_case and camelCase attribute access in models
+- **URL Encoding**: Smart encoding that preserves comma delimiters in array filter values
+- **Comprehensive Tests**: 123 unit tests covering all utilities with 100% coverage for models and utilities
+- **Documentation**: Complete README documentation with usage examples for all utilities
+- **Snake_case Convention**: All utilities follow Python snake_case naming to match Miso/Dataplane API conventions
+
+### Documentation
+
+- Added comprehensive README section for pagination, filtering, and sorting utilities
+- Usage examples for all utilities including combined usage patterns
+- Integration examples with `/metadata/filter` endpoint
+- Type hints and docstrings for all public APIs
+
+---
+
 ## [0.4.0] - 2025-11-02
 
 ### Added

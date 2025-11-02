@@ -27,6 +27,9 @@ from .models.config import (
     UserInfo,
 )
 from .models.error_response import ErrorResponse
+from .models.filter import FilterBuilder, FilterOperator, FilterOption, FilterQuery
+from .models.pagination import Meta, PaginatedListResponse
+from .models.sort import SortOption
 from .services.auth import AuthService
 from .services.cache import CacheService
 from .services.encryption import EncryptionService
@@ -35,10 +38,19 @@ from .services.permission import PermissionService
 from .services.redis import RedisService
 from .services.role import RoleService
 from .utils.config_loader import load_config
+from .utils.error_utils import handle_api_error_snake_case, transform_error_to_snake_case
+from .utils.filter import apply_filters, build_query_string, parse_filter_params
 from .utils.http_client import HttpClient
 from .utils.internal_http_client import InternalHttpClient
+from .utils.pagination import (
+    apply_pagination_to_array,
+    create_meta_object,
+    create_paginated_list_response,
+    parse_pagination_params,
+)
+from .utils.sort import build_sort_string, parse_sort_params
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 __author__ = "AI Fabrix Team"
 __license__ = "MIT"
 
@@ -491,6 +503,32 @@ __all__ = [
     "PerformanceMetrics",
     "ClientLoggingOptions",
     "ErrorResponse",
+    # Pagination models
+    "Meta",
+    "PaginatedListResponse",
+    # Filter models
+    "FilterOperator",
+    "FilterOption",
+    "FilterQuery",
+    "FilterBuilder",
+    # Sort models
+    "SortOption",
+    # Pagination utilities
+    "parse_pagination_params",
+    "create_meta_object",
+    "apply_pagination_to_array",
+    "create_paginated_list_response",
+    # Filter utilities
+    "parse_filter_params",
+    "build_query_string",
+    "apply_filters",
+    # Sort utilities
+    "parse_sort_params",
+    "build_sort_string",
+    # Error utilities
+    "transform_error_to_snake_case",
+    "handle_api_error_snake_case",
+    # Services
     "AuthService",
     "RoleService",
     "PermissionService",

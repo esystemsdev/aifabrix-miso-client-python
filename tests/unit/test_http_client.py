@@ -241,6 +241,196 @@ class TestInternalHttpClient:
         assert token == "env-token"
 
     @pytest.mark.asyncio
+    async def test_put_request_success(self, http_client):
+        """Test successful PUT request."""
+        await http_client._initialize_client()
+        http_client.client_token = "test-token"
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"data": "updated"}
+        mock_response.raise_for_status = MagicMock()
+
+        http_client.client.put = AsyncMock(return_value=mock_response)
+
+        with patch.object(http_client, "_ensure_client_token", new_callable=AsyncMock):
+            result = await http_client.put("/api/resource", {"key": "value"})
+
+            assert result == {"data": "updated"}
+            http_client.client.put.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_put_request_401_clears_token(self, http_client):
+        """Test PUT request with 401 error clears token."""
+        await http_client._initialize_client()
+        http_client.client_token = "existing-token"
+        http_client.token_expires_at = datetime.now() + timedelta(seconds=3600)
+
+        mock_response = MagicMock()
+        mock_response.status_code = 401
+        mock_response.text = "Unauthorized"
+        mock_response.headers.get.return_value = "application/json"
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "401 Unauthorized", request=MagicMock(), response=mock_response
+        )
+
+        http_client.client.put = AsyncMock(return_value=mock_response)
+
+        with patch.object(http_client, "_ensure_client_token", new_callable=AsyncMock):
+            with pytest.raises(MisoClientError):
+                await http_client.put("/api/resource", {"key": "value"})
+
+            assert http_client.client_token is None
+            assert http_client.token_expires_at is None
+
+    @pytest.mark.asyncio
+    async def test_delete_request_success(self, http_client):
+        """Test successful DELETE request."""
+        await http_client._initialize_client()
+        http_client.client_token = "test-token"
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"deleted": True}
+        mock_response.raise_for_status = MagicMock()
+
+        http_client.client.delete = AsyncMock(return_value=mock_response)
+
+        with patch.object(http_client, "_ensure_client_token", new_callable=AsyncMock):
+            result = await http_client.delete("/api/resource")
+
+            assert result == {"deleted": True}
+            http_client.client.delete.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_delete_request_401_clears_token(self, http_client):
+        """Test DELETE request with 401 error clears token."""
+        await http_client._initialize_client()
+        http_client.client_token = "existing-token"
+        http_client.token_expires_at = datetime.now() + timedelta(seconds=3600)
+
+        mock_response = MagicMock()
+        mock_response.status_code = 401
+        mock_response.text = "Unauthorized"
+        mock_response.headers.get.return_value = "application/json"
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "401 Unauthorized", request=MagicMock(), response=mock_response
+        )
+
+        http_client.client.delete = AsyncMock(return_value=mock_response)
+
+        with patch.object(http_client, "_ensure_client_token", new_callable=AsyncMock):
+            with pytest.raises(MisoClientError):
+                await http_client.delete("/api/resource")
+
+            assert http_client.client_token is None
+            assert http_client.token_expires_at is None
+
+    @pytest.mark.asyncio
+    async def test_context_manager_usage(self, http_client):
+        """Test async context manager usage."""
+        await http_client._initialize_client()
+
+        with patch.object(http_client, "close", new_callable=AsyncMock) as mock_close:
+            async with http_client:
+                pass
+
+            mock_close.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_context_manager_with_exception(self, http_client):
+        """Test async context manager with exception."""
+        await http_client._initialize_client()
+
+        with patch.object(http_client, "close", new_callable=AsyncMock) as mock_close:
+            try:
+                async with http_client:
+                    raise ValueError("Test error")
+            except ValueError:
+                pass
+
+            mock_close.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_request_unsupported_method(self, http_client):
+        """Test request with unsupported HTTP method."""
+        await http_client._initialize_client()
+
+        with pytest.raises(ValueError, match="Unsupported HTTP method"):
+            await http_client.request("PATCH", "/api/resource")
+
+    @pytest.mark.asyncio
+    async def test_parse_error_response_non_json(self, http_client):
+        """Test _parse_error_response with non-JSON content."""
+        await http_client._initialize_client()
+
+        mock_response = MagicMock()
+        mock_response.headers.get.return_value = "text/plain"
+
+        result = http_client._parse_error_response(mock_response, "/api/test")
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_parse_error_response_malformed_json(self, http_client):
+        """Test _parse_error_response with malformed JSON."""
+        await http_client._initialize_client()
+
+        mock_response = MagicMock()
+        mock_response.headers.get.return_value = "application/json"
+        mock_response.json.side_effect = ValueError("Invalid JSON")
+
+        result = http_client._parse_error_response(mock_response, "/api/test")
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_parse_error_response_missing_fields(self, http_client):
+        """Test _parse_error_response with missing required fields."""
+        await http_client._initialize_client()
+
+        mock_response = MagicMock()
+        mock_response.headers.get.return_value = "application/json"
+        mock_response.json.return_value = {"type": "error"}  # Missing required fields
+
+        result = http_client._parse_error_response(mock_response, "/api/test")
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_concurrent_token_refresh(self, http_client):
+        """Test concurrent token refresh (lock mechanism)."""
+        await http_client._initialize_client()
+        http_client.client_token = None  # Force refresh
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "success": True,
+            "token": "new-token",
+            "expiresIn": 3600,
+            "expiresAt": "2024-01-01T12:00:00Z",
+        }
+
+        with patch("httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client.post = AsyncMock(return_value=mock_response)
+            mock_client.aclose = AsyncMock()
+            mock_client_class.return_value = mock_client
+
+            # Simulate concurrent token fetches
+            tokens = await asyncio.gather(
+                http_client._get_client_token(),
+                http_client._get_client_token(),
+                http_client._get_client_token(),
+            )
+
+            # All should return the same token
+            assert all(t == "new-token" for t in tokens)
+            # Should only fetch once due to lock
+            assert mock_client.post.call_count == 1
+
+    @pytest.mark.asyncio
     async def test_close(self, http_client):
         """Test closing HTTP client."""
         await http_client._initialize_client()
