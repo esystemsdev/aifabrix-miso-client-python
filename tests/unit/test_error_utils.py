@@ -14,12 +14,12 @@ class TestTransformErrorToSnakeCase:
     """Test cases for transform_error_to_snake_case function."""
 
     def test_transform_snake_case_error(self):
-        """Test transforming snake_case error data."""
+        """Test transforming camelCase error data."""
         error_data = {
             "errors": ["Validation failed"],
             "type": "/Errors/Validation",
             "title": "Validation Error",
-            "status_code": 422,
+            "statusCode": 422,
             "instance": "/api/endpoint",
         }
         error_response = transform_error_to_snake_case(error_data)
@@ -29,7 +29,6 @@ class TestTransformErrorToSnakeCase:
         assert error_response.type == "/Errors/Validation"
         assert error_response.title == "Validation Error"
         assert error_response.statusCode == 422
-        assert error_response.status_code == 422
         assert error_response.instance == "/api/endpoint"
 
     def test_transform_camel_case_error(self):
@@ -45,23 +44,22 @@ class TestTransformErrorToSnakeCase:
 
         assert isinstance(error_response, ErrorResponse)
         assert error_response.statusCode == 400
-        assert error_response.status_code == 400
 
     def test_transform_mixed_case_error(self):
-        """Test transforming mixed case error data."""
+        """Test transforming camelCase error data."""
         error_data = {
             "errors": ["Error message"],
             "type": "/Errors/Bad Input",
             "title": "Bad Request",
-            "statusCode": 400,  # camelCase
+            "statusCode": 400,
             "instance": "/api/endpoint",
-            "request_key": "req-123",  # snake_case
+            "requestKey": "req-123",
         }
         error_response = transform_error_to_snake_case(error_data)
 
         assert isinstance(error_response, ErrorResponse)
         assert error_response.statusCode == 400
-        assert error_response.request_key == "req-123"
+        assert error_response.requestKey == "req-123"
 
     def test_transform_error_multiple_errors(self):
         """Test transforming error with multiple error messages."""
@@ -89,7 +87,7 @@ class TestTransformErrorToSnakeCase:
         assert error_response.instance is None
 
     def test_transform_error_with_request_key(self):
-        """Test transforming error with request_key field."""
+        """Test transforming error with requestKey field."""
         error_data = {
             "errors": ["Error message"],
             "type": "/Errors/Bad Input",
@@ -99,19 +97,19 @@ class TestTransformErrorToSnakeCase:
         }
         error_response = transform_error_to_snake_case(error_data)
 
-        assert error_response.request_key == "req-123"
+        assert error_response.requestKey == "req-123"
 
 
 class TestHandleApiErrorSnakeCase:
     """Test cases for handle_api_error_snake_case function."""
 
     def test_handle_error_snake_case(self):
-        """Test handling error with snake_case format."""
+        """Test handling error with camelCase format."""
         response_data = {
             "errors": ["Validation failed"],
             "type": "/Errors/Validation",
             "title": "Validation Error",
-            "status_code": 422,
+            "statusCode": 422,
         }
         error = handle_api_error_snake_case(response_data, 422, "/api/endpoint")
 
@@ -227,7 +225,7 @@ class TestHandleApiErrorSnakeCase:
         assert error.error_response.errors == ["Error message"]
 
     def test_handle_error_with_request_key(self):
-        """Test handling error with request_key field."""
+        """Test handling error with requestKey field."""
         response_data = {
             "errors": ["Error message"],
             "type": "/Errors/Bad Input",
@@ -237,4 +235,4 @@ class TestHandleApiErrorSnakeCase:
         }
         error = handle_api_error_snake_case(response_data, 400)
 
-        assert error.error_response.request_key == "req-123"
+        assert error.error_response.requestKey == "req-123"

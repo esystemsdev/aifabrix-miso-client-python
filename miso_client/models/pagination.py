@@ -17,35 +17,16 @@ class Meta(BaseModel):
     Pagination metadata for list responses.
 
     Fields:
-        total_items: Total number of items across all pages
-        current_page: Current page number (1-based, maps from `page` query param)
-        page_size: Number of items per page (maps from `page_size` query param)
+        totalItems: Total number of items across all pages
+        currentPage: Current page number (1-based, maps from `page` query param)
+        pageSize: Number of items per page (maps from `pageSize` query param)
         type: Resource type identifier (e.g., 'item', 'user', 'group')
     """
 
-    total_items: int = Field(..., alias="totalItems", description="Total number of items")
-    current_page: int = Field(..., alias="currentPage", description="Current page number (1-based)")
-    page_size: int = Field(..., alias="pageSize", description="Number of items per page")
+    totalItems: int = Field(..., description="Total number of items")
+    currentPage: int = Field(..., description="Current page number (1-based)")
+    pageSize: int = Field(..., description="Number of items per page")
     type: str = Field(..., description="Resource type identifier")
-
-    class Config:
-        populate_by_name = True  # Allow both snake_case and camelCase
-
-    # Support camelCase attribute access
-    @property
-    def totalItems(self) -> int:
-        """Get total_items as totalItems (camelCase)."""
-        return self.total_items
-
-    @property
-    def currentPage(self) -> int:
-        """Get current_page as currentPage (camelCase)."""
-        return self.current_page
-
-    @property
-    def pageSize(self) -> int:
-        """Get page_size as pageSize (camelCase)."""
-        return self.page_size
 
 
 class PaginatedListResponse(BaseModel, Generic[T]):
@@ -62,5 +43,3 @@ class PaginatedListResponse(BaseModel, Generic[T]):
     meta: Meta = Field(..., description="Pagination metadata")
     data: List[T] = Field(..., description="Array of items for current page")
 
-    class Config:
-        populate_by_name = True  # Allow both snake_case and camelCase

@@ -5,11 +5,14 @@ This module provides Redis connectivity with graceful degradation when Redis
 is unavailable. It handles caching of roles and permissions, and log queuing.
 """
 
+import logging
 from typing import Optional
 
 import redis.asyncio as redis
 
 from ..models.config import RedisConfig
+
+logger = logging.getLogger(__name__)
 
 
 class RedisService:
@@ -34,7 +37,7 @@ class RedisService:
             Exception: If connection fails and config is provided
         """
         if not self.config:
-            print("Redis not configured, using controller fallback")
+            logger.info("Redis not configured, using controller fallback")
             return
 
         try:
@@ -55,10 +58,10 @@ class RedisService:
             if hasattr(resp, "__await__"):
                 await resp  # type: ignore[misc]
             self.connected = True
-            print("Connected to Redis")
+            logger.info("Connected to Redis")
 
         except Exception as error:
-            print(f"Failed to connect to Redis: {error}")
+            logger.error(f"Failed to connect to Redis: {error}", exc_info=error)
             self.connected = False
             if self.config:  # Only raise if Redis was configured
                 raise error
@@ -68,7 +71,7 @@ class RedisService:
         if self.redis:
             await self.redis.aclose()
             self.connected = False
-            print("Disconnected from Redis")
+            logger.info("Disconnected from Redis")
 
     def is_connected(self) -> bool:
         """
@@ -102,7 +105,7 @@ class RedisService:
                 result = resp
             return None if result is None else str(result)
         except Exception as error:
-            print(f"Redis get error: {error}")
+            logger.error("Redis get error", exc_info=error)
             return None
 
     async def set(self, key: str, value: str, ttl: int) -> bool:
@@ -128,7 +131,7 @@ class RedisService:
                 await resp  # type: ignore[misc]
             return True
         except Exception as error:
-            print(f"Redis set error: {error}")
+            logger.error("Redis set error", exc_info=error)
             return False
 
     async def delete(self, key: str) -> bool:
@@ -152,7 +155,7 @@ class RedisService:
                 await resp  # type: ignore[misc]
             return True
         except Exception as error:
-            print(f"Redis delete error: {error}")
+            logger.error("Redis delete error", exc_info=error)
             return False
 
     async def rpush(self, queue: str, value: str) -> bool:
@@ -177,5 +180,5 @@ class RedisService:
                 await resp  # type: ignore[misc]
             return True
         except Exception as error:
-            print(f"Redis rpush error: {error}")
+            logger.error("Redis rpush error", exc_info=error)
             return False

@@ -77,15 +77,15 @@ def create_meta_object(total_items: int, current_page: int, page_size: int, type
 
     Examples:
         >>> meta = create_meta_object(120, 1, 25, 'item')
-        >>> meta.total_items
+        >>> meta.totalItems
         120
-        >>> meta.current_page
+        >>> meta.currentPage
         1
     """
     return Meta(
-        total_items=total_items,
-        current_page=current_page,
-        page_size=page_size,
+        totalItems=total_items,
+        currentPage=current_page,
+        pageSize=page_size,
         type=type,
     )
 
@@ -148,7 +148,7 @@ def create_paginated_list_response(
     Examples:
         >>> items = [{'id': 1}, {'id': 2}]
         >>> response = create_paginated_list_response(items, 10, 1, 2, 'item')
-        >>> response.meta.total_items
+        >>> response.meta.totalItems
         10
         >>> len(response.data)
         2

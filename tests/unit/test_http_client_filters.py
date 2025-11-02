@@ -159,9 +159,9 @@ class TestHttpClientGetPaginated:
         mock_internal_client = AsyncMock()
         mock_response = {
             "meta": {
-                "total_items": 120,
-                "current_page": 1,
-                "page_size": 25,
+                "totalItems": 120,
+                "currentPage": 1,
+                "pageSize": 25,
                 "type": "item",
             },
             "data": [{"id": 1}, {"id": 2}],
@@ -172,9 +172,9 @@ class TestHttpClientGetPaginated:
         result = await http_client.get_paginated("/api/items", page=1, page_size=25)
 
         assert isinstance(result, PaginatedListResponse)
-        assert result.meta.total_items == 120
-        assert result.meta.current_page == 1
-        assert result.meta.page_size == 25
+        assert result.meta.totalItems == 120
+        assert result.meta.currentPage == 1
+        assert result.meta.pageSize == 25
         assert len(result.data) == 2
 
     @pytest.mark.asyncio
@@ -183,7 +183,7 @@ class TestHttpClientGetPaginated:
         # Mock InternalHttpClient
         mock_internal_client = AsyncMock()
         mock_response = {
-            "meta": {"total_items": 10, "current_page": 2, "page_size": 5, "type": "item"},
+            "meta": {"totalItems": 10, "currentPage": 2, "pageSize": 5, "type": "item"},
             "data": [],
         }
         mock_internal_client.get = AsyncMock(return_value=mock_response)
@@ -196,14 +196,14 @@ class TestHttpClientGetPaginated:
         assert "params" in call_args[1]
         params = call_args[1]["params"]
         assert params["page"] == 2
-        assert params["page_size"] == 5
+        assert params["pageSize"] == 5
 
     @pytest.mark.asyncio
     async def test_get_paginated_no_pagination(self, http_client):
         """Test get_paginated without pagination params."""
         # Mock InternalHttpClient
         mock_internal_client = AsyncMock()
-        mock_response = {"meta": {"total_items": 10}, "data": []}
+        mock_response = {"meta": {"totalItems": 10}, "data": []}
         mock_internal_client.get = AsyncMock(return_value=mock_response)
         http_client._internal_client = mock_internal_client
 
@@ -217,7 +217,7 @@ class TestHttpClientGetPaginated:
         # Mock InternalHttpClient
         mock_internal_client = AsyncMock()
         mock_response = {
-            "meta": {"total_items": 10, "current_page": 2, "page_size": 25, "type": "item"},
+            "meta": {"totalItems": 10, "currentPage": 2, "pageSize": 25, "type": "item"},
             "data": [],
         }
         mock_internal_client.get = AsyncMock(return_value=mock_response)
@@ -236,7 +236,7 @@ class TestHttpClientGetPaginated:
         # Mock InternalHttpClient
         mock_internal_client = AsyncMock()
         mock_response = {
-            "meta": {"total_items": 10, "current_page": 1, "page_size": 50, "type": "item"},
+            "meta": {"totalItems": 10, "currentPage": 1, "pageSize": 50, "type": "item"},
             "data": [],
         }
         mock_internal_client.get = AsyncMock(return_value=mock_response)
@@ -247,7 +247,7 @@ class TestHttpClientGetPaginated:
         mock_internal_client.get.assert_called_once()
         call_args = mock_internal_client.get.call_args
         params = call_args[1]["params"]
-        assert params["page_size"] == 50
+        assert params["pageSize"] == 50
 
     @pytest.mark.asyncio
     async def test_get_paginated_invalid_response_format(self, http_client):
@@ -269,7 +269,7 @@ class TestHttpClientGetPaginated:
         # Mock InternalHttpClient
         mock_internal_client = AsyncMock()
         mock_response = {
-            "meta": {"total_items": 10, "current_page": 1, "page_size": 25, "type": "item"},
+            "meta": {"totalItems": 10, "currentPage": 1, "pageSize": 25, "type": "item"},
             "data": [],
         }
         mock_internal_client.get = AsyncMock(return_value=mock_response)
@@ -284,5 +284,5 @@ class TestHttpClientGetPaginated:
         params = call_args[1]["params"]
         # Should have both pagination and other params
         assert params["page"] == 1
-        assert params["page_size"] == 25
+        assert params["pageSize"] == 25
         assert params["other"] == "value"

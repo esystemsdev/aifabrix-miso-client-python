@@ -50,7 +50,7 @@ from .utils.pagination import (
 )
 from .utils.sort import build_sort_string, parse_sort_params
 
-__version__ = "0.5.0"
+__version__ = "1.8.0"
 __author__ = "AI Fabrix Team"
 __license__ = "MIT"
 

@@ -2,7 +2,7 @@
 Error utilities for MisoClient SDK.
 
 This module provides error transformation utilities for handling
-snake_case error responses from the API.
+camelCase error responses from the API.
 """
 
 from typing import Optional
@@ -13,13 +13,12 @@ from ..models.error_response import ErrorResponse
 
 def transform_error_to_snake_case(error_data: dict) -> ErrorResponse:
     """
-    Transform errors to snake_case format.
+    Transform errors to ErrorResponse format.
 
-    Converts error data dictionary to ErrorResponse object,
-    supporting both camelCase and snake_case field names.
+    Converts error data dictionary to ErrorResponse object with camelCase field names.
 
     Args:
-        error_data: Dictionary with error data (can be camelCase or snake_case)
+        error_data: Dictionary with error data (must be camelCase)
 
     Returns:
         ErrorResponse object with standardized format
@@ -29,14 +28,13 @@ def transform_error_to_snake_case(error_data: dict) -> ErrorResponse:
         ...     'errors': ['Error message'],
         ...     'type': '/Errors/Bad Input',
         ...     'title': 'Bad Request',
-        ...     'status_code': 400,
+        ...     'statusCode': 400,
         ...     'instance': '/api/endpoint'
         ... }
         >>> error_response = transform_error_to_snake_case(error_data)
         >>> error_response.statusCode
         400
     """
-    # ErrorResponse already supports both formats via populate_by_name=True
     return ErrorResponse(**error_data)
 
 
@@ -44,13 +42,13 @@ def handle_api_error_snake_case(
     response_data: dict, status_code: int, instance: Optional[str] = None
 ) -> MisoClientError:
     """
-    Handle errors with snake_case response format.
+    Handle errors with camelCase response format.
 
-    Creates MisoClientError with ErrorResponse from snake_case API response.
+    Creates MisoClientError with ErrorResponse from camelCase API response.
 
     Args:
-        response_data: Error response data from API (can be camelCase or snake_case)
-        status_code: HTTP status code (overrides status_code in response_data)
+        response_data: Error response data from API (must be camelCase)
+        status_code: HTTP status code (overrides statusCode in response_data)
         instance: Optional request instance URI (overrides instance in response_data)
 
     Returns:
@@ -61,7 +59,7 @@ def handle_api_error_snake_case(
         ...     'errors': ['Validation failed'],
         ...     'type': '/Errors/Validation',
         ...     'title': 'Validation Error',
-        ...     'status_code': 422
+        ...     'statusCode': 422
         ... }
         >>> error = handle_api_error_snake_case(response_data, 422, '/api/endpoint')
         >>> error.error_response.statusCode
@@ -74,9 +72,7 @@ def handle_api_error_snake_case(
     if instance:
         data["instance"] = instance
 
-    # Override status_code if provided
-    data["status_code"] = status_code
-    # Also set camelCase version for consistency
+    # Override statusCode if provided
     data["statusCode"] = status_code
 
     # Ensure title has a default if missing

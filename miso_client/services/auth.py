@@ -5,11 +5,14 @@ This module handles authentication operations including client token management,
 token validation, user information retrieval, and logout functionality.
 """
 
+import logging
 from typing import Optional
 
 from ..models.config import AuthResult, UserInfo
 from ..services.redis import RedisService
 from ..utils.http_client import HttpClient
+
+logger = logging.getLogger(__name__)
 
 
 class AuthService:
@@ -81,8 +84,8 @@ class AuthService:
             auth_result = AuthResult(**result)
             return auth_result.authenticated
 
-        except Exception:
-            # Token validation failed, return false
+        except Exception as error:
+            logger.error("Token validation failed", exc_info=error)
             return False
 
     async def get_user(self, token: str) -> Optional[UserInfo]:
@@ -115,8 +118,8 @@ class AuthService:
 
             return None
 
-        except Exception:
-            # Failed to get user info, return null
+        except Exception as error:
+            logger.error("Failed to get user info", exc_info=error)
             return None
 
     async def get_user_info(self, token: str) -> Optional[UserInfo]:
@@ -142,8 +145,8 @@ class AuthService:
 
             return UserInfo(**user_data)
 
-        except Exception:
-            # Failed to get user info, return None
+        except Exception as error:
+            logger.error("Failed to get user info", exc_info=error)
             return None
 
     async def logout(self) -> None:
@@ -151,18 +154,13 @@ class AuthService:
         Logout user.
 
         Backend extracts app/env from client token (no body needed).
-
-        Raises:
-            MisoClientError: If logout fails
         """
         try:
             # Backend extracts app/env from client token
             await self.http_client.request("POST", "/api/auth/logout")
-        except Exception as e:
-            # Logout failed, re-raise error for application to handle
-            from ..errors import MisoClientError
-
-            raise MisoClientError(f"Logout failed: {str(e)}")
+        except Exception as error:
+            logger.error("Logout failed", exc_info=error)
+            # Silently fail per service method pattern
 
     async def is_authenticated(self, token: str) -> bool:
         """

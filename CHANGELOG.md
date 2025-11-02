@@ -5,6 +5,82 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] - 2025-11-02
+
+### Changed
+
+- **Breaking Change: All Outgoing Data Now Uses camelCase Naming Convention**
+  - All Pydantic model fields sent to API now use camelCase (e.g., `pageSize`, `totalItems`, `currentPage`, `userId`, `statusCode`, `requestKey`)
+  - All JSON request bodies now use camelCase field names
+  - All query parameters now use camelCase (e.g., `pageSize` instead of `page_size`)
+  - All response data from API is expected in camelCase format
+  - Python code conventions remain snake_case (functions, methods, variables, parameters)
+
+- **Model Field Updates**:
+  - `FilterQuery`: Changed `page_size` → `pageSize`
+  - `Meta`: Changed `total_items` → `totalItems`, `current_page` → `currentPage`, `page_size` → `pageSize`
+  - `ErrorResponse`: Changed `request_key` → `requestKey`, removed `status_code` alias (now only `statusCode`)
+  - `LogEntry`: Removed all aliases (already camelCase): `applicationId`, `userId`, `correlationId`, `requestId`, `sessionId`, `stackTrace`, `ipAddress`, `userAgent`
+  - `UserInfo`: Removed `first_name`/`last_name` aliases (now only `firstName`/`lastName`)
+  - `RoleResult`: Removed `user_id` alias (now only `userId`)
+  - `PermissionResult`: Removed `user_id` alias (now only `userId`)
+  - `ClientTokenResponse`: Removed `expires_in`/`expires_at` aliases (now only `expiresIn`/`expiresAt`)
+  - `PerformanceMetrics`: Removed `start_time`/`end_time`/`memory_usage` aliases (now only `startTime`/`endTime`/`memoryUsage`)
+  - `ClientLoggingOptions`: Removed all aliases (already camelCase): `applicationId`, `userId`, `correlationId`, `requestId`, `sessionId`, `maskSensitiveData`, `performanceMetrics`
+
+- **Query Parameter Updates**:
+  - `build_query_string()`: Now generates `pageSize` instead of `page_size` in query strings
+  - `_add_pagination_params()`: Now adds `pageSize` instead of `page_size` to request parameters
+  - `parse_pagination_params()`: Still accepts both `pageSize` and `page_size` for backward compatibility (can parse either format)
+
+- **Utility Function Updates**:
+  - `create_meta_object()`: Now creates `Meta` objects with camelCase field names (`totalItems`, `currentPage`, `pageSize`)
+  - `error_utils.py`: Updated to handle only camelCase error responses (removed snake_case handling)
+  - `transform_error_to_snake_case()`: Function name retained for backward compatibility, but now expects camelCase data
+  - `handle_api_error_snake_case()`: Function name retained for backward compatibility, but now expects camelCase data
+
+- **Backward Compatibility Removed**:
+  - Removed all `populate_by_name` configs from Pydantic models
+  - Removed all snake_case property accessors (e.g., `status_code`, `totalItems`, `currentPage`, `pageSize` properties)
+  - Removed all Field aliases that supported snake_case input
+
+### Documentation
+
+- Updated `.cursorrules` with "API Data Conventions (camelCase)" section documenting camelCase requirements
+- Updated all test files to use camelCase field names when creating models and accessing fields
+- Updated all docstrings and examples to reflect camelCase naming convention
+
+### Migration Guide
+
+**For users upgrading from previous versions:**
+
+1. **Update model field references**: Change all snake_case field access to camelCase
+   - Old: `response.meta.total_items` → New: `response.meta.totalItems`
+   - Old: `response.meta.current_page` → New: `response.meta.currentPage`
+   - Old: `response.meta.page_size` → New: `response.meta.pageSize`
+   - Old: `error_response.status_code` → New: `error_response.statusCode`
+   - Old: `error_response.request_key` → New: `error_response.requestKey`
+
+2. **Update model instantiation**: Use camelCase field names when creating models
+   - Old: `FilterQuery(page_size=25)` → New: `FilterQuery(pageSize=25)`
+   - Old: `Meta(total_items=120, current_page=1, page_size=25)` → New: `Meta(totalItems=120, currentPage=1, pageSize=25)`
+
+3. **Update query parameters**: Query strings now use camelCase
+   - Old: `?page=1&page_size=25` → New: `?page=1&pageSize=25`
+
+4. **Update JSON request bodies**: All outgoing JSON must use camelCase
+   - Old: `{"user_id": "123", "application_id": "app-1"}` → New: `{"userId": "123", "applicationId": "app-1"}`
+
+5. **API responses**: All API responses are expected in camelCase format
+
+### Testing
+
+- Updated all 409 unit tests to use camelCase field names
+- All tests passing with 91% code coverage
+- Comprehensive test coverage for all model field changes
+
+---
+
 ## [0.5.0] - 2025-11-02
 
 ### Added

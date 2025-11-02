@@ -92,12 +92,12 @@ class TestErrors:
         assert error_response.instance == "/OpenApi/rest/Xzy"
 
     def test_error_response_model_snake_case(self):
-        """Test ErrorResponse model with snake_case aliases."""
+        """Test ErrorResponse model with camelCase field names."""
         error_data = {
             "errors": ["Error message"],
             "type": "/Errors/Validation",
             "title": "Validation Error",
-            "status_code": 422,
+            "statusCode": 422,
             "instance": "/api/endpoint",
         }
         error_response = ErrorResponse(**error_data)
