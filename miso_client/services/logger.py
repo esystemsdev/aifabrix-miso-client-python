@@ -13,6 +13,7 @@ from typing import Any, Dict, Literal, Optional
 
 from ..models.config import ClientLoggingOptions, LogEntry
 from ..services.redis import RedisService
+from ..utils.audit_log_queue import AuditLogQueue
 from ..utils.data_masker import DataMasker
 from ..utils.internal_http_client import InternalHttpClient
 from ..utils.jwt_tools import decode_token
@@ -21,13 +22,19 @@ from ..utils.jwt_tools import decode_token
 class LoggerService:
     """Logger service for application logging and audit events."""
 
-    def __init__(self, internal_http_client: InternalHttpClient, redis: RedisService):
+    def __init__(
+        self,
+        internal_http_client: InternalHttpClient,
+        redis: RedisService,
+        http_client: Optional[Any] = None,
+    ):
         """
         Initialize logger service.
 
         Args:
             internal_http_client: Internal HTTP client instance (used for log sending)
             redis: Redis service instance
+            http_client: Optional HttpClient instance for audit log queue (if available)
         """
         self.config = internal_http_client.config
         self.internal_http_client = internal_http_client
@@ -35,6 +42,10 @@ class LoggerService:
         self.mask_sensitive_data = True  # Default: mask sensitive data
         self.correlation_counter = 0
         self.performance_metrics: Dict[str, Dict[str, Any]] = {}
+        self.audit_log_queue: Optional[AuditLogQueue] = None
+
+        # Audit log queue will be initialized later by MisoClient after http_client is created
+        # This avoids circular dependency issues
 
     def set_masking(self, enabled: bool) -> None:
         """
@@ -142,9 +153,11 @@ class LoggerService:
             memory_usage = {
                 "rss": memory_info.rss,
                 "heapTotal": memory_info.rss,  # Approximation
-                "heapUsed": memory_info.rss - memory_info.available
-                if hasattr(memory_info, "available")
-                else memory_info.rss,
+                "heapUsed": (
+                    memory_info.rss - memory_info.available
+                    if hasattr(memory_info, "available")
+                    else memory_info.rss
+                ),
                 "external": 0,
                 "arrayBuffers": 0,
             }
@@ -182,9 +195,11 @@ class LoggerService:
             metrics["memoryUsage"] = {
                 "rss": memory_info.rss,
                 "heapTotal": memory_info.rss,
-                "heapUsed": memory_info.rss - memory_info.available
-                if hasattr(memory_info, "available")
-                else memory_info.rss,
+                "heapUsed": (
+                    memory_info.rss - memory_info.available
+                    if hasattr(memory_info, "available")
+                    else memory_info.rss
+                ),
                 "external": 0,
                 "arrayBuffers": 0,
             }
@@ -317,9 +332,11 @@ class LoggerService:
                         "memoryUsage": {
                             "rss": memory_info.rss,
                             "heapTotal": memory_info.rss,
-                            "heapUsed": memory_info.rss - memory_info.available
-                            if hasattr(memory_info, "available")
-                            else memory_info.rss,
+                            "heapUsed": (
+                                memory_info.rss - memory_info.available
+                                if hasattr(memory_info, "available")
+                                else memory_info.rss
+                            ),
                         },
                         "uptime": psutil.boot_time() if hasattr(psutil, "boot_time") else 0,
                     },
@@ -347,6 +364,11 @@ class LoggerService:
         log_entry_data = {k: v for k, v in log_entry_data.items() if v is not None}
 
         log_entry = LogEntry(**log_entry_data)
+
+        # Use batch queue for audit logs if available
+        if level == "audit" and self.audit_log_queue:
+            await self.audit_log_queue.add(log_entry)
+            return
 
         # Try Redis first (if available)
         if self.redis.is_connected():

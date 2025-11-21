@@ -5,6 +5,130 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.0] - 2025-11-21
+
+### Added
+
+- **camelCase Utility Functions with Backward Compatibility**: New camelCase function names added alongside existing snake_case functions
+  - `parsePaginationParams()`: Returns dictionary with `currentPage` and `pageSize` keys (alias: `parse_pagination_params()`)
+  - `createMetaObject()`: Creates `Meta` objects with camelCase fields (alias: `create_meta_object()`)
+  - `applyPaginationToArray()`: Applies pagination to arrays (alias: `apply_pagination_to_array()`)
+  - `createPaginatedListResponse()`: Creates paginated list responses (alias: `create_paginated_list_response()`)
+  - `transformError()`: Transforms error dictionaries to `ErrorResponse` objects (alias: `transform_error_to_snake_case()`)
+  - `handleApiError()`: Creates `ApiErrorException` from API error responses (alias: `handle_api_error_snake_case()`)
+  - `ApiErrorException`: New exception class for API errors (extends `MisoClientError`)
+  - All camelCase functions maintain backward compatibility with snake_case aliases
+
+- **Audit Logging Queue**: New `AuditLogQueue` class for batch logging of audit events
+  - Queues audit logs and flushes them in batches to Redis or HTTP batch endpoint
+  - Configurable batch size and flush interval via `AuditConfig`
+  - Automatic batching reduces HTTP overhead for high-volume logging
+  - Integrated with `LoggerService` for automatic audit log queuing
+
+- **Audit Configuration**: New `AuditConfig` model for fine-grained audit logging control
+  - `enabled`: Enable/disable audit logging (default: `true`)
+  - `level`: Audit detail level - `minimal`, `standard`, `detailed`, `full` (default: `detailed`)
+  - `maxResponseSize`: Truncate responses larger than this size in bytes (default: `10000`)
+  - `maxMaskingSize`: Skip masking for objects larger than this size in bytes (default: `50000`)
+  - `batchSize`: Batch size for queued logs (default: `10`)
+  - `batchInterval`: Flush interval in milliseconds (default: `100`)
+  - `skipEndpoints`: Array of endpoint patterns to exclude from audit logging
+
+- **Audit Logging Performance Optimizations**:
+  - Response body truncation based on `maxResponseSize` configuration
+  - Size-based masking skip for large objects (prevents performance degradation)
+  - Configurable audit levels (minimal, standard, detailed, full)
+  - Minimal level: Only metadata, no masking
+  - Standard level: Metadata + basic context
+  - Detailed level: Full context with request/response sizes
+  - Full level: Complete audit trail with all available data
+
+### Changed
+
+- **Pagination Default**: Changed default `pageSize` from `25` to `20` to match TypeScript implementation
+  - `parsePaginationParams()` now returns `{"currentPage": 1, "pageSize": 20}` by default
+  - `parse_pagination_params()` (legacy) still returns tuple `(1, 20)` for backward compatibility
+
+- **Error Handling**: Enhanced error handling with new `ApiErrorException` class
+  - `handleApiError()` now returns `ApiErrorException` instead of `MisoClientError`
+  - `ApiErrorException` extends `MisoClientError` with structured error response support
+  - Legacy `handle_api_error_snake_case()` still returns `MisoClientError` for backward compatibility
+
+- **HTTP Client Logging**: Improved async logging task management
+  - Added `_wait_for_logging_tasks()` helper method for proper async task synchronization
+  - Better task tracking and error handling for background logging tasks
+  - Improved reliability of audit logging in test environments
+
+- **Audit Log Context**: Enhanced audit context preparation
+  - Proper handling of `AuditConfig` objects vs dictionaries
+  - Better integration with audit level configurations
+  - Improved response body truncation in debug logs based on `maxResponseSize`
+
+### Fixed
+
+- **Audit Logging**: Fixed audit logging not being called in some scenarios
+  - Fixed `should_skip_logging()` to properly handle `None` configs
+  - Fixed audit config access in `log_http_request_audit()` (was accessing `.level` on dict instead of `AuditConfig` object)
+  - Fixed async task completion in tests by adding proper task waiting mechanisms
+
+- **Test Suite**: Fixed all failing tests (19 failures → 0 failures)
+  - Updated pagination tests to use new default `pageSize` of 20
+  - Fixed HTTP client tests to properly wait for async logging tasks
+  - Updated response body truncation test to use `maxResponseSize` from audit config
+  - Fixed size calculation tests to use audit level configuration instead of debug mode
+
+### Technical Improvements
+
+- **Type Safety**: Enhanced type hints for all new camelCase functions
+- **Backward Compatibility**: All new camelCase functions have snake_case aliases
+- **Test Coverage**: All 409 tests passing with 86% code coverage
+- **Code Quality**: All linting checks passing
+
+### Migration Guide
+
+**For users upgrading from 1.8.1:**
+
+1. **Optional: Use camelCase Functions**: You can now use camelCase function names if preferred
+   - Old: `parse_pagination_params(params)` → New: `parsePaginationParams(params)`
+   - Old: `create_meta_object(...)` → New: `createMetaObject(...)`
+   - Old: `transform_error_to_snake_case(...)` → New: `transformError(...)`
+   - Old: `handle_api_error_snake_case(...)` → New: `handleApiError(...)`
+   - Note: All snake_case functions still work (backward compatible)
+
+2. **Configure Audit Logging** (optional): You can now configure audit logging behavior
+
+   ```python
+   from miso_client.models.config import AuditConfig, MisoClientConfig
+   
+   config = MisoClientConfig(
+       controller_url="https://controller.example.com",
+       client_id="your-client-id",
+       client_secret="your-secret",
+       audit=AuditConfig(
+           enabled=True,
+           level="detailed",
+           maxResponseSize=5000,
+           batchSize=20,
+           batchInterval=200
+       )
+   )
+   ```
+
+3. **Handle New Exception Type** (optional): `handleApiError()` now returns `ApiErrorException`
+   - Old: `error = handle_api_error_snake_case(...)` → `MisoClientError`
+   - New: `error = handleApiError(...)` → `ApiErrorException` (extends `MisoClientError`)
+   - Both exception types are compatible, but `ApiErrorException` provides better structured error information
+
+### Testing
+
+- All 409 unit tests passing
+- 86% code coverage
+- Comprehensive test coverage for all new camelCase functions
+- Test coverage for `AuditLogQueue` and audit configuration options
+- All audit logging optimizations tested
+
+---
+
 ## [1.8.1] - 2025-11-02
 
 ### Changed

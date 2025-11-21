@@ -42,4 +42,3 @@ class PaginatedListResponse(BaseModel, Generic[T]):
 
     meta: Meta = Field(..., description="Pagination metadata")
     data: List[T] = Field(..., description="Array of items for current page")
-

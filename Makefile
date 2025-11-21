@@ -1,36 +1,51 @@
-.PHONY: help install install-dev test test-cov lint format type-check build clean publish test-publish
+.PHONY: help install install-dev test test-cov lint format type-check build clean clean-venv publish test-publish venv venv
 
 help: ## Show this help message
 	@echo "Available commands:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-install: ## Install the package
-	pip install -e .
+PYTHON := python3
+VENV := venv
+VENV_PYTHON := $(VENV)/bin/python
+VENV_PIP := $(VENV_PYTHON) -m pip
 
-install-dev: ## Install the package with development dependencies
-	pip install -e ".[dev]"
+# Check if venv exists, if not create it
+venv: ## Create virtual environment
+	@if [ ! -d "$(VENV)" ]; then \
+		echo "Creating virtual environment..."; \
+		$(PYTHON) -m venv $(VENV); \
+		echo "Virtual environment created at $(VENV)"; \
+	else \
+		echo "Virtual environment already exists at $(VENV)"; \
+	fi
 
-test: ## Run tests
-	python -m pytest tests/ -v
+install: venv ## Install the package
+	$(VENV_PIP) install -e .
 
-test-cov: ## Run tests with coverage
-	python -m pytest tests/ -v --cov=miso_client --cov-report=html --cov-report=xml
+install-dev: venv ## Install the package with development dependencies
+	$(VENV_PIP) install -e ".[dev]"
 
-lint: ## Run linting
-	python -m ruff check miso_client/ tests/
+test: venv ## Run tests
+	$(VENV_PYTHON) -m pytest tests/ -v
 
-format: ## Format code
-	python -m black miso_client/ tests/
-	python -m isort miso_client/ tests/
+test-cov: venv ## Run tests with coverage
+	$(VENV_PYTHON) -m pytest tests/ -v --cov=miso_client --cov-report=html --cov-report=xml
 
-type-check: ## Run type checking
-	python -m mypy miso_client/ --ignore-missing-imports
+lint: venv ## Run linting
+	$(VENV_PYTHON) -m ruff check miso_client/ tests/
 
-build: ## Build the package
-	python -m build
+format: venv ## Format code
+	$(VENV_PYTHON) -m black miso_client/ tests/
+	$(VENV_PYTHON) -m isort miso_client/ tests/
 
-check: ## Check the built package
-	python -m twine check dist/*
+type-check: venv ## Run type checking
+	$(VENV_PYTHON) -m mypy miso_client/ --ignore-missing-imports
+
+build: venv ## Build the package
+	$(VENV_PYTHON) -m build
+
+check: venv ## Check the built package
+	$(VENV_PYTHON) -m twine check dist/*
 
 clean: ## Clean build artifacts
 	rm -rf build/
@@ -41,19 +56,24 @@ clean: ## Clean build artifacts
 	rm -rf .mypy_cache/
 	rm -f coverage.xml
 
-validate: ## Run lint + format + test
-	python -m ruff check miso_client/ tests/
-	python -m black miso_client/ tests/
-	python -m isort miso_client/ tests/
-	python -m pytest tests/ -v
+clean-venv: ## Remove virtual environment
+	rm -rf $(VENV)
 
-publish: ## Publish to PyPI
-	python -m twine upload dist/*
+validate: venv ## Run lint + format + test
+	$(VENV_PYTHON) -m ruff check miso_client/ tests/
+	$(VENV_PYTHON) -m black miso_client/ tests/
+	$(VENV_PYTHON) -m isort miso_client/ tests/
+	$(VENV_PYTHON) -m pytest tests/ -v
 
-test-publish: ## Publish to Test PyPI
-	python -m twine upload --repository testpypi dist/*
+publish: venv ## Publish to PyPI
+	$(VENV_PYTHON) -m twine upload dist/*
 
-all: clean install-dev lint type-check test-cov build check ## Run all checks and build
+test-publish: venv ## Publish to Test PyPI
+	$(VENV_PYTHON) -m twine upload --repository testpypi dist/*
 
-dev: install-dev ## Set up development environment
+all: clean venv install-dev lint type-check test-cov build check ## Run all checks and build
+
+dev: venv install-dev ## Set up development environment
 	@echo "Development environment set up. Run 'make test' to run tests."
+	@echo "Virtual environment: $(VENV)"
+	@echo "Activate with: source $(VENV)/bin/activate"

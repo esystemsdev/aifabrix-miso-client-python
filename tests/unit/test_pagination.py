@@ -31,7 +31,7 @@ class TestParsePaginationParams:
         current_page, page_size = parse_pagination_params(params)
 
         assert current_page == 1  # Default page
-        assert page_size == 25  # Default page_size
+        assert page_size == 20  # Default page_size (changed to match TypeScript)
 
     def test_parse_with_only_page(self):
         """Test parsing with only page parameter."""
@@ -39,7 +39,7 @@ class TestParsePaginationParams:
         current_page, page_size = parse_pagination_params(params)
 
         assert current_page == 2
-        assert page_size == 25  # Default page_size
+        assert page_size == 20  # Default page_size (changed to match TypeScript)
 
     def test_parse_with_only_page_size(self):
         """Test parsing with only page_size parameter."""
@@ -87,7 +87,7 @@ class TestParsePaginationParams:
         current_page, page_size = parse_pagination_params(params)
 
         assert current_page == 1
-        assert page_size == 25  # Default on invalid
+        assert page_size == 20  # Default on invalid (changed to match TypeScript)
 
     def test_parse_negative_page_size(self):
         """Test parsing with negative page_size value."""
@@ -95,7 +95,7 @@ class TestParsePaginationParams:
         current_page, page_size = parse_pagination_params(params)
 
         assert current_page == 1
-        assert page_size == 25  # Default on negative
+        assert page_size == 20  # Default on negative (changed to match TypeScript)
 
     def test_parse_zero_page_size(self):
         """Test parsing with zero page_size value."""
@@ -103,7 +103,7 @@ class TestParsePaginationParams:
         current_page, page_size = parse_pagination_params(params)
 
         assert current_page == 1
-        assert page_size == 25  # Default on zero
+        assert page_size == 20  # Default on zero (changed to match TypeScript)
 
     def test_parse_large_values(self):
         """Test parsing with large values."""
@@ -119,7 +119,7 @@ class TestParsePaginationParams:
         current_page, page_size = parse_pagination_params(params)
 
         assert current_page == 1  # Default
-        assert page_size == 25  # Default
+        assert page_size == 20  # Default (changed to match TypeScript)
 
 
 class TestCreateMetaObject:

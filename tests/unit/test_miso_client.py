@@ -970,6 +970,7 @@ class TestLoggerService:
         """Test starting performance tracking with psutil available."""
         # Mock psutil module by patching the import
         import sys
+
         mock_psutil = MagicMock()
         mock_process = MagicMock()
         mock_memory_info = MagicMock()
@@ -977,7 +978,7 @@ class TestLoggerService:
         mock_memory_info.available = 500000
         mock_process.memory_info.return_value = mock_memory_info
         mock_psutil.Process.return_value = mock_process
-        
+
         with patch.dict(sys.modules, {"psutil": mock_psutil}):
             logger_service.start_performance_tracking("op-123")
 
@@ -1008,7 +1009,7 @@ class TestLoggerService:
         """Test ending performance tracking with psutil available."""
         import sys
         import time
-        
+
         # Mock psutil module
         mock_psutil = MagicMock()
         mock_process = MagicMock()
@@ -1059,6 +1060,7 @@ class TestLoggerService:
         assert "lifecycle-op" in logger_service.performance_metrics
 
         import time
+
         time.sleep(0.001)
 
         # End tracking
@@ -1191,7 +1193,10 @@ class TestLoggerService:
     def test_extract_jwt_context_with_non_list_roles(self, logger_service):
         """Test JWT context extraction when roles is not a list."""
         with patch("miso_client.services.logger.decode_token") as mock_decode:
-            mock_decode.return_value = {"sub": "user-123", "roles": "admin"}  # String instead of list
+            mock_decode.return_value = {
+                "sub": "user-123",
+                "roles": "admin",
+            }  # String instead of list
 
             context = logger_service._extract_jwt_context("test-token")
 
@@ -1211,7 +1216,10 @@ class TestLoggerService:
     def test_extract_jwt_context_with_non_list_permissions(self, logger_service):
         """Test JWT context extraction when permissions is not a list."""
         with patch("miso_client.services.logger.decode_token") as mock_decode:
-            mock_decode.return_value = {"sub": "user-123", "permissions": "read"}  # String instead of list
+            mock_decode.return_value = {
+                "sub": "user-123",
+                "permissions": "read",
+            }  # String instead of list
 
             context = logger_service._extract_jwt_context("test-token")
 
@@ -1285,6 +1293,7 @@ class TestLoggerService:
             logger_service.internal_http_client, "request", new_callable=AsyncMock
         ) as mock_request:
             import sys
+
             mock_psutil = MagicMock()
             mock_process = MagicMock()
             mock_memory_info = MagicMock()
@@ -1693,9 +1702,11 @@ class TestRedisService:
     async def test_get_with_awaitable_response(self, redis_service):
         """Test get operation with awaitable response."""
         redis_service.redis = MagicMock()
+
         # Create a coroutine-like object
         async def get_async():
             return "test_value"
+
         redis_service.redis.get = MagicMock(return_value=get_async())
         redis_service.connected = True
 
@@ -1707,9 +1718,11 @@ class TestRedisService:
     async def test_set_with_awaitable_response(self, redis_service):
         """Test set operation with awaitable response."""
         redis_service.redis = MagicMock()
+
         # Create a coroutine-like object
         async def setex_async():
             return True
+
         redis_service.redis.setex = MagicMock(return_value=setex_async())
         redis_service.connected = True
 

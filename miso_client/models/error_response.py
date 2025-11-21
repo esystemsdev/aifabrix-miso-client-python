@@ -36,6 +36,4 @@ class ErrorResponse(BaseModel):
     title: Optional[str] = Field(default=None, description="Human-readable error title")
     statusCode: int = Field(..., description="HTTP status code")
     instance: Optional[str] = Field(default=None, description="Request instance URI")
-    correlationId: Optional[str] = Field(
-        default=None, description="Request key for error tracking"
-    )
+    correlationId: Optional[str] = Field(default=None, description="Request key for error tracking")

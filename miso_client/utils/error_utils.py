@@ -11,9 +11,32 @@ from ..errors import MisoClientError
 from ..models.error_response import ErrorResponse
 
 
-def transform_error_to_snake_case(error_data: dict) -> ErrorResponse:
+class ApiErrorException(Exception):
     """
-    Transform errors to ErrorResponse format.
+    Exception class for camelCase error responses.
+
+    Used with camelCase ErrorResponse format matching TypeScript SDK.
+    """
+
+    def __init__(self, error: ErrorResponse):
+        """
+        Initialize ApiErrorException.
+
+        Args:
+            error: ErrorResponse object with camelCase properties
+        """
+        super().__init__(error.title or "API Error")
+        self.name = "ApiErrorException"
+        self.statusCode = error.statusCode
+        self.correlationId = error.correlationId
+        self.type = error.type
+        self.instance = error.instance
+        self.errors = error.errors
+
+
+def transformError(error_data: dict) -> ErrorResponse:
+    """
+    Transform arbitrary error into standardized camelCase ErrorResponse.
 
     Converts error data dictionary to ErrorResponse object with camelCase field names.
 
@@ -31,20 +54,78 @@ def transform_error_to_snake_case(error_data: dict) -> ErrorResponse:
         ...     'statusCode': 400,
         ...     'instance': '/api/endpoint'
         ... }
-        >>> error_response = transform_error_to_snake_case(error_data)
+        >>> error_response = transformError(error_data)
         >>> error_response.statusCode
         400
     """
     return ErrorResponse(**error_data)
 
 
+# Alias for backward compatibility
+transform_error_to_snake_case = transformError
+
+
+def handleApiError(
+    response_data: dict, status_code: int, instance: Optional[str] = None
+) -> ApiErrorException:
+    """
+    Handle API error and raise camelCase ApiErrorException.
+
+    Creates ApiErrorException from camelCase API response.
+
+    Args:
+        response_data: Error response data from API (must be camelCase)
+        status_code: HTTP status code (overrides statusCode in response_data)
+        instance: Optional request instance URI (overrides instance in response_data)
+
+    Returns:
+        ApiErrorException with camelCase error format
+
+    Raises:
+        ApiErrorException: Always raises this exception
+
+    Examples:
+        >>> response_data = {
+        ...     'errors': ['Validation failed'],
+        ...     'type': '/Errors/Validation',
+        ...     'title': 'Validation Error',
+        ...     'statusCode': 422
+        ... }
+        >>> try:
+        ...     handleApiError(response_data, 422, '/api/endpoint')
+        ... except ApiErrorException as e:
+        ...     e.statusCode
+        422
+    """
+    # Create a copy to avoid mutating the original
+    data = response_data.copy()
+
+    # Override instance if provided
+    if instance:
+        data["instance"] = instance
+
+    # Override statusCode if provided
+    data["statusCode"] = status_code
+
+    # Ensure title has a default if missing
+    if "title" not in data:
+        data["title"] = None
+
+    # Transform to ErrorResponse
+    error_response = transformError(data)
+
+    # Raise ApiErrorException
+    raise ApiErrorException(error_response)
+
+
 def handle_api_error_snake_case(
     response_data: dict, status_code: int, instance: Optional[str] = None
 ) -> MisoClientError:
     """
-    Handle errors with camelCase response format.
+    Handle errors with camelCase response format (legacy function).
 
     Creates MisoClientError with ErrorResponse from camelCase API response.
+    This is kept for backward compatibility. New code should use handleApiError().
 
     Args:
         response_data: Error response data from API (must be camelCase)
@@ -80,7 +161,7 @@ def handle_api_error_snake_case(
         data["title"] = None
 
     # Transform to ErrorResponse
-    error_response = transform_error_to_snake_case(data)
+    error_response = transformError(data)
 
     # Create error message from errors list
     if error_response.errors:

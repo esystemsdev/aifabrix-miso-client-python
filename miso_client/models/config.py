@@ -20,6 +20,33 @@ class RedisConfig(BaseModel):
     key_prefix: str = Field(default="miso:", description="Key prefix for Redis keys")
 
 
+class AuditConfig(BaseModel):
+    """Audit logging configuration for HTTP client."""
+
+    enabled: Optional[bool] = Field(
+        default=True, description="Enable/disable audit logging (default: true)"
+    )
+    level: Optional[Literal["minimal", "standard", "detailed", "full"]] = Field(
+        default="detailed", description="Audit detail level (default: 'detailed')"
+    )
+    maxResponseSize: Optional[int] = Field(
+        default=10000, description="Truncate responses larger than this (default: 10000 bytes)"
+    )
+    maxMaskingSize: Optional[int] = Field(
+        default=50000,
+        description="Skip masking for objects larger than this (default: 50000 bytes)",
+    )
+    batchSize: Optional[int] = Field(
+        default=10, description="Batch size for queued logs (default: 10)"
+    )
+    batchInterval: Optional[int] = Field(
+        default=100, description="Flush interval in milliseconds (default: 100)"
+    )
+    skipEndpoints: Optional[List[str]] = Field(
+        default=None, description="Array of endpoint patterns to exclude from audit logging"
+    )
+
+
 class MisoClientConfig(BaseModel):
     """Main MisoClient configuration.
 
@@ -49,6 +76,14 @@ class MisoClientConfig(BaseModel):
     api_key: Optional[str] = Field(
         default=None,
         description="API key for testing - when set, bearer tokens matching this key bypass OAuth2 validation",
+    )
+    sensitive_fields_config: Optional[str] = Field(
+        default=None, description="Path to sensitive fields configuration JSON file"
+    )
+    audit: Optional["AuditConfig"] = Field(default=None, description="Audit logging configuration")
+    emit_events: Optional[bool] = Field(
+        default=False,
+        description="Emit log events instead of sending via HTTP/Redis (default: false)",
     )
 
     @property

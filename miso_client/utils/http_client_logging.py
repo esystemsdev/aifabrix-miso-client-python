@@ -13,18 +13,34 @@ from urllib.parse import parse_qs, urlparse
 from ..utils.data_masker import DataMasker
 
 
-def should_skip_logging(url: str) -> bool:
+def should_skip_logging(url: str, config: Optional[Any] = None) -> bool:
     """
     Check if logging should be skipped for this URL.
 
     Skips logging for /api/logs and /api/auth/token to prevent infinite loops.
+    Also checks audit config skipEndpoints.
 
     Args:
         url: Request URL
+        config: Optional MisoClientConfig to check audit.skipEndpoints
 
     Returns:
         True if logging should be skipped, False otherwise
     """
+    # Check if audit is explicitly disabled
+    if config and config.audit and config.audit.enabled is False:
+        return True
+
+    # If no config or no audit config, default to enabled (don't skip)
+    # Only skip if explicitly disabled
+
+    # Check skip endpoints from config
+    if config and config.audit and config.audit.skipEndpoints:
+        for endpoint in config.audit.skipEndpoints:
+            if endpoint in url:
+                return True
+
+    # Default skip endpoints (always skip these regardless of config)
     if url == "/api/logs" or url.startswith("/api/logs"):
         return True
     if url == "/api/auth/token" or url.startswith("/api/auth/token"):
@@ -109,8 +125,7 @@ def mask_error_message(error: Exception) -> Optional[str]:
         error_message = str(error)
         # Mask if error message contains sensitive keywords
         if isinstance(error_message, str) and any(
-            keyword in error_message.lower()
-            for keyword in ["password", "token", "secret", "key"]
+            keyword in error_message.lower() for keyword in ["password", "token", "secret", "key"]
         ):
             return DataMasker.MASKED_VALUE
         return error_message
@@ -182,6 +197,7 @@ def _prepare_audit_context(
     request_data: Optional[Dict[str, Any]],
     user_id: Optional[str],
     log_level: str,
+    audit_config: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     Prepare audit context for logging.
@@ -189,14 +205,14 @@ def _prepare_audit_context(
     Returns:
         Audit context dictionary or None if logging should be skipped
     """
-    if should_skip_logging(url):
-        return None
-
     duration_ms, status_code = calculate_request_metrics(start_time, response, error)
+
+    audit_config = audit_config or {}
+    audit_level = audit_config.get("level", "detailed")
 
     request_size: Optional[int] = None
     response_size: Optional[int] = None
-    if log_level == "debug":
+    if audit_level in ("detailed", "full"):
         request_size, response_size = calculate_request_sizes(request_data, response)
 
     error_message = mask_error_message(error)
@@ -222,9 +238,12 @@ async def log_http_request_audit(
     request_data: Optional[Dict[str, Any]],
     user_id: Optional[str],
     log_level: str,
+    config: Optional[Any] = None,
 ) -> None:
     """
     Log HTTP request audit event with ISO 27001 compliant data masking.
+
+    Supports configurable audit levels: minimal, standard, detailed, full.
 
     Args:
         logger: LoggerService instance
@@ -236,10 +255,50 @@ async def log_http_request_audit(
         request_data: Request body data
         user_id: User ID if available
         log_level: Log level configuration
+        config: Optional MisoClientConfig for audit configuration
     """
     try:
+        # Check if logging should be skipped
+        if should_skip_logging(url, config):
+            return
+
+        if config and config.audit:
+            audit_config = config.audit
+            audit_level = audit_config.level or "detailed"
+        else:
+            audit_config = None
+            audit_level = "detailed"
+
+        # Minimal audit level - just metadata, no masking
+        if audit_level == "minimal":
+            duration_ms, status_code = calculate_request_metrics(start_time, response, error)
+            audit_context = {
+                "method": method,
+                "url": url,
+                "statusCode": status_code,
+                "duration": duration_ms,
+            }
+            if user_id:
+                audit_context["userId"] = user_id
+            if error:
+                audit_context["error"] = str(error)
+            action = f"http.request.{method.upper()}"
+            await logger.audit(action, url, audit_context)
+            return
+
+        # Standard, detailed, or full audit levels
+        # Convert AuditConfig to dict for _prepare_audit_context
+        audit_config_dict = audit_config.dict() if audit_config and hasattr(audit_config, 'dict') else {}
         audit_context = _prepare_audit_context(
-            method, url, response, error, start_time, request_data, user_id, log_level
+            method,
+            url,
+            response,
+            error,
+            start_time,
+            request_data,
+            user_id,
+            log_level,
+            audit_config_dict,
         )
         if audit_context is None:
             return
@@ -252,7 +311,9 @@ async def log_http_request_audit(
         pass
 
 
-def mask_request_data(request_headers: Optional[Dict[str, Any]], request_data: Optional[Dict[str, Any]]) -> tuple[Optional[Dict[str, Any]], Optional[Any]]:
+def mask_request_data(
+    request_headers: Optional[Dict[str, Any]], request_data: Optional[Dict[str, Any]]
+) -> tuple[Optional[Dict[str, Any]], Optional[Any]]:
     """
     Mask sensitive data in request headers and body.
 
@@ -274,33 +335,119 @@ def mask_request_data(request_headers: Optional[Dict[str, Any]], request_data: O
     return masked_headers, masked_body
 
 
-def mask_response_data(response: Optional[Any]) -> Optional[str]:
+def estimate_object_size(obj: Any) -> int:
+    """
+    Quick size estimation without full JSON serialization.
+
+    Args:
+        obj: Object to estimate size for
+
+    Returns:
+        Estimated size in bytes
+    """
+    if obj is None:
+        return 0
+
+    if isinstance(obj, str):
+        return len(obj.encode("utf-8"))
+
+    if not isinstance(obj, (dict, list)):
+        return 10  # Estimate for primitives
+
+    if isinstance(obj, list):
+        if len(obj) == 0:
+            return 10
+        # Sample first few items for estimation
+        sample_size = min(3, len(obj))
+        estimated_item_size = sum(estimate_object_size(item) for item in obj[:sample_size])
+        avg_item_size = estimated_item_size / sample_size if sample_size > 0 else 100
+        return int(len(obj) * avg_item_size)
+
+    # Object: estimate based on property count and values
+    size = 0
+    for key, value in obj.items():
+        size += len(str(key).encode("utf-8")) + estimate_object_size(value)
+    return size
+
+
+def truncate_response_body(body: Any, max_size: int = 10000) -> tuple[Any, bool]:
+    """
+    Truncate response body to reduce processing cost.
+
+    Args:
+        body: Response body to truncate
+        max_size: Maximum size in bytes
+
+    Returns:
+        Tuple of (truncated_data, was_truncated)
+    """
+    if body is None:
+        return body, False
+
+    # For strings, truncate directly
+    if isinstance(body, str):
+        body_bytes = body.encode("utf-8")
+        if len(body_bytes) <= max_size:
+            return body, False
+        truncated = body_bytes[:max_size].decode("utf-8", errors="ignore") + "..."
+        return truncated, True
+
+    # For objects/arrays, estimate size first
+    estimated_size = estimate_object_size(body)
+    if estimated_size <= max_size:
+        return body, False
+
+    # If estimated size is too large, return placeholder
+    return {
+        "_message": "Response body too large, truncated for performance",
+        "_estimatedSize": estimated_size,
+    }, True
+
+
+def mask_response_data(
+    response: Optional[Any], max_size: Optional[int] = None, max_masking_size: Optional[int] = None
+) -> Optional[str]:
     """
     Mask sensitive data in response body and limit size.
 
     Args:
         response: Response data
+        max_size: Maximum size before truncation (default: 10000)
+        max_masking_size: Maximum size before skipping masking (default: 50000)
 
     Returns:
-        Masked response body as string (limited to 1000 chars), or None
+        Masked response body as string, or None
     """
     if response is None:
         return None
 
+    max_size = max_size or 10000
+    max_masking_size = max_masking_size or 50000
+
     try:
-        response_str = str(response)
-        # Limit to first 1000 characters
-        if len(response_str) > 1000:
-            response_str = response_str[:1000] + "..."
+        # Check if we should skip masking due to size
+        estimated_size = estimate_object_size(response)
+        if estimated_size > max_masking_size:
+            return str({" _message": "Response body too large, masking skipped"})
+
+        # Truncate if needed
+        truncated_body, was_truncated = truncate_response_body(response, max_size)
 
         # Mask sensitive data
         try:
-            if isinstance(response, dict):
-                masked_dict = DataMasker.mask_sensitive_data(response)
-                return str(masked_dict)
-            return response_str
+            if isinstance(truncated_body, dict):
+                masked_dict = DataMasker.mask_sensitive_data(truncated_body)
+                result = str(masked_dict)
+                if was_truncated and len(result) > 1000:
+                    result = result[:1000] + "..."
+                return result
+            elif isinstance(truncated_body, str):
+                # Already truncated string
+                return truncated_body
+            else:
+                return str(truncated_body)
         except Exception:
-            return response_str
+            return str(truncated_body) if was_truncated else str(response)
     except Exception:
         return None
 
@@ -389,6 +536,7 @@ def _prepare_debug_context(
     request_data: Optional[Dict[str, Any]],
     request_headers: Optional[Dict[str, Any]],
     base_url: str,
+    max_response_size: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Prepare debug context for logging.
@@ -397,7 +545,7 @@ def _prepare_debug_context(
         Debug context dictionary
     """
     masked_headers, masked_body = mask_request_data(request_headers, request_data)
-    masked_response = mask_response_data(response)
+    masked_response = mask_response_data(response, max_size=max_response_size)
     query_params = extract_and_mask_query_params(url)
 
     return build_debug_context(
@@ -425,6 +573,7 @@ async def log_http_request_debug(
     request_data: Optional[Dict[str, Any]],
     request_headers: Optional[Dict[str, Any]],
     base_url: str,
+    config: Optional[Any] = None,
 ) -> None:
     """
     Log detailed debug information for HTTP request.
@@ -444,8 +593,22 @@ async def log_http_request_debug(
         base_url: Base URL from config
     """
     try:
+        # Get maxResponseSize from audit config if available
+        max_response_size = None
+        if config and config.audit and hasattr(config.audit, 'maxResponseSize'):
+            max_response_size = config.audit.maxResponseSize
+
         debug_context = _prepare_debug_context(
-            method, url, response, duration_ms, status_code, user_id, request_data, request_headers, base_url
+            method,
+            url,
+            response,
+            duration_ms,
+            status_code,
+            user_id,
+            request_data,
+            request_headers,
+            base_url,
+            max_response_size=max_response_size,
         )
         message = f"HTTP {method} {url} - Status: {status_code}, Duration: {duration_ms}ms"
         await logger.debug(message, debug_context)
@@ -453,4 +616,3 @@ async def log_http_request_debug(
     except Exception:
         # Silently swallow all logging errors - never break HTTP requests
         pass
-

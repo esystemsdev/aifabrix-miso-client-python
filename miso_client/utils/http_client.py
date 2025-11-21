@@ -67,7 +67,6 @@ class HttpClient:
         """
         return await self._internal_client.get_environment_token()
 
-
     def _handle_logging_task_error(self, task: asyncio.Task) -> None:
         """
         Handle errors in background logging tasks.
@@ -86,8 +85,28 @@ class HttpClient:
             # Task might not be done yet or other error - ignore
             pass
 
+    async def _wait_for_logging_tasks(self, timeout: float = 0.5) -> None:
+        """
+        Wait for all pending logging tasks to complete.
 
-    def _calculate_status_code(self, response: Optional[Any], error: Optional[Exception]) -> Optional[int]:
+        Useful for tests to ensure logging has finished before assertions.
+
+        Args:
+            timeout: Maximum time to wait in seconds
+        """
+        if hasattr(self, "_logging_tasks") and self._logging_tasks:
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*self._logging_tasks, return_exceptions=True),
+                    timeout=timeout,
+                )
+            except asyncio.TimeoutError:
+                # Some tasks might still be running, that's okay
+                pass
+
+    def _calculate_status_code(
+        self, response: Optional[Any], error: Optional[Exception]
+    ) -> Optional[int]:
         """
         Calculate HTTP status code from response or error.
 
@@ -106,7 +125,9 @@ class HttpClient:
             return 500
         return None
 
-    def _extract_user_id_from_headers(self, request_headers: Optional[Dict[str, Any]]) -> Optional[str]:
+    def _extract_user_id_from_headers(
+        self, request_headers: Optional[Dict[str, Any]]
+    ) -> Optional[str]:
         """
         Extract user ID from request headers.
 
@@ -160,6 +181,7 @@ class HttpClient:
             request_data=request_data,
             request_headers=request_headers,
             base_url=self.config.controller_url,
+            config=self.config,
         )
 
     async def _log_http_request(
@@ -196,6 +218,7 @@ class HttpClient:
             request_data=request_data,
             user_id=user_id,
             log_level=self.config.log_level,
+            config=self.config,
         )
 
         await self._log_debug_if_enabled(
@@ -230,18 +253,32 @@ class HttpClient:
         request_headers = kwargs.get("headers", {})
         try:
             response = await request_func()
-            task = asyncio.create_task(
+            # Create logging task but don't await it (non-blocking)
+            # Store task reference to allow tests to await if needed
+            logging_task = asyncio.create_task(
                 self._log_http_request(
                     method, url, response, None, start_time, request_data, request_headers
                 )
             )
-            task.add_done_callback(self._handle_logging_task_error)
+            logging_task.add_done_callback(self._handle_logging_task_error)
+            # Store task for potential cleanup (optional)
+            if not hasattr(self, "_logging_tasks"):
+                self._logging_tasks = set()
+            self._logging_tasks.add(logging_task)
+            logging_task.add_done_callback(lambda t: self._logging_tasks.discard(t))
             return response
         except Exception as e:
-            task = asyncio.create_task(
-                self._log_http_request(method, url, None, e, start_time, request_data, request_headers)
+            # Create logging task for error case
+            logging_task = asyncio.create_task(
+                self._log_http_request(
+                    method, url, None, e, start_time, request_data, request_headers
+                )
             )
-            task.add_done_callback(self._handle_logging_task_error)
+            logging_task.add_done_callback(self._handle_logging_task_error)
+            if not hasattr(self, "_logging_tasks"):
+                self._logging_tasks = set()
+            self._logging_tasks.add(logging_task)
+            logging_task.add_done_callback(lambda t: self._logging_tasks.discard(t))
             raise
 
     async def get(self, url: str, **kwargs) -> Any:
@@ -258,8 +295,10 @@ class HttpClient:
         Raises:
             MisoClientError: If request fails
         """
+
         async def _get():
             return await self._internal_client.get(url, **kwargs)
+
         return await self._execute_with_logging("GET", url, _get, **kwargs)
 
     async def post(self, url: str, data: Optional[Dict[str, Any]] = None, **kwargs) -> Any:
@@ -277,8 +316,10 @@ class HttpClient:
         Raises:
             MisoClientError: If request fails
         """
+
         async def _post():
             return await self._internal_client.post(url, data, **kwargs)
+
         return await self._execute_with_logging("POST", url, _post, data, **kwargs)
 
     async def put(self, url: str, data: Optional[Dict[str, Any]] = None, **kwargs) -> Any:
@@ -296,8 +337,10 @@ class HttpClient:
         Raises:
             MisoClientError: If request fails
         """
+
         async def _put():
             return await self._internal_client.put(url, data, **kwargs)
+
         return await self._execute_with_logging("PUT", url, _put, data, **kwargs)
 
     async def delete(self, url: str, **kwargs) -> Any:
@@ -314,8 +357,10 @@ class HttpClient:
         Raises:
             MisoClientError: If request fails
         """
+
         async def _delete():
             return await self._internal_client.delete(url, **kwargs)
+
         return await self._execute_with_logging("DELETE", url, _delete, **kwargs)
 
     async def request(
@@ -453,7 +498,9 @@ class HttpClient:
 
         return await self.get(url, **kwargs)
 
-    def _add_pagination_params(self, kwargs: Dict[str, Any], page: Optional[int], page_size: Optional[int]) -> None:
+    def _add_pagination_params(
+        self, kwargs: Dict[str, Any], page: Optional[int], page_size: Optional[int]
+    ) -> None:
         """
         Add pagination params to kwargs.
 

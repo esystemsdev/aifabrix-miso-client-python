@@ -37,16 +37,27 @@ from .services.logger import LoggerChain, LoggerService
 from .services.permission import PermissionService
 from .services.redis import RedisService
 from .services.role import RoleService
+from .utils.audit_log_queue import AuditLogQueue
 from .utils.config_loader import load_config
-from .utils.error_utils import handle_api_error_snake_case, transform_error_to_snake_case
+from .utils.error_utils import (
+    ApiErrorException,
+    handle_api_error_snake_case,
+    handleApiError,
+    transform_error_to_snake_case,
+    transformError,
+)
 from .utils.filter import apply_filters, build_query_string, parse_filter_params
 from .utils.http_client import HttpClient
 from .utils.internal_http_client import InternalHttpClient
 from .utils.pagination import (
     apply_pagination_to_array,
+    applyPaginationToArray,
     create_meta_object,
     create_paginated_list_response,
+    createMetaObject,
+    createPaginatedListResponse,
     parse_pagination_params,
+    parsePaginationParams,
 )
 from .utils.sort import build_sort_string, parse_sort_params
 
@@ -88,6 +99,13 @@ class MisoClient:
         # Create public HttpClient wrapping InternalHttpClient with logger
         # This HttpClient adds automatic ISO 27001 compliant audit and debug logging
         self.http_client = HttpClient(config, self.logger)
+
+        # Update LoggerService with http_client for audit log queue (if needed)
+        # This is safe because http_client is already created and logger is already set
+        if config.audit and (
+            config.audit.batchSize is not None or config.audit.batchInterval is not None
+        ):
+            self.logger.audit_log_queue = AuditLogQueue(self.http_client, self.redis, config)
 
         # Cache service (uses Redis if available, falls back to in-memory)
         self.cache = CacheService(self.redis)
@@ -513,7 +531,12 @@ __all__ = [
     "FilterBuilder",
     # Sort models
     "SortOption",
-    # Pagination utilities
+    # Pagination utilities (camelCase)
+    "parsePaginationParams",
+    "createMetaObject",
+    "applyPaginationToArray",
+    "createPaginatedListResponse",
+    # Pagination utilities (legacy snake_case aliases)
     "parse_pagination_params",
     "create_meta_object",
     "apply_pagination_to_array",
@@ -525,7 +548,11 @@ __all__ = [
     # Sort utilities
     "parse_sort_params",
     "build_sort_string",
-    # Error utilities
+    # Error utilities (camelCase)
+    "transformError",
+    "handleApiError",
+    "ApiErrorException",
+    # Error utilities (legacy snake_case aliases)
     "transform_error_to_snake_case",
     "handle_api_error_snake_case",
     # Services
@@ -538,6 +565,7 @@ __all__ = [
     "EncryptionService",
     "CacheService",
     "HttpClient",
+    "AuditLogQueue",
     "load_config",
     "MisoClientError",
     "AuthenticationError",

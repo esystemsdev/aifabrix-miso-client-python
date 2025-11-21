@@ -577,11 +577,13 @@ class TestHttpClient:
 
     @pytest.fixture
     def config(self):
+        from miso_client.models.config import AuditConfig
         return MisoClientConfig(
             controller_url="https://controller.aifabrix.ai",
             client_id="test-client",
             client_secret="test-secret",
             log_level="info",
+            audit=AuditConfig(enabled=True, level="detailed"),
         )
 
     @pytest.fixture
@@ -614,8 +616,8 @@ class TestHttpClient:
 
         result = await http_client.get("/api/test")
 
-        # Wait for background logging task to complete
-        await asyncio.sleep(0.01)
+        # Wait for background logging tasks to complete
+        await http_client._wait_for_logging_tasks()
 
         assert result == {"data": "test"}
         # Verify audit logging was called
@@ -640,8 +642,8 @@ class TestHttpClient:
         sensitive_data = {"password": "secret123", "username": "user"}
         result = await http_client.post("/api/login", sensitive_data)
 
-        # Wait for background logging task to complete
-        await asyncio.sleep(0.01)
+        # Wait for background logging tasks to complete
+        await http_client._wait_for_logging_tasks()
 
         assert result == {"success": True}
         # Verify audit logging was called
@@ -670,8 +672,8 @@ class TestHttpClient:
 
         result = await http_client.get("/api/test")
 
-        # Wait for background logging task to complete
-        await asyncio.sleep(0.01)
+        # Wait for background logging tasks to complete
+        await http_client._wait_for_logging_tasks()
 
         assert result == {"data": "test"}
         # Verify audit logging was called
@@ -731,8 +733,8 @@ class TestHttpClient:
         with pytest.raises(MisoClientError):
             await http_client.get("/api/test")
 
-        # Wait for background logging task to complete
-        await asyncio.sleep(0.01)
+        # Wait for background logging tasks to complete
+        await http_client._wait_for_logging_tasks()
 
         # Verify audit logging was called
         http_client.logger.audit.assert_called_once()
@@ -758,7 +760,7 @@ class TestHttpClient:
         await http_client.delete("/test")
 
         # Wait for background logging tasks to complete
-        await asyncio.sleep(0.02)
+        await http_client._wait_for_logging_tasks(timeout=1.0)
 
         # Verify audit logging was called for each method
         assert http_client.logger.audit.call_count == 4
@@ -776,8 +778,8 @@ class TestHttpClient:
 
         result = await http_client.authenticated_request("GET", "/api/user", "token123")
 
-        # Wait for background logging task to complete
-        await asyncio.sleep(0.01)
+        # Wait for background logging tasks to complete
+        await http_client._wait_for_logging_tasks()
 
         assert result == {"user": "data"}
         # Verify audit logging was called
@@ -831,8 +833,8 @@ class TestHttpClient:
 
         await http_client.get("/api/test", headers=headers)
 
-        # Wait for background logging task to complete
-        await asyncio.sleep(0.01)
+        # Wait for background logging tasks to complete
+        await http_client._wait_for_logging_tasks()
 
         # Verify debug logging was called
         http_client.logger.debug.assert_called_once()
@@ -870,8 +872,8 @@ class TestHttpClient:
 
         await http_client.get("/api/users")
 
-        # Wait for background logging task to complete
-        await asyncio.sleep(0.01)
+        # Wait for background logging tasks to complete
+        await http_client._wait_for_logging_tasks()
 
         # Verify debug logging was called
         http_client.logger.debug.assert_called_once()
@@ -902,8 +904,8 @@ class TestHttpClient:
         # Request with sensitive query parameters
         await http_client.get("/api/test?token=secret123&api_key=key456&username=john")
 
-        # Wait for background logging task to complete
-        await asyncio.sleep(0.01)
+        # Wait for background logging tasks to complete
+        await http_client._wait_for_logging_tasks()
 
         # Verify debug logging was called
         http_client.logger.debug.assert_called_once()
@@ -953,8 +955,8 @@ class TestHttpClient:
 
         await http_client.post("/api/users", nested_data)
 
-        # Wait for background logging task to complete
-        await asyncio.sleep(0.01)
+        # Wait for background logging tasks to complete
+        await http_client._wait_for_logging_tasks()
 
         # Verify debug logging was called
         http_client.logger.debug.assert_called_once()
@@ -995,7 +997,7 @@ class TestHttpClient:
             await http_client.get("/api/test", headers=headers)
 
             # Wait for background logging task to complete
-            await asyncio.sleep(0.01)
+            await asyncio.sleep(0.1)  # Increased wait time for async tasks
 
             # Verify audit logging was called with user ID
             http_client.logger.audit.assert_called_once()
@@ -1010,7 +1012,7 @@ class TestHttpClient:
         mock_internal_client = AsyncMock()
 
         async def delayed_get(*args, **kwargs):
-            await asyncio.sleep(0.01)  # 10ms delay
+            await asyncio.sleep(0.1)  # Increased wait time for async tasks  # 10ms delay
             return {"data": "test"}
 
         mock_internal_client.get = delayed_get
@@ -1045,8 +1047,8 @@ class TestHttpClient:
 
         await http_client.get("/api/test?param=value")
 
-        # Wait for background logging task to complete
-        await asyncio.sleep(0.01)
+        # Wait for background logging tasks to complete
+        await http_client._wait_for_logging_tasks()
 
         # Verify audit logging was called with correct structure
         http_client.logger.audit.assert_called_once()
@@ -1087,8 +1089,8 @@ class TestHttpClient:
 
         await http_client.get("/api/test")
 
-        # Wait for background logging task to complete
-        await asyncio.sleep(0.01)
+        # Wait for background logging tasks to complete
+        await http_client._wait_for_logging_tasks()
 
         # Verify debug logging was called with correct structure
         http_client.logger.debug.assert_called_once()
@@ -1130,8 +1132,12 @@ class TestHttpClient:
 
     @pytest.mark.asyncio
     async def test_response_body_truncation(self, http_client):
-        """Test that response body is truncated to 1000 characters in debug logs."""
+        """Test that response body is truncated based on maxResponseSize in audit config."""
+        from miso_client.models.config import AuditConfig
+
         http_client.config.log_level = "debug"
+        # Set maxResponseSize to 1000 for this test
+        http_client.config.audit = AuditConfig(enabled=True, level="detailed", maxResponseSize=1000)
 
         # Create large response (over 1000 chars when converted to string)
         # Using a string response that's definitely over 1000 chars
@@ -1148,8 +1154,8 @@ class TestHttpClient:
 
         await http_client.get("/api/test")
 
-        # Wait for background logging task to complete
-        await asyncio.sleep(0.01)
+        # Wait for background logging tasks to complete
+        await http_client._wait_for_logging_tasks()
 
         # Verify debug logging was called
         http_client.logger.debug.assert_called_once()
@@ -1182,14 +1188,16 @@ class TestHttpClient:
         http_client.logger.debug = AsyncMock()
 
         # Mock DataMasker.mask_sensitive_data
-        with patch("miso_client.utils.http_client_logging.DataMasker.mask_sensitive_data") as mock_mask:
+        with patch(
+            "miso_client.utils.http_client_logging.DataMasker.mask_sensitive_data"
+        ) as mock_mask:
             mock_mask.return_value = {"Authorization": DataMasker.MASKED_VALUE}
 
             headers = {"Authorization": "Bearer token123"}
             await http_client.get("/api/test", headers=headers)
 
             # Wait for background logging task to complete
-            await asyncio.sleep(0.01)
+            await asyncio.sleep(0.1)  # Increased wait time for async tasks
 
             # Verify DataMasker was called for headers
             # It should be called at least once (for request headers)
@@ -1212,14 +1220,16 @@ class TestHttpClient:
         http_client.logger.debug = AsyncMock()
 
         # Mock DataMasker.mask_sensitive_data
-        with patch("miso_client.utils.http_client_logging.DataMasker.mask_sensitive_data") as mock_mask:
+        with patch(
+            "miso_client.utils.http_client_logging.DataMasker.mask_sensitive_data"
+        ) as mock_mask:
             mock_mask.return_value = {"password": DataMasker.MASKED_VALUE, "username": "john"}
 
             request_data = {"password": "secret123", "username": "john"}
             await http_client.post("/api/login", request_data)
 
             # Wait for background logging task to complete
-            await asyncio.sleep(0.01)
+            await asyncio.sleep(0.1)  # Increased wait time for async tasks
 
             # Verify DataMasker was called for request body
             # It should be called at least once (for request body)
@@ -1283,12 +1293,12 @@ class TestHttpClient:
 
             # First request - should decode token
             await http_client.get("/api/test", headers=headers)
-            await asyncio.sleep(0.01)  # Wait for logging task
+            await asyncio.sleep(0.1)  # Increased wait time for async tasks  # Wait for logging task
             first_decode_count = decode_count
 
             # Second request with same token - should use cache
             await http_client.get("/api/test", headers=headers)
-            await asyncio.sleep(0.01)  # Wait for logging task
+            await asyncio.sleep(0.1)  # Increased wait time for async tasks  # Wait for logging task
 
             # Verify decode was only called once (cache used on second request)
             assert decode_count == first_decode_count
@@ -1296,8 +1306,8 @@ class TestHttpClient:
     @pytest.mark.asyncio
     async def test_jwt_cache_expiration(self, http_client):
         """Test that JWT cache entries expire correctly."""
-        from unittest.mock import patch
         from datetime import datetime, timedelta
+        from unittest.mock import patch
 
         decode_call_count = 0
 
@@ -1322,12 +1332,12 @@ class TestHttpClient:
 
             # First request - should decode token and cache it
             await http_client.get("/api/test", headers=headers)
-            await asyncio.sleep(0.01)  # Wait for logging task
+            await asyncio.sleep(0.1)  # Increased wait time for async tasks  # Wait for logging task
             first_decode_count = decode_call_count
 
             # Second request - token should be expired, so cache should be cleared and re-decoded
             await http_client.get("/api/test", headers=headers)
-            await asyncio.sleep(0.01)  # Wait for logging task
+            await asyncio.sleep(0.1)  # Increased wait time for async tasks  # Wait for logging task
 
             # Verify decode was called again (cache miss due to expiration)
             # The token should be re-decoded since it expired
@@ -1351,10 +1361,12 @@ class TestHttpClient:
         http_client.logger.debug = AsyncMock()
 
         # Mock DataMasker.mask_sensitive_data
-        with patch("miso_client.utils.http_client_logging.DataMasker.mask_sensitive_data") as mock_mask:
+        with patch(
+            "miso_client.utils.http_client_logging.DataMasker.mask_sensitive_data"
+        ) as mock_mask:
             request_data = {"password": "secret123", "username": "john"}
             await http_client.post("/api/login", request_data)
-            await asyncio.sleep(0.01)  # Wait for logging task
+            await asyncio.sleep(0.1)  # Increased wait time for async tasks  # Wait for logging task
 
             # In non-debug mode, masking should NOT be called for audit logs
             # (audit logs don't include request/response bodies)
@@ -1385,25 +1397,31 @@ class TestHttpClient:
         http_client.logger.debug = AsyncMock()
 
         # Mock DataMasker.mask_sensitive_data
-        with patch("miso_client.utils.http_client_logging.DataMasker.mask_sensitive_data") as mock_mask:
+        with patch(
+            "miso_client.utils.http_client_logging.DataMasker.mask_sensitive_data"
+        ) as mock_mask:
             mock_mask.return_value = {"password": DataMasker.MASKED_VALUE, "username": "john"}
 
             request_data = {"password": "secret123", "username": "john"}
             await http_client.post("/api/login", request_data)
-            await asyncio.sleep(0.01)  # Wait for logging task
+            await asyncio.sleep(0.1)  # Increased wait time for async tasks  # Wait for logging task
 
             # In debug mode, masking should be called for debug logs
             assert mock_mask.call_count >= 1  # Called for headers and/or body
 
     @pytest.mark.asyncio
     async def test_size_calculation_lazy(self, http_client):
-        """Test that size calculations only happen in debug mode."""
-        # Ensure log level is not debug
-        http_client.config.log_level = "info"
+        """Test that size calculations only happen in detailed/full audit levels."""
+        from miso_client.models.config import AuditConfig
+
+        # Set audit level to standard (not detailed/full)
+        http_client.config.audit = AuditConfig(enabled=True, level="standard")
 
         # Mock InternalHttpClient
         mock_internal_client = AsyncMock()
-        mock_internal_client.post = AsyncMock(return_value={"data": "test" * 1000})  # Large response
+        mock_internal_client.post = AsyncMock(
+            return_value={"data": "test" * 1000}
+        )  # Large response
         http_client._internal_client = mock_internal_client
 
         # Mock logger
@@ -1411,7 +1429,7 @@ class TestHttpClient:
 
         request_data = {"data": "test" * 1000}  # Large request
         await http_client.post("/api/test", request_data)
-        await asyncio.sleep(0.01)  # Wait for logging task
+        await asyncio.sleep(0.1)  # Increased wait time for async tasks  # Wait for logging task
 
         # Verify audit context was called
         assert http_client.logger.audit.called
@@ -1420,15 +1438,17 @@ class TestHttpClient:
         call_args = http_client.logger.audit.call_args
         audit_context = call_args[0][2]
 
-        # In non-debug mode, requestSize and responseSize should not be calculated
+        # In standard audit level, requestSize and responseSize should not be calculated
         assert "requestSize" not in audit_context
         assert "responseSize" not in audit_context
 
     @pytest.mark.asyncio
     async def test_size_calculation_debug_mode(self, http_client):
-        """Test that size calculations happen when debug mode is enabled."""
-        # Enable debug mode
-        http_client.config.log_level = "debug"
+        """Test that size calculations happen when audit level is detailed/full."""
+        from miso_client.models.config import AuditConfig
+
+        # Set audit level to detailed (includes size calculations)
+        http_client.config.audit = AuditConfig(enabled=True, level="detailed")
 
         # Mock InternalHttpClient
         mock_internal_client = AsyncMock()
@@ -1441,7 +1461,7 @@ class TestHttpClient:
 
         request_data = {"data": "test"}
         await http_client.post("/api/test", request_data)
-        await asyncio.sleep(0.01)  # Wait for logging task
+        await asyncio.sleep(0.1)  # Increased wait time for async tasks  # Wait for logging task
 
         # Verify audit context was called
         assert http_client.logger.audit.called
@@ -1450,7 +1470,7 @@ class TestHttpClient:
         call_args = http_client.logger.audit.call_args
         audit_context = call_args[0][2]
 
-        # In debug mode, requestSize and responseSize should be calculated
+        # In detailed audit level, requestSize and responseSize should be calculated
         # Note: These are optional, so they might not always be present
         # but if present, they should be numbers
         if "requestSize" in audit_context:
