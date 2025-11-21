@@ -503,23 +503,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Features
 
 #### Core Client
+
 - `MisoClient` main class with initialization and lifecycle management
 - Configuration management with `MisoClientConfig` and `RedisConfig`
 - Connection state tracking and graceful fallback
 
 #### Authentication Service
+
 - Token validation with controller integration
 - User information retrieval
 - Login URL generation for web applications
 - Logout functionality
 
 #### Role Service
+
 - Role retrieval with Redis caching (15-minute TTL)
 - Role checking methods: `has_role`, `has_any_role`, `has_all_roles`
 - Role refresh functionality to bypass cache
 - Cache key management with user/environment/application scoping
 
 #### Permission Service
+
 - Permission retrieval with Redis caching (15-minute TTL)
 - Permission checking methods: `has_permission`, `has_any_permission`, `has_all_permissions`
 - Permission refresh functionality to bypass cache
@@ -527,18 +531,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cache key management with user/environment/application scoping
 
 #### Logger Service
+
 - Structured logging with multiple levels: `info`, `error`, `audit`, `debug`
 - Redis queue integration for log batching
 - HTTP fallback when Redis is unavailable
 - Context-aware logging with metadata support
 
 #### HTTP Client
+
 - Async HTTP client wrapper using httpx
 - Automatic header injection (X-Environment, X-Application)
 - Authenticated request support with Bearer token
 - Error handling and status code management
 
 #### Redis Service
+
 - Async Redis integration using redis.asyncio
 - Graceful degradation when Redis is unavailable
 - Connection state tracking
@@ -633,6 +640,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ---
 
 For more information about the MisoClient SDK, visit:
+
 - [Documentation](https://docs.aifabrix.ai/miso-client-python)
 - [GitHub Repository](https://github.com/aifabrix/miso-client-python)
 - [Issue Tracker](https://github.com/aifabrix/miso-client-python/issues)
