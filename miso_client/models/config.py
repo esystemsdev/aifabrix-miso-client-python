@@ -9,6 +9,9 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
+# Authentication method types
+AuthMethod = Literal["bearer", "client-token", "client-credentials", "api-key"]
+
 
 class RedisConfig(BaseModel):
     """Redis connection configuration."""
@@ -45,6 +48,23 @@ class AuditConfig(BaseModel):
     skipEndpoints: Optional[List[str]] = Field(
         default=None, description="Array of endpoint patterns to exclude from audit logging"
     )
+
+
+class AuthStrategy(BaseModel):
+    """Authentication strategy configuration.
+
+    Defines which authentication methods to try and in what priority order.
+    Methods are tried in the order specified until one succeeds.
+    """
+
+    methods: List[AuthMethod] = Field(
+        default=["bearer", "client-token"],
+        description="Array of auth methods in priority order (default: ['bearer', 'client-token'])",
+    )
+    bearerToken: Optional[str] = Field(
+        default=None, description="Optional bearer token for bearer auth"
+    )
+    apiKey: Optional[str] = Field(default=None, description="Optional API key for api-key auth")
 
 
 class MisoClientConfig(BaseModel):
@@ -84,6 +104,10 @@ class MisoClientConfig(BaseModel):
     emit_events: Optional[bool] = Field(
         default=False,
         description="Emit log events instead of sending via HTTP/Redis (default: false)",
+    )
+    authStrategy: Optional["AuthStrategy"] = Field(
+        default=None,
+        description="Authentication strategy configuration (default: ['bearer', 'client-token'])",
     )
 
     @property

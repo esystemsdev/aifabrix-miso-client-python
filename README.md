@@ -243,9 +243,19 @@ result = await client.http_client.get('/api/users')
 # This automatically creates an audit log: http.request.GET with masked sensitive data
 ```
 
-**What happens to logs?** They're sent to the Miso Controller for centralized monitoring and analysis. Client token is automatically included.
+**What happens to logs?** They're sent to the Miso Controller for centralized monitoring and analysis. Client token is automatically included. Audit logs are automatically batched using `AuditLogQueue` for improved performance (configurable via `AuditConfig`).
 
-**ISO 27001 Compliance:** All HTTP requests are automatically audited with sensitive data masked. Set `log_level='debug'` to enable detailed request/response logging (all sensitive data is still masked).
+**ISO 27001 Compliance:** All HTTP requests are automatically audited with sensitive data masked. Configure audit logging behavior using `AuditConfig`:
+- **Audit Levels**: Choose from `minimal`, `standard`, `detailed`, or `full` (default: `detailed`)
+  - `minimal`: Only metadata, no masking
+  - `standard`: Metadata + basic context
+  - `detailed`: Full context with request/response sizes (default)
+  - `full`: Complete audit trail with all available data
+- **Performance Optimizations**: 
+  - Response body truncation based on `maxResponseSize` configuration (default: 10000 bytes)
+  - Size-based masking skip for large objects (prevents performance degradation)
+  - Automatic batching via `AuditLogQueue` reduces HTTP overhead for high-volume logging
+- Set `log_level='debug'` to enable detailed request/response logging (all sensitive data is still masked).
 
 → [Complete logging example](examples/step-5-logging.py)  
 → [Logging Reference](docs/api-reference.md#logger-service)
@@ -368,7 +378,7 @@ API_KEY=your-test-api-key-here
 ## 🔧 Configuration
 
 ```python
-from miso_client import MisoClientConfig, RedisConfig
+from miso_client import MisoClientConfig, RedisConfig, AuditConfig
 
 config = MisoClientConfig(
     controller_url="http://localhost:3000",  # Required: Controller URL
@@ -384,7 +394,16 @@ config = MisoClientConfig(
     cache={                                   # Optional: Cache TTL settings
         "role_ttl": 900,       # Role cache TTL (default: 900s)
         "permission_ttl": 900, # Permission cache TTL (default: 900s)
-    }
+    },
+    audit=AuditConfig(                        # Optional: Audit logging configuration
+        enabled=True,                         # Enable/disable audit logging (default: true)
+        level="detailed",                     # Audit detail level: 'minimal' | 'standard' | 'detailed' | 'full' (default: 'detailed')
+        maxResponseSize=10000,                # Truncate responses larger than this in bytes (default: 10000)
+        maxMaskingSize=50000,                 # Skip masking for objects larger than this in bytes (default: 50000)
+        batchSize=10,                         # Batch size for queued logs (default: 10)
+        batchInterval=100,                    # Flush interval in milliseconds (default: 100)
+        skipEndpoints=None                    # Array of endpoint patterns to exclude from audit logging
+    )
 )
 ```
 
@@ -401,6 +420,14 @@ The default configuration includes ISO 27001 compliant sensitive fields:
 - Authentication: password, token, secret, key, auth, authorization
 - PII: ssn, creditcard, cc, cvv, pin, otp
 - Security: apikey, accesstoken, refreshtoken, privatekey, secretkey, cookie, session
+
+**Audit Logging Configuration:**
+
+Configure audit logging behavior using `AuditConfig` (see Configuration section above):
+- **Audit Levels**: Control detail level (`minimal`, `standard`, `detailed`, `full`)
+- **Response Truncation**: Configure `maxResponseSize` to truncate large responses (default: 10000 bytes)
+- **Performance**: Set `maxMaskingSize` to skip masking for very large objects (default: 50000 bytes)
+- **Batching**: Configure `batchSize` and `batchInterval` for audit log queuing (reduces HTTP overhead)
 
 → [Complete Configuration Reference](docs/configuration.md)
 
@@ -435,18 +462,22 @@ The SDK uses a two-layer HTTP client architecture for ISO 27001 compliance:
 
 **Features:**
 - Automatic audit logging for all HTTP requests (`http.request.{METHOD}`)
+- Configurable audit levels (`minimal`, `standard`, `detailed`, `full`) via `AuditConfig`
 - Debug logging when `log_level === 'debug'` with detailed request/response information
 - Automatic data masking using `DataMasker` before logging (ISO 27001 compliant)
 - Sensitive endpoints (`/api/logs`, `/api/auth/token`) are excluded from audit logging to prevent infinite loops
 - All sensitive data (headers, bodies, query params) is automatically masked before logging
+- `AuditLogQueue` integration for automatic batching of audit logs (reduces HTTP overhead)
+- Performance optimizations: response body truncation and size-based masking skip for large objects
 
 **ISO 27001 Compliance:**
 - All request headers are masked (Authorization, x-client-token, Cookie, etc.)
 - All request bodies are recursively masked for sensitive fields (password, token, secret, SSN, etc.)
-- All response bodies are masked (limited to first 1000 characters)
+- All response bodies are masked and truncated based on `maxResponseSize` configuration (default: 10000 bytes)
 - Query parameters are automatically masked
 - Error messages are masked if they contain sensitive data
 - Sensitive fields configuration can be customized via `sensitive_fields_config.json`
+- Configurable audit levels control the detail level of audit logs (minimal, standard, detailed, full)
 
 → [Architecture Details](docs/api-reference.md#architecture)
 
@@ -489,10 +520,10 @@ The SDK uses a two-layer HTTP client architecture for ISO 27001 compliance:
 
 ### Structured Error Responses
 
-**What happens:** The SDK automatically parses structured error responses from the API (RFC 7807-style format) and makes them available through the `MisoClientError` exception.
+**What happens:** The SDK automatically parses structured error responses from the API (RFC 7807-style format) and makes them available through the `MisoClientError` and `ApiErrorException` exceptions.
 
 ```python
-from miso_client import MisoClient, MisoClientError, ErrorResponse, load_config
+from miso_client import MisoClient, MisoClientError, ApiErrorException, ErrorResponse, load_config, handleApiError
 
 client = MisoClient(load_config())
 await client.initialize()
@@ -512,6 +543,18 @@ except MisoClientError as e:
         print(f"Error: {e.message}")
         print(f"Status Code: {e.status_code}")
         print(f"Error Body: {e.error_body}")
+
+# Using handleApiError() for structured error handling
+try:
+    response_data = {"errors": ["Validation failed"], "type": "/Errors/Validation", "title": "Validation Error", "statusCode": 422}
+    error = handleApiError(response_data, 422, "/api/endpoint")
+    # handleApiError() returns ApiErrorException (extends MisoClientError)
+    if isinstance(error, ApiErrorException):
+        print(f"Structured Error: {error.error_response.title}")
+except ApiErrorException as e:
+    # ApiErrorException provides better structured error information
+    print(f"API Error: {e.error_response.title}")
+    print(f"Errors: {e.error_response.errors}")
 ```
 
 **Error Response Structure:**
@@ -534,6 +577,9 @@ The `ErrorResponse` model follows RFC 7807-style format:
 **Features:**
 
 - **Automatic Parsing**: Structured error responses are automatically parsed from HTTP responses
+- **ApiErrorException**: New exception class (extends `MisoClientError`) for better structured error handling
+  - `handleApiError()` returns `ApiErrorException` with structured error response support
+  - Legacy `handle_api_error_snake_case()` still returns `MisoClientError` for backward compatibility
 - **Backward Compatible**: Falls back to traditional error handling when structured format is not available
 - **Type Safety**: Full type hints with Pydantic models for reliable error handling
 - **Generic Interface**: `ErrorResponse` model can be reused across different applications
@@ -572,18 +618,24 @@ print(error_response.instance)   # "/api/endpoint"
 
 **Pagination Parameters:**
 - `page`: Page number (1-based, defaults to 1)
-- `page_size`: Number of items per page (defaults to 25)
+- `page_size`: Number of items per page (defaults to 20)
 
 ```python
 from miso_client import (
     parse_pagination_params,
+    parsePaginationParams,  # camelCase alternative
     create_paginated_list_response,
+    createPaginatedListResponse,  # camelCase alternative
     PaginatedListResponse,
 )
 
-# Parse pagination from query parameters
-params = {"page": "1", "page_size": "25"}
+# Parse pagination from query parameters (snake_case - returns tuple)
+params = {"page": "1", "page_size": "20"}
 current_page, page_size = parse_pagination_params(params)
+
+# Or use camelCase function (returns dict with currentPage/pageSize keys)
+pagination = parsePaginationParams(params)
+# Returns: {"currentPage": 1, "pageSize": 20}
 
 # Create paginated response
 items = [{"id": 1}, {"id": 2}]
@@ -591,7 +643,7 @@ response = create_paginated_list_response(
     items,
     total_items=120,
     current_page=1,
-    page_size=25,
+    page_size=20,
     type="item"
 )
 
@@ -600,7 +652,7 @@ response = create_paginated_list_response(
 #   "meta": {
 #     "total_items": 120,
 #     "current_page": 1,
-#     "page_size": 25,
+#     "page_size": 20,
 #     "type": "item"
 #   },
 #   "data": [{"id": 1}, {"id": 2}]
@@ -651,7 +703,7 @@ filter_query = FilterQuery(
     ],
     sort=['-updated_at', 'created_at'],
     page=1,
-    page_size=25,
+    page_size=20,
     fields=['id', 'name', 'status']
 )
 
@@ -706,7 +758,7 @@ filter_builder = FilterBuilder() \
     .add('region', 'in', ['eu', 'us'])
 
 # Parse pagination
-params = {'page': '1', 'page_size': '25'}
+params = {'page': '1', 'page_size': '20'}
 current_page, page_size = parse_pagination_params(params)
 
 # Create complete query
@@ -735,7 +787,7 @@ response = await client.http_client.get_with_filters(
 response = await client.http_client.get_paginated(
     '/api/items',
     page=1,
-    page_size=25
+    page_size=20
 )
 
 # Response is automatically parsed as PaginatedListResponse
@@ -773,6 +825,13 @@ response = await client.http_client.get_with_filters(
 **Features:**
 
 - **Snake_case Convention**: All utilities use snake_case to match Miso/Dataplane API
+- **camelCase Alternatives**: camelCase function names are available for all utilities (backward compatible)
+  - `parsePaginationParams()` - Returns dict with `currentPage`/`pageSize` keys (alias: `parse_pagination_params()`)
+  - `createMetaObject()` - Creates `Meta` objects with camelCase fields (alias: `create_meta_object()`)
+  - `applyPaginationToArray()` - Applies pagination to arrays (alias: `apply_pagination_to_array()`)
+  - `createPaginatedListResponse()` - Creates paginated list responses (alias: `create_paginated_list_response()`)
+  - `transformError()` - Transforms error dictionaries to `ErrorResponse` objects (alias: `transform_error_to_snake_case()`)
+  - `handleApiError()` - Creates `ApiErrorException` from API error responses (alias: `handle_api_error_snake_case()`)
 - **Type Safety**: Full type hints with Pydantic models
 - **Dynamic Filtering**: FilterBuilder supports method chaining for complex filters
 - **Local Testing**: `apply_filters()` and `apply_pagination_to_array()` for local filtering/pagination in tests

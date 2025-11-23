@@ -11,7 +11,7 @@ import time
 from typing import Any, Dict, Literal, Optional
 from urllib.parse import parse_qs
 
-from ..models.config import MisoClientConfig
+from ..models.config import AuthStrategy, MisoClientConfig
 from ..services.logger import LoggerService
 from ..utils.jwt_tools import JwtTokenCache
 from .http_client_logging import log_http_request_audit, log_http_request_debug
@@ -403,6 +403,7 @@ class HttpClient:
         url: str,
         token: str,
         data: Optional[Dict[str, Any]] = None,
+        auth_strategy: Optional[AuthStrategy] = None,
         **kwargs,
     ) -> Any:
         """
@@ -417,6 +418,7 @@ class HttpClient:
             url: Request URL
             token: User authentication token (sent as Bearer token)
             data: Request data (for POST/PUT)
+            auth_strategy: Optional authentication strategy (defaults to bearer + client-token)
             **kwargs: Additional httpx request parameters
 
         Returns:
@@ -430,7 +432,50 @@ class HttpClient:
         headers["Authorization"] = f"Bearer {token}"
         kwargs["headers"] = headers
 
-        return await self.request(method, url, data, **kwargs)
+        # Use internal client's authenticated_request which handles auth strategy
+        async def _authenticated_request():
+            return await self._internal_client.authenticated_request(
+                method, url, token, data, auth_strategy, **kwargs
+            )
+
+        return await self._execute_with_logging(method, url, _authenticated_request, data, **kwargs)
+
+    async def request_with_auth_strategy(
+        self,
+        method: Literal["GET", "POST", "PUT", "DELETE"],
+        url: str,
+        auth_strategy: AuthStrategy,
+        data: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ) -> Any:
+        """
+        Make request with authentication strategy and automatic audit/debug logging.
+
+        Tries authentication methods in priority order until one succeeds.
+        If a method returns 401, automatically tries the next method in the strategy.
+
+        Args:
+            method: HTTP method
+            url: Request URL
+            auth_strategy: Authentication strategy configuration
+            data: Request data (for POST/PUT)
+            **kwargs: Additional httpx request parameters
+
+        Returns:
+            Response data (JSON parsed)
+
+        Raises:
+            MisoClientError: If all authentication methods fail
+        """
+
+        async def _request_with_auth_strategy():
+            return await self._internal_client.request_with_auth_strategy(
+                method, url, auth_strategy, data, **kwargs
+            )
+
+        return await self._execute_with_logging(
+            method, url, _request_with_auth_strategy, data, **kwargs
+        )
 
     def _parse_filter_query_string(self, query_string: str) -> Dict[str, Any]:
         """

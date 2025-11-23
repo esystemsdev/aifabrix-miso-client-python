@@ -8,9 +8,9 @@ Optimized to extract userId from JWT token before API calls for cache optimizati
 
 import logging
 import time
-from typing import List, cast
+from typing import List, Optional, cast
 
-from ..models.config import RoleResult
+from ..models.config import AuthStrategy, RoleResult
 from ..services.cache import CacheService
 from ..utils.http_client import HttpClient
 from ..utils.jwt_tools import extract_user_id
@@ -34,7 +34,9 @@ class RoleService:
         self.cache = cache
         self.role_ttl = self.config.role_ttl
 
-    async def get_roles(self, token: str) -> List[str]:
+    async def get_roles(
+        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> List[str]:
         """
         Get user roles with Redis caching.
 
@@ -42,6 +44,7 @@ class RoleService:
 
         Args:
             token: JWT token
+            auth_strategy: Optional authentication strategy
 
         Returns:
             List of user roles
@@ -60,18 +63,28 @@ class RoleService:
             # Cache miss or no userId in token - fetch from controller
             # If we don't have userId, get it from validate endpoint
             if not user_id:
-                user_info = await self.http_client.authenticated_request(
-                    "POST", "/api/auth/validate", token
-                )
+                if auth_strategy is not None:
+                    user_info = await self.http_client.authenticated_request(
+                        "POST", "/api/auth/validate", token, auth_strategy=auth_strategy
+                    )
+                else:
+                    user_info = await self.http_client.authenticated_request(
+                        "POST", "/api/auth/validate", token
+                    )
                 user_id = user_info.get("user", {}).get("id") if user_info else None
                 if not user_id:
                     return []
                 cache_key = f"roles:{user_id}"
 
             # Cache miss - fetch from controller
-            role_result = await self.http_client.authenticated_request(
-                "GET", "/api/auth/roles", token  # Backend knows app/env from client token
-            )
+            if auth_strategy is not None:
+                role_result = await self.http_client.authenticated_request(
+                    "GET", "/api/auth/roles", token, auth_strategy=auth_strategy
+                )
+            else:
+                role_result = await self.http_client.authenticated_request(
+                    "GET", "/api/auth/roles", token
+                )
 
             role_data = RoleResult(**role_result)
             roles = role_data.roles or []
@@ -88,63 +101,80 @@ class RoleService:
             logger.error("Failed to get roles", exc_info=error)
             return []
 
-    async def has_role(self, token: str, role: str) -> bool:
+    async def has_role(
+        self, token: str, role: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> bool:
         """
         Check if user has specific role.
 
         Args:
             token: JWT token
             role: Role to check
+            auth_strategy: Optional authentication strategy
 
         Returns:
             True if user has the role, False otherwise
         """
-        roles = await self.get_roles(token)
+        roles = await self.get_roles(token, auth_strategy=auth_strategy)
         return role in roles
 
-    async def has_any_role(self, token: str, roles: List[str]) -> bool:
+    async def has_any_role(
+        self, token: str, roles: List[str], auth_strategy: Optional[AuthStrategy] = None
+    ) -> bool:
         """
         Check if user has any of the specified roles.
 
         Args:
             token: JWT token
             roles: List of roles to check
+            auth_strategy: Optional authentication strategy
 
         Returns:
             True if user has any of the roles, False otherwise
         """
-        user_roles = await self.get_roles(token)
+        user_roles = await self.get_roles(token, auth_strategy=auth_strategy)
         return any(role in user_roles for role in roles)
 
-    async def has_all_roles(self, token: str, roles: List[str]) -> bool:
+    async def has_all_roles(
+        self, token: str, roles: List[str], auth_strategy: Optional[AuthStrategy] = None
+    ) -> bool:
         """
         Check if user has all of the specified roles.
 
         Args:
             token: JWT token
             roles: List of roles to check
+            auth_strategy: Optional authentication strategy
 
         Returns:
             True if user has all roles, False otherwise
         """
-        user_roles = await self.get_roles(token)
+        user_roles = await self.get_roles(token, auth_strategy=auth_strategy)
         return all(role in user_roles for role in roles)
 
-    async def refresh_roles(self, token: str) -> List[str]:
+    async def refresh_roles(
+        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> List[str]:
         """
         Force refresh roles from controller (bypass cache).
 
         Args:
             token: JWT token
+            auth_strategy: Optional authentication strategy
 
         Returns:
             Fresh list of user roles
         """
         try:
             # Get user info to extract userId
-            user_info = await self.http_client.authenticated_request(
-                "POST", "/api/auth/validate", token
-            )
+            if auth_strategy is not None:
+                user_info = await self.http_client.authenticated_request(
+                    "POST", "/api/auth/validate", token, auth_strategy=auth_strategy
+                )
+            else:
+                user_info = await self.http_client.authenticated_request(
+                    "POST", "/api/auth/validate", token
+                )
 
             user_id = user_info.get("user", {}).get("id") if user_info else None
             if not user_id:
@@ -153,9 +183,14 @@ class RoleService:
             cache_key = f"roles:{user_id}"
 
             # Fetch fresh roles from controller using refresh endpoint
-            role_result = await self.http_client.authenticated_request(
-                "GET", "/api/auth/roles/refresh", token
-            )
+            if auth_strategy is not None:
+                role_result = await self.http_client.authenticated_request(
+                    "GET", "/api/auth/roles/refresh", token, auth_strategy=auth_strategy
+                )
+            else:
+                role_result = await self.http_client.authenticated_request(
+                    "GET", "/api/auth/roles/refresh", token
+                )
 
             role_data = RoleResult(**role_result)
             roles = role_data.roles or []

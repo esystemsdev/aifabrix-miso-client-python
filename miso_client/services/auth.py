@@ -8,7 +8,7 @@ token validation, user information retrieval, and logout functionality.
 import logging
 from typing import Optional
 
-from ..models.config import AuthResult, UserInfo
+from ..models.config import AuthResult, AuthStrategy, UserInfo
 from ..services.redis import RedisService
 from ..utils.http_client import HttpClient
 
@@ -59,7 +59,9 @@ class AuthService:
         """
         return f"{self.config.controller_url}/api/auth/login?redirect={redirect_uri}"
 
-    async def validate_token(self, token: str) -> bool:
+    async def validate_token(
+        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> bool:
         """
         Validate token with controller.
 
@@ -67,6 +69,7 @@ class AuthService:
 
         Args:
             token: JWT token to validate (or API_KEY for testing)
+            auth_strategy: Optional authentication strategy
 
         Returns:
             True if token is valid, False otherwise
@@ -77,9 +80,14 @@ class AuthService:
 
         # Fall back to OAuth2 validation
         try:
-            result = await self.http_client.authenticated_request(
-                "POST", "/api/auth/validate", token  # Backend knows app/env from client token
-            )
+            if auth_strategy is not None:
+                result = await self.http_client.authenticated_request(
+                    "POST", "/api/auth/validate", token, auth_strategy=auth_strategy
+                )
+            else:
+                result = await self.http_client.authenticated_request(
+                    "POST", "/api/auth/validate", token
+                )
 
             auth_result = AuthResult(**result)
             return auth_result.authenticated
@@ -88,7 +96,9 @@ class AuthService:
             logger.error("Token validation failed", exc_info=error)
             return False
 
-    async def get_user(self, token: str) -> Optional[UserInfo]:
+    async def get_user(
+        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> Optional[UserInfo]:
         """
         Get user information from token.
 
@@ -96,6 +106,7 @@ class AuthService:
 
         Args:
             token: JWT token (or API_KEY for testing)
+            auth_strategy: Optional authentication strategy
 
         Returns:
             UserInfo if token is valid, None otherwise
@@ -107,9 +118,14 @@ class AuthService:
 
         # Fall back to OAuth2 validation
         try:
-            result = await self.http_client.authenticated_request(
-                "POST", "/api/auth/validate", token
-            )
+            if auth_strategy is not None:
+                result = await self.http_client.authenticated_request(
+                    "POST", "/api/auth/validate", token, auth_strategy=auth_strategy
+                )
+            else:
+                result = await self.http_client.authenticated_request(
+                    "POST", "/api/auth/validate", token
+                )
 
             auth_result = AuthResult(**result)
 
@@ -122,7 +138,9 @@ class AuthService:
             logger.error("Failed to get user info", exc_info=error)
             return None
 
-    async def get_user_info(self, token: str) -> Optional[UserInfo]:
+    async def get_user_info(
+        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> Optional[UserInfo]:
         """
         Get user information from GET /api/auth/user endpoint.
 
@@ -130,6 +148,7 @@ class AuthService:
 
         Args:
             token: JWT token (or API_KEY for testing)
+            auth_strategy: Optional authentication strategy
 
         Returns:
             UserInfo if token is valid, None otherwise
@@ -141,7 +160,14 @@ class AuthService:
 
         # Fall back to OAuth2 validation
         try:
-            user_data = await self.http_client.authenticated_request("GET", "/api/auth/user", token)
+            if auth_strategy is not None:
+                user_data = await self.http_client.authenticated_request(
+                    "GET", "/api/auth/user", token, auth_strategy=auth_strategy
+                )
+            else:
+                user_data = await self.http_client.authenticated_request(
+                    "GET", "/api/auth/user", token
+                )
 
             return UserInfo(**user_data)
 
@@ -162,14 +188,20 @@ class AuthService:
             logger.error("Logout failed", exc_info=error)
             # Silently fail per service method pattern
 
-    async def is_authenticated(self, token: str) -> bool:
+    async def is_authenticated(
+        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> bool:
         """
         Check if user is authenticated (has valid token).
 
         Args:
             token: JWT token
+            auth_strategy: Optional authentication strategy
 
         Returns:
             True if user is authenticated, False otherwise
         """
-        return await self.validate_token(token)
+        if auth_strategy is not None:
+            return await self.validate_token(token, auth_strategy=auth_strategy)
+        else:
+            return await self.validate_token(token)

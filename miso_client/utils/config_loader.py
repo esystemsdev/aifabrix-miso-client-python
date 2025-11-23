@@ -5,10 +5,10 @@ Automatically loads environment variables with sensible defaults.
 """
 
 import os
-from typing import Literal, cast
+from typing import List, Literal, cast
 
 from ..errors import ConfigurationError
-from ..models.config import MisoClientConfig, RedisConfig
+from ..models.config import AuthMethod, AuthStrategy, MisoClientConfig, RedisConfig
 
 
 def load_config() -> MisoClientConfig:
@@ -23,6 +23,8 @@ def load_config() -> MisoClientConfig:
     Optional environment variables:
     - MISO_LOG_LEVEL (debug, info, warn, error)
     - API_KEY (for testing - bypasses OAuth2 authentication)
+    - MISO_API_KEY (alternative to API_KEY)
+    - MISO_AUTH_STRATEGY (comma-separated list: bearer,client-token,api-key)
     - REDIS_HOST (if Redis is used)
     - REDIS_PORT (default: 6379)
     - REDIS_PASSWORD
@@ -63,8 +65,37 @@ def load_config() -> MisoClientConfig:
         Literal["debug", "info", "warn", "error"], log_level_str
     )
 
-    # Optional API_KEY for testing
-    api_key = os.environ.get("API_KEY")
+    # Optional API_KEY for testing (support both API_KEY and MISO_API_KEY)
+    api_key = os.environ.get("API_KEY") or os.environ.get("MISO_API_KEY")
+
+    # Optional auth strategy
+    auth_strategy = None
+    auth_strategy_str = os.environ.get("MISO_AUTH_STRATEGY")
+    if auth_strategy_str:
+        try:
+            methods_str = [m.strip() for m in auth_strategy_str.split(",")]
+            # Validate methods
+            valid_methods: List[AuthMethod] = [
+                "bearer",
+                "client-token",
+                "client-credentials",
+                "api-key",
+            ]
+            methods: List[AuthMethod] = []
+            for method in methods_str:
+                if method in valid_methods:
+                    methods.append(method)  # type: ignore
+                else:
+                    raise ConfigurationError(
+                        f"Invalid auth method '{method}' in MISO_AUTH_STRATEGY. "
+                        f"Valid methods: {', '.join(valid_methods)}"
+                    )
+            if methods:
+                auth_strategy = AuthStrategy(methods=methods, apiKey=api_key)
+        except Exception as e:
+            if isinstance(e, ConfigurationError):
+                raise
+            raise ConfigurationError(f"Failed to parse MISO_AUTH_STRATEGY: {str(e)}")
 
     config: MisoClientConfig = MisoClientConfig(
         controller_url=controller_url,
@@ -72,6 +103,7 @@ def load_config() -> MisoClientConfig:
         client_secret=client_secret,
         log_level=log_level,
         api_key=api_key,
+        authStrategy=auth_strategy,
     )
 
     # Optional Redis configuration

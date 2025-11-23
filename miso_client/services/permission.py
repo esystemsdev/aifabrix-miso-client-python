@@ -8,9 +8,9 @@ Optimized to extract userId from JWT token before API calls for cache optimizati
 
 import logging
 import time
-from typing import List, cast
+from typing import List, Optional, cast
 
-from ..models.config import PermissionResult
+from ..models.config import AuthStrategy, PermissionResult
 from ..services.cache import CacheService
 from ..utils.http_client import HttpClient
 from ..utils.jwt_tools import extract_user_id
@@ -34,7 +34,9 @@ class PermissionService:
         self.cache = cache
         self.permission_ttl = self.config.permission_ttl
 
-    async def get_permissions(self, token: str) -> List[str]:
+    async def get_permissions(
+        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> List[str]:
         """
         Get user permissions with Redis caching.
 
@@ -42,6 +44,7 @@ class PermissionService:
 
         Args:
             token: JWT token
+            auth_strategy: Optional authentication strategy
 
         Returns:
             List of user permissions
@@ -60,18 +63,28 @@ class PermissionService:
             # Cache miss or no userId in token - fetch from controller
             # If we don't have userId, get it from validate endpoint
             if not user_id:
-                user_info = await self.http_client.authenticated_request(
-                    "POST", "/api/auth/validate", token
-                )
+                if auth_strategy is not None:
+                    user_info = await self.http_client.authenticated_request(
+                        "POST", "/api/auth/validate", token, auth_strategy=auth_strategy
+                    )
+                else:
+                    user_info = await self.http_client.authenticated_request(
+                        "POST", "/api/auth/validate", token
+                    )
                 user_id = user_info.get("user", {}).get("id") if user_info else None
                 if not user_id:
                     return []
                 cache_key = f"permissions:{user_id}"
 
             # Cache miss - fetch from controller
-            permission_result = await self.http_client.authenticated_request(
-                "GET", "/api/auth/permissions", token  # Backend knows app/env from client token
-            )
+            if auth_strategy is not None:
+                permission_result = await self.http_client.authenticated_request(
+                    "GET", "/api/auth/permissions", token, auth_strategy=auth_strategy
+                )
+            else:
+                permission_result = await self.http_client.authenticated_request(
+                    "GET", "/api/auth/permissions", token
+                )
 
             permission_data = PermissionResult(**permission_result)
             permissions = permission_data.permissions or []
@@ -90,63 +103,80 @@ class PermissionService:
             logger.error("Failed to get permissions", exc_info=error)
             return []
 
-    async def has_permission(self, token: str, permission: str) -> bool:
+    async def has_permission(
+        self, token: str, permission: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> bool:
         """
         Check if user has specific permission.
 
         Args:
             token: JWT token
             permission: Permission to check
+            auth_strategy: Optional authentication strategy
 
         Returns:
             True if user has the permission, False otherwise
         """
-        permissions = await self.get_permissions(token)
+        permissions = await self.get_permissions(token, auth_strategy=auth_strategy)
         return permission in permissions
 
-    async def has_any_permission(self, token: str, permissions: List[str]) -> bool:
+    async def has_any_permission(
+        self, token: str, permissions: List[str], auth_strategy: Optional[AuthStrategy] = None
+    ) -> bool:
         """
         Check if user has any of the specified permissions.
 
         Args:
             token: JWT token
             permissions: List of permissions to check
+            auth_strategy: Optional authentication strategy
 
         Returns:
             True if user has any of the permissions, False otherwise
         """
-        user_permissions = await self.get_permissions(token)
+        user_permissions = await self.get_permissions(token, auth_strategy=auth_strategy)
         return any(permission in user_permissions for permission in permissions)
 
-    async def has_all_permissions(self, token: str, permissions: List[str]) -> bool:
+    async def has_all_permissions(
+        self, token: str, permissions: List[str], auth_strategy: Optional[AuthStrategy] = None
+    ) -> bool:
         """
         Check if user has all of the specified permissions.
 
         Args:
             token: JWT token
             permissions: List of permissions to check
+            auth_strategy: Optional authentication strategy
 
         Returns:
             True if user has all permissions, False otherwise
         """
-        user_permissions = await self.get_permissions(token)
+        user_permissions = await self.get_permissions(token, auth_strategy=auth_strategy)
         return all(permission in user_permissions for permission in permissions)
 
-    async def refresh_permissions(self, token: str) -> List[str]:
+    async def refresh_permissions(
+        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> List[str]:
         """
         Force refresh permissions from controller (bypass cache).
 
         Args:
             token: JWT token
+            auth_strategy: Optional authentication strategy
 
         Returns:
             Fresh list of user permissions
         """
         try:
             # Get user info to extract userId
-            user_info = await self.http_client.authenticated_request(
-                "POST", "/api/auth/validate", token
-            )
+            if auth_strategy is not None:
+                user_info = await self.http_client.authenticated_request(
+                    "POST", "/api/auth/validate", token, auth_strategy=auth_strategy
+                )
+            else:
+                user_info = await self.http_client.authenticated_request(
+                    "POST", "/api/auth/validate", token
+                )
 
             user_id = user_info.get("user", {}).get("id") if user_info else None
             if not user_id:
@@ -155,9 +185,14 @@ class PermissionService:
             cache_key = f"permissions:{user_id}"
 
             # Fetch fresh permissions from controller using refresh endpoint
-            permission_result = await self.http_client.authenticated_request(
-                "GET", "/api/auth/permissions/refresh", token
-            )
+            if auth_strategy is not None:
+                permission_result = await self.http_client.authenticated_request(
+                    "GET", "/api/auth/permissions/refresh", token, auth_strategy=auth_strategy
+                )
+            else:
+                permission_result = await self.http_client.authenticated_request(
+                    "GET", "/api/auth/permissions/refresh", token
+                )
 
             permission_data = PermissionResult(**permission_result)
             permissions = permission_data.permissions or []
@@ -175,18 +210,26 @@ class PermissionService:
             logger.error("Failed to refresh permissions", exc_info=error)
             return []
 
-    async def clear_permissions_cache(self, token: str) -> None:
+    async def clear_permissions_cache(
+        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> None:
         """
         Clear cached permissions for a user.
 
         Args:
             token: JWT token
+            auth_strategy: Optional authentication strategy
         """
         try:
             # Get user info to extract userId
-            user_info = await self.http_client.authenticated_request(
-                "POST", "/api/auth/validate", token
-            )
+            if auth_strategy is not None:
+                user_info = await self.http_client.authenticated_request(
+                    "POST", "/api/auth/validate", token, auth_strategy=auth_strategy
+                )
+            else:
+                user_info = await self.http_client.authenticated_request(
+                    "POST", "/api/auth/validate", token
+                )
 
             user_id = user_info.get("user", {}).get("id") if user_info else None
             if not user_id:

@@ -288,7 +288,9 @@ async def log_http_request_audit(
 
         # Standard, detailed, or full audit levels
         # Convert AuditConfig to dict for _prepare_audit_context
-        audit_config_dict = audit_config.dict() if audit_config and hasattr(audit_config, 'dict') else {}
+        audit_config_dict = (
+            audit_config.dict() if audit_config and hasattr(audit_config, "dict") else {}
+        )
         audit_context = _prepare_audit_context(
             method,
             url,
@@ -595,7 +597,7 @@ async def log_http_request_debug(
     try:
         # Get maxResponseSize from audit config if available
         max_response_size = None
-        if config and config.audit and hasattr(config.audit, 'maxResponseSize'):
+        if config and config.audit and hasattr(config.audit, "maxResponseSize"):
             max_response_size = config.audit.maxResponseSize
 
         debug_context = _prepare_debug_context(

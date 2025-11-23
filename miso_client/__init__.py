@@ -5,7 +5,7 @@ This package provides a reusable client SDK for integrating with the Miso Contro
 for authentication, role-based access control, permission management, and logging.
 """
 
-from typing import Any, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from .errors import (
     AuthenticationError,
@@ -16,6 +16,7 @@ from .errors import (
 )
 from .models.config import (
     AuthResult,
+    AuthStrategy,
     ClientLoggingOptions,
     ClientTokenResponse,
     LogEntry,
@@ -61,7 +62,7 @@ from .utils.pagination import (
 )
 from .utils.sort import build_sort_string, parse_sort_params
 
-__version__ = "1.9.0"
+__version__ = "1.9.1"
 __author__ = "AI Fabrix Team"
 __license__ = "MIT"
 
@@ -201,53 +202,65 @@ class MisoClient:
         """
         return self.auth.login(redirect_uri)
 
-    async def validate_token(self, token: str) -> bool:
+    async def validate_token(
+        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> bool:
         """
         Validate token with controller.
 
         Args:
             token: JWT token to validate
+            auth_strategy: Optional authentication strategy
 
         Returns:
             True if token is valid, False otherwise
         """
-        return await self.auth.validate_token(token)
+        return await self.auth.validate_token(token, auth_strategy=auth_strategy)
 
-    async def get_user(self, token: str) -> UserInfo | None:
+    async def get_user(
+        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> UserInfo | None:
         """
         Get user information from token.
 
         Args:
             token: JWT token
+            auth_strategy: Optional authentication strategy
 
         Returns:
             UserInfo if token is valid, None otherwise
         """
-        return await self.auth.get_user(token)
+        return await self.auth.get_user(token, auth_strategy=auth_strategy)
 
-    async def get_user_info(self, token: str) -> UserInfo | None:
+    async def get_user_info(
+        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> UserInfo | None:
         """
         Get user information from GET /api/auth/user endpoint.
 
         Args:
             token: JWT token
+            auth_strategy: Optional authentication strategy
 
         Returns:
             UserInfo if token is valid, None otherwise
         """
-        return await self.auth.get_user_info(token)
+        return await self.auth.get_user_info(token, auth_strategy=auth_strategy)
 
-    async def is_authenticated(self, token: str) -> bool:
+    async def is_authenticated(
+        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> bool:
         """
         Check if user is authenticated.
 
         Args:
             token: JWT token
+            auth_strategy: Optional authentication strategy
 
         Returns:
             True if user is authenticated, False otherwise
         """
-        return await self.auth.is_authenticated(token)
+        return await self.auth.is_authenticated(token, auth_strategy=auth_strategy)
 
     async def logout(self) -> None:
         """Logout user."""
@@ -255,140 +268,177 @@ class MisoClient:
 
     # ==================== AUTHORIZATION METHODS ====================
 
-    async def get_roles(self, token: str) -> list[str]:
+    async def get_roles(
+        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> list[str]:
         """
         Get user roles (cached in Redis if available).
 
         Args:
             token: JWT token
+            auth_strategy: Optional authentication strategy
 
         Returns:
             List of user roles
         """
-        return await self.roles.get_roles(token)
+        return await self.roles.get_roles(token, auth_strategy=auth_strategy)
 
-    async def has_role(self, token: str, role: str) -> bool:
+    async def has_role(
+        self, token: str, role: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> bool:
         """
         Check if user has specific role.
 
         Args:
             token: JWT token
             role: Role to check
+            auth_strategy: Optional authentication strategy
 
         Returns:
             True if user has the role, False otherwise
         """
-        return await self.roles.has_role(token, role)
+        return await self.roles.has_role(token, role, auth_strategy=auth_strategy)
 
-    async def has_any_role(self, token: str, roles: list[str]) -> bool:
+    async def has_any_role(
+        self, token: str, roles: list[str], auth_strategy: Optional[AuthStrategy] = None
+    ) -> bool:
         """
         Check if user has any of the specified roles.
 
         Args:
             token: JWT token
             roles: List of roles to check
+            auth_strategy: Optional authentication strategy
 
         Returns:
             True if user has any of the roles, False otherwise
         """
-        return await self.roles.has_any_role(token, roles)
+        return await self.roles.has_any_role(token, roles, auth_strategy=auth_strategy)
 
-    async def has_all_roles(self, token: str, roles: list[str]) -> bool:
+    async def has_all_roles(
+        self, token: str, roles: list[str], auth_strategy: Optional[AuthStrategy] = None
+    ) -> bool:
         """
         Check if user has all of the specified roles.
 
         Args:
             token: JWT token
             roles: List of roles to check
+            auth_strategy: Optional authentication strategy
 
         Returns:
             True if user has all roles, False otherwise
         """
-        return await self.roles.has_all_roles(token, roles)
+        return await self.roles.has_all_roles(token, roles, auth_strategy=auth_strategy)
 
-    async def refresh_roles(self, token: str) -> list[str]:
+    async def refresh_roles(
+        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> list[str]:
         """
         Force refresh roles from controller (bypass cache).
 
         Args:
             token: JWT token
+            auth_strategy: Optional authentication strategy
 
         Returns:
             Fresh list of user roles
         """
-        return await self.roles.refresh_roles(token)
+        return await self.roles.refresh_roles(token, auth_strategy=auth_strategy)
 
-    async def get_permissions(self, token: str) -> list[str]:
+    async def get_permissions(
+        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> list[str]:
         """
         Get user permissions (cached in Redis if available).
 
         Args:
             token: JWT token
+            auth_strategy: Optional authentication strategy
 
         Returns:
             List of user permissions
         """
-        return await self.permissions.get_permissions(token)
+        return await self.permissions.get_permissions(token, auth_strategy=auth_strategy)
 
-    async def has_permission(self, token: str, permission: str) -> bool:
+    async def has_permission(
+        self, token: str, permission: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> bool:
         """
         Check if user has specific permission.
 
         Args:
             token: JWT token
             permission: Permission to check
+            auth_strategy: Optional authentication strategy
 
         Returns:
             True if user has the permission, False otherwise
         """
-        return await self.permissions.has_permission(token, permission)
+        return await self.permissions.has_permission(token, permission, auth_strategy=auth_strategy)
 
-    async def has_any_permission(self, token: str, permissions: list[str]) -> bool:
+    async def has_any_permission(
+        self, token: str, permissions: list[str], auth_strategy: Optional[AuthStrategy] = None
+    ) -> bool:
         """
         Check if user has any of the specified permissions.
 
         Args:
             token: JWT token
             permissions: List of permissions to check
+            auth_strategy: Optional authentication strategy
 
         Returns:
             True if user has any of the permissions, False otherwise
         """
-        return await self.permissions.has_any_permission(token, permissions)
+        return await self.permissions.has_any_permission(
+            token, permissions, auth_strategy=auth_strategy
+        )
 
-    async def has_all_permissions(self, token: str, permissions: list[str]) -> bool:
+    async def has_all_permissions(
+        self, token: str, permissions: list[str], auth_strategy: Optional[AuthStrategy] = None
+    ) -> bool:
         """
         Check if user has all of the specified permissions.
 
         Args:
             token: JWT token
             permissions: List of permissions to check
+            auth_strategy: Optional authentication strategy
 
         Returns:
             True if user has all permissions, False otherwise
         """
-        return await self.permissions.has_all_permissions(token, permissions)
+        return await self.permissions.has_all_permissions(
+            token, permissions, auth_strategy=auth_strategy
+        )
 
-    async def refresh_permissions(self, token: str) -> list[str]:
+    async def refresh_permissions(
+        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> list[str]:
         """
         Force refresh permissions from controller (bypass cache).
 
         Args:
             token: JWT token
+            auth_strategy: Optional authentication strategy
 
         Returns:
             Fresh list of user permissions
         """
-        return await self.permissions.refresh_permissions(token)
+        return await self.permissions.refresh_permissions(token, auth_strategy=auth_strategy)
 
-    async def clear_permissions_cache(self, token: str) -> None:
+    async def clear_permissions_cache(
+        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> None:
         """
         Clear cached permissions for a user.
 
         Args:
             token: JWT token
+            auth_strategy: Optional authentication strategy
         """
-        return await self.permissions.clear_permissions_cache(token)
+        return await self.permissions.clear_permissions_cache(token, auth_strategy=auth_strategy)
 
     # ==================== LOGGING METHODS ====================
 
@@ -506,6 +556,69 @@ class MisoClient:
         """
         return self.redis.is_connected()
 
+    # ==================== AUTHENTICATION STRATEGY METHODS ====================
+
+    def create_auth_strategy(
+        self,
+        methods: List[Literal["bearer", "client-token", "client-credentials", "api-key"]],
+        bearer_token: Optional[str] = None,
+        api_key: Optional[str] = None,
+    ) -> AuthStrategy:
+        """
+        Create an authentication strategy object.
+
+        Args:
+            methods: List of authentication methods in priority order
+            bearer_token: Optional bearer token for bearer auth
+            api_key: Optional API key for api-key auth
+
+        Returns:
+            AuthStrategy instance
+
+        Example:
+            >>> strategy = client.create_auth_strategy(
+            ...     ['api-key'],
+            ...     bearer_token=None,
+            ...     api_key='your-api-key-here'
+            ... )
+        """
+        return AuthStrategy(methods=methods, bearerToken=bearer_token, apiKey=api_key)
+
+    async def request_with_auth_strategy(
+        self,
+        method: Literal["GET", "POST", "PUT", "DELETE"],
+        url: str,
+        auth_strategy: AuthStrategy,
+        data: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ) -> Any:
+        """
+        Make request with authentication strategy (priority-based fallback).
+
+        Tries authentication methods in priority order until one succeeds.
+        If a method returns 401, automatically tries the next method in the strategy.
+
+        Args:
+            method: HTTP method
+            url: Request URL
+            auth_strategy: Authentication strategy configuration
+            data: Request data (for POST/PUT)
+            **kwargs: Additional httpx request parameters
+
+        Returns:
+            Response data (JSON parsed)
+
+        Raises:
+            MisoClientError: If all authentication methods fail
+
+        Example:
+            >>> strategy = client.create_auth_strategy(['api-key'], api_key='your-key')
+            >>> response = await client.request_with_auth_strategy('GET', '/api/data', strategy)
+        """
+        return await self.http_client.request_with_auth_strategy(
+            method, url, auth_strategy, data, **kwargs
+        )
+
 
 # Export types
 __all__ = [
@@ -514,6 +627,7 @@ __all__ = [
     "MisoClientConfig",
     "UserInfo",
     "AuthResult",
+    "AuthStrategy",
     "LogEntry",
     "RoleResult",
     "PermissionResult",
