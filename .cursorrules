@@ -1,7 +1,9 @@
 # AI Fabrix Miso Client SDK - Cursor Rules (Python)
 
 ## Project Overview
+
 This is the AI Fabrix Miso Client SDK - a Python SDK for authentication, authorization, and logging with the Miso Controller. The SDK uses:
+
 - Client token authentication (automatic via interceptors)
 - User token authentication (Bearer tokens)
 - Redis caching for roles/permissions (with controller fallback)
@@ -12,10 +14,12 @@ This is the AI Fabrix Miso Client SDK - a Python SDK for authentication, authori
 ## Architecture Patterns
 
 ### Service Layer
+
 - All services are in `miso_client/services/`
 - Services receive `HttpClient` and `RedisService` as dependencies
 - Services use `http_client.config` (public readonly property) for configuration access
 - Services follow this pattern:
+
   ```python
   class ServiceName:
       def __init__(self, http_client: HttpClient, redis: RedisService):
@@ -25,6 +29,7 @@ This is the AI Fabrix Miso Client SDK - a Python SDK for authentication, authori
   ```
 
 ### HTTP Client Pattern
+
 - `HttpClient` wraps `InternalHttpClient` and adds ISO 27001 compliant audit logging
 - `InternalHttpClient` manages client token automatically via httpx interceptors
 - Client token is fetched from `/api/auth/token` using `clientId` and `clientSecret`
@@ -39,6 +44,7 @@ This is the AI Fabrix Miso Client SDK - a Python SDK for authentication, authori
 - Filter, pagination, and sort utilities are available for building complex queries
 
 ### Token Management
+
 - **Client Token**: Automatically fetched and refreshed by `InternalHttpClient` via interceptor
   - Fetched from `POST /api/auth/token` with `X-Client-Id` and `X-Client-Secret`
   - Stored in memory with expiration tracking
@@ -48,7 +54,9 @@ This is the AI Fabrix Miso Client SDK - a Python SDK for authentication, authori
 - Never expose `clientId` or `clientSecret` to the client application - only the client token
 
 ### API Endpoints
+
 All controller endpoints use `/api` prefix:
+
 - `/api/auth/login` - User login
 - `/api/auth/logout` - User logout
 - `/api/auth/validate` - Validate user token
@@ -61,10 +69,12 @@ All controller endpoints use `/api` prefix:
 - `/api/logs` - Send logs
 
 ### JWT Token Handling
+
 - Always use `jwt.decode()` (not verify - we don't have the secret)
 - Extract userId from multiple possible fields: `sub`, `userId`, `user_id`, `id`
 - Handle None/empty decoded tokens gracefully
 - JWT context extraction pattern:
+
   ```python
   def extract_user_id_from_token(token: str) -> Optional[str]:
       try:
@@ -77,12 +87,14 @@ All controller endpoints use `/api` prefix:
   ```
 
 ### Redis Caching Pattern
+
 - Always check `redis.is_connected()` before using Redis
 - Cache keys format: `roles:{userId}` or `permissions:{userId}`
 - Cache format: `json.dumps({"roles": [...], "timestamp": time.time()})`
 - Default TTL: 900 seconds (15 minutes)
 - Always fallback to controller when Redis fails
 - Pattern:
+
   ```python
   if cache_key and self.redis.is_connected():
       cached = await self.redis.get(cache_key)
@@ -96,12 +108,14 @@ All controller endpoints use `/api` prefix:
   ```
 
 ### Data Masking (ISO 27001 Compliance)
+
 - All HTTP requests are automatically audited with sensitive data masked
 - Use `DataMasker` to mask sensitive fields before logging
 - Sensitive endpoints (`/api/logs`, `/api/auth/token`) are excluded from audit logging
 - Configuration via `sensitive_fields_config.json` or environment variable `MISO_SENSITIVE_FIELDS_CONFIG`
 
 ### API Data Conventions (camelCase)
+
 - **All outgoing data must use camelCase naming convention**
   - All Pydantic model fields sent to API must be camelCase (e.g., `pageSize`, `totalItems`, `currentPage`, `userId`, `statusCode`, `correlationId`)
   - All JSON request bodies must use camelCase field names
@@ -117,6 +131,7 @@ All controller endpoints use `/api` prefix:
 ## Code Style
 
 ### Python Conventions
+
 - Use Python 3.8+ type hints throughout
 - Use `strict: true` mypy configuration (where possible)
 - Prefer Pydantic models over dataclasses for public APIs
@@ -127,6 +142,7 @@ All controller endpoints use `/api` prefix:
 - File names: `snake_case.py` matching module name
 
 ### Type Hints
+
 - Always use type hints for function parameters and return types
 - Use `Optional[T]` for nullable types
 - Use `Dict[str, Any]` for dictionary types
@@ -134,7 +150,8 @@ All controller endpoints use `/api` prefix:
 - Use `Union[T, U]` for union types (or `|` in Python 3.10+)
 - Import types from `typing` module when needed
 
-### Error Handling
+### Code Style Error Handling
+
 - Services should return empty lists `[]` on errors (for get methods)
 - Services should return `None` on errors (for methods that return single objects)
 - Use try-except for all async operations
@@ -143,6 +160,7 @@ All controller endpoints use `/api` prefix:
 - Use `exc_info=error` in logger.error() for proper stack traces
 - Handle specific exceptions when possible (but still catch all for safety)
 - Pattern:
+
   ```python
   try:
       # operation
@@ -150,12 +168,14 @@ All controller endpoints use `/api` prefix:
       logger.error("Operation failed", exc_info=error)
       return []  # or appropriate default (None for objects)
   ```
+
 - For HTTP client errors, use `handle_api_error_snake_case()` utility
 - Transform API errors to camelCase using `transform_error_to_snake_case()` (function name retained for backward compatibility, but expects camelCase data)
 - Raise custom exceptions (AuthenticationError, AuthorizationError, etc.) only from HTTP client layer
 - Services should catch and handle exceptions, returning defaults instead of propagating
 
 ### Async/Await
+
 - Always use async/await, never raw coroutines
 - Always use try-except with async operations
 - Methods that return lists should return empty list on error
@@ -164,10 +184,12 @@ All controller endpoints use `/api` prefix:
 - Use async context managers (`async with`) for resource management
 
 ### Docstrings
+
 - Use Google-style docstrings for all public methods
 - Include Args, Returns, Raises sections
 - Include examples for complex methods
 - Pattern:
+
   ```python
   def method_name(self, param: str) -> Optional[str]:
       """
@@ -187,6 +209,7 @@ All controller endpoints use `/api` prefix:
 ## Testing Conventions
 
 ### Test File Structure
+
 - Test files mirror source structure: `tests/unit/test_service_name.py`
 - Use pytest for testing
 - Use pytest-asyncio for async tests
@@ -196,6 +219,7 @@ All controller endpoints use `/api` prefix:
 - Test cache hits and misses
 
 ### Mock Patterns
+
 - Mock HttpClient: `mock_http_client = mocker.Mock(spec=HttpClient)`
   - Mock async methods: `mock_http_client.authenticated_request = AsyncMock(return_value={...})`
   - Mock properties: `mock_http_client.config = config`
@@ -212,6 +236,7 @@ All controller endpoints use `/api` prefix:
 - Use `mocker.patch.object()` for patching specific instances
 - Use `mocker.patch.multiple()` for patching multiple attributes
 - Pattern for mocking httpx:
+
   ```python
   mock_response = mocker.Mock()
   mock_response.status_code = 200
@@ -225,6 +250,7 @@ All controller endpoints use `/api` prefix:
   ```
 
 ### Test Coverage
+
 - Aim for 80%+ branch coverage
 - Test edge cases (None tokens, empty lists, cache failures)
 - Test JWT decode failures
@@ -232,6 +258,7 @@ All controller endpoints use `/api` prefix:
 - Test HTTP fallbacks
 
 ### Async Testing
+
 - Use `@pytest.mark.asyncio` for async test functions
 - Use `await` in async tests
 - Mock async methods with `mocker.patch('module.async_method', return_value=...)` or `AsyncMock`
@@ -239,6 +266,7 @@ All controller endpoints use `/api` prefix:
 - Test async context managers (`async with`) separately when relevant
 - Mock `httpx.AsyncClient` for HTTP client tests
 - Use `AsyncMock` from `unittest.mock` for async method mocks:
+
   ```python
   from unittest.mock import AsyncMock
   mock_method = AsyncMock(return_value={"data": []})
@@ -247,7 +275,8 @@ All controller endpoints use `/api` prefix:
 ## File Organization
 
 ### Source Structure
-```
+
+```yaml
 miso_client/
   __init__.py           # Main MisoClient class exports
   services/             # Service layer (auth, roles, permissions, logger, redis)
@@ -257,6 +286,7 @@ miso_client/
 ```
 
 ### Import Order
+
 1. Standard library imports
 2. Third-party dependencies (httpx, redis, PyJWT, pydantic)
 3. Internal models
@@ -265,6 +295,7 @@ miso_client/
 6. Relative imports
 
 ### Export Strategy
+
 - Export main class from `miso_client/__init__.py`
 - Export models from `miso_client/models/__init__.py` (if needed)
 - Don't export internal utilities/services directly unless needed
@@ -273,12 +304,14 @@ miso_client/
 ## Configuration
 
 ### Config Types
+
 - All config in `miso_client/models/config.py`
 - Use `load_config()` helper to load from .env
 - Config is readonly after initialization (use Pydantic models)
 - Access via `http_client.config` (public readonly property)
 
 ### Environment Variables
+
 - `MISO_CLIENTID` - Client ID
 - `MISO_CLIENTSECRET` - Client secret
 - `MISO_CONTROLLER_URL` - Controller base URL
@@ -292,6 +325,7 @@ miso_client/
 ## Common Patterns
 
 ### Service Method Pattern
+
 ```python
 async def get_something(self, token: str) -> List[Type]:
     try:
@@ -342,6 +376,7 @@ async def get_something(self, token: str) -> List[Type]:
 ```
 
 ### Logger Chain Pattern
+
 ```python
 # Fluent API
 await logger_service \
@@ -354,6 +389,7 @@ await logger_service \
 ```
 
 ### Client Token Fetch Pattern
+
 ```python
 # In InternalHttpClient
 async def _fetch_client_token(self) -> str:
@@ -373,6 +409,7 @@ async def _fetch_client_token(self) -> str:
 ```
 
 ### HTTP Client with Filters Pattern
+
 ```python
 # Use FilterBuilder for dynamic filtering
 from miso_client import FilterBuilder, build_query_string
@@ -420,6 +457,7 @@ sort_options = parse_sort_params({"sort": ["-updated_at", "created_at"]})
 ```
 
 ### Pagination Pattern
+
 ```python
 # Parse pagination from query parameters
 from miso_client import parse_pagination_params, create_paginated_list_response
@@ -449,6 +487,7 @@ paginated_items = apply_pagination_to_array(all_items, page=1, page_size=25)
 ```
 
 ## Security Guidelines
+
 - Never log `clientId` or `clientSecret`
 - Never expose client credentials to client-side code
 - Mask sensitive data in logs (use DataMasker)
@@ -457,6 +496,7 @@ paginated_items = apply_pagination_to_array(all_items, page=1, page_size=25)
 - All HTTP requests are automatically audited with ISO 27001 compliant data masking
 
 ## Performance Guidelines
+
 - Always use Redis cache when available
 - Extract userId from JWT to avoid unnecessary validate API calls
 - Cache roles and permissions with TTL (default 15 min)
@@ -465,6 +505,7 @@ paginated_items = apply_pagination_to_array(all_items, page=1, page_size=25)
 - Use async/await for all I/O operations
 
 ## Code Size Guidelines
+
 - **File Size**: Keep source files under 500 lines
   - If a file exceeds 500 lines, consider splitting into multiple files
   - Extract related functionality into separate utility classes or modules
@@ -480,6 +521,7 @@ paginated_items = apply_pagination_to_array(all_items, page=1, page_size=25)
   - `__init__.py` can be longer if it exports many public APIs
 
 ## Documentation
+
 - Use Google-style docstrings for all public methods and classes
 - Include parameter types and return types in docstrings
 - Document error conditions in Raises section
@@ -488,6 +530,7 @@ paginated_items = apply_pagination_to_array(all_items, page=1, page_size=25)
 - Document class-level attributes and properties
 
 ## Dependencies
+
 - `pydantic`: Data validation and models
 - `httpx`: HTTP client (async)
 - `redis[hiredis]`: Redis client
@@ -496,6 +539,7 @@ paginated_items = apply_pagination_to_array(all_items, page=1, page_size=25)
 - `python-dotenv`: Environment variable loading (dev only)
 
 ## When Adding New Features
+
 1. Update models in `miso_client/models/` first
 2. Add service method if needed
 3. Update `miso_client/__init__.py` to expose public API
@@ -508,12 +552,14 @@ paginated_items = apply_pagination_to_array(all_items, page=1, page_size=25)
 ## Common Pitfalls and Best Practices
 
 ### Token Handling
+
 - ✅ Extract userId from JWT before calling validate when possible (avoids unnecessary API calls)
 - ✅ Cache JWT decode results when processing multiple requests with same token
 - ❌ Don't call validate endpoint if userId can be extracted from JWT
 - ❌ Don't store tokens in logs or error messages
 
 ### Redis Caching
+
 - ✅ Always check `redis.is_connected()` before Redis operations
 - ✅ Use appropriate TTL (default 900 seconds / 15 minutes)
 - ✅ Always fallback to controller when Redis fails
@@ -521,6 +567,7 @@ paginated_items = apply_pagination_to_array(all_items, page=1, page_size=25)
 - ❌ Don't fail requests if Redis is unavailable (gracefully fallback)
 
 ### Error Handling
+
 - ✅ Return empty list `[]` on service method errors (for get methods)
 - ✅ Return `None` on service method errors (for methods returning single objects)
 - ✅ Use `exc_info=error` in logger.error() for proper stack traces
@@ -528,6 +575,7 @@ paginated_items = apply_pagination_to_array(all_items, page=1, page_size=25)
 - ❌ Don't expose internal error details to client code
 
 ### HTTP Client
+
 - ✅ Use temporary httpx client for client token fetch (avoid interceptor recursion)
 - ✅ Always use `authenticated_request()` for user-authenticated requests
 - ✅ Use `request()` for unauthenticated requests (client token is automatic)
@@ -537,6 +585,7 @@ paginated_items = apply_pagination_to_array(all_items, page=1, page_size=25)
 - ❌ Don't manually add client token header (it's automatic via interceptor)
 
 ### Testing
+
 - ✅ Mock JWT decode: `mocker.patch('miso_client.utils.jwt_tools.decode_token')`
 - ✅ Test both success and error paths
 - ✅ Test cache hits and misses
@@ -544,6 +593,7 @@ paginated_items = apply_pagination_to_array(all_items, page=1, page_size=25)
 - ❌ Don't forget to mock async methods as async (use AsyncMock)
 
 ## Critical Rules
+
 - ✅ Always use `/api` prefix for controller endpoints
 - ✅ Client token: `x-client-token` header (lowercase)
 - ✅ User token: `Authorization: Bearer <token>`
@@ -571,4 +621,3 @@ paginated_items = apply_pagination_to_array(all_items, page=1, page_size=25)
 - ❌ Don't skip docstrings for public methods
 - ❌ Don't log sensitive data (use DataMasker)
 - ❌ Don't fail requests if Redis is unavailable (gracefully fallback)
-

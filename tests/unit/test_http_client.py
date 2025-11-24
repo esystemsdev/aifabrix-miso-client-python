@@ -685,7 +685,7 @@ class TestHttpClient:
 
     @pytest.mark.asyncio
     async def test_skip_logging_for_logs_endpoint(self, http_client):
-        """Test that /api/logs endpoint is not audited."""
+        """Test that /api/v1/logs endpoint is not audited."""
         # Mock InternalHttpClient
         mock_internal_client = AsyncMock()
         mock_internal_client.post = AsyncMock(return_value={"success": True})
@@ -694,7 +694,7 @@ class TestHttpClient:
         # Mock logger
         http_client.logger.audit = AsyncMock()
 
-        result = await http_client.post("/api/logs", {"log": "entry"})
+        result = await http_client.post("/api/v1/logs", {"log": "entry"})
 
         assert result == {"success": True}
         # Verify audit logging was NOT called for /api/logs
@@ -702,7 +702,7 @@ class TestHttpClient:
 
     @pytest.mark.asyncio
     async def test_skip_logging_for_token_endpoint(self, http_client):
-        """Test that /api/auth/token endpoint is not audited."""
+        """Test that /api/v1/auth/token endpoint is not audited."""
         # Mock InternalHttpClient
         mock_internal_client = AsyncMock()
         mock_internal_client.post = AsyncMock(return_value={"token": "abc123"})
@@ -711,7 +711,7 @@ class TestHttpClient:
         # Mock logger
         http_client.logger.audit = AsyncMock()
 
-        result = await http_client.post("/api/auth/token", {})
+        result = await http_client.post("/api/v1/auth/token", {})
 
         assert result == {"token": "abc123"}
         # Verify audit logging was NOT called for /api/auth/token

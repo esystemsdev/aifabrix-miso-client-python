@@ -385,7 +385,7 @@ class LoggerService:
             log_payload = log_entry.model_dump(
                 exclude={"environment", "application"}, exclude_none=True
             )
-            await self.internal_http_client.request("POST", "/api/logs", log_payload)
+            await self.internal_http_client.request("POST", "/api/v1/logs", log_payload)
         except Exception:
             # Failed to send log to controller
             # Silently fail to avoid infinite logging loops

@@ -236,7 +236,7 @@ class MisoClient:
         self, token: str, auth_strategy: Optional[AuthStrategy] = None
     ) -> UserInfo | None:
         """
-        Get user information from GET /api/auth/user endpoint.
+        Get user information from GET /api/v1/auth/user endpoint.
 
         Args:
             token: JWT token

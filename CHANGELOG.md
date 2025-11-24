@@ -5,6 +5,49 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.2] - 2025-11-24
+
+### Changed
+
+- **API Endpoint Versioning**: Updated all API endpoints from `/api/*` to `/api/v1/*` to match the latest Miso Controller API version
+  - `/api/auth/login` → `/api/v1/auth/login`
+  - `/api/auth/logout` → `/api/v1/auth/logout`
+  - `/api/auth/validate` → `/api/v1/auth/validate`
+  - `/api/auth/user` → `/api/v1/auth/user`
+  - `/api/auth/token` → `/api/v1/auth/token`
+  - `/api/auth/roles` → `/api/v1/auth/roles`
+  - `/api/auth/roles/refresh` → `/api/v1/auth/roles/refresh`
+  - `/api/auth/permissions` → `/api/v1/auth/permissions`
+  - `/api/auth/permissions/refresh` → `/api/v1/auth/permissions/refresh`
+  - `/api/logs` → `/api/v1/logs`
+  - All endpoints now use the `/api/v1/` prefix for consistency with the OpenAPI specification
+
+- **Code Refactoring**: Added `_validate_token_request()` helper method in `AuthService`, `RoleService`, and `PermissionService`
+  - Reduces code duplication across services
+  - Ensures consistent request body format for token validation
+  - Properly sends `{"token": token}` in request body for `/api/v1/auth/validate` endpoint
+
+- **Documentation Updates**: Enhanced `.cursorrules` documentation
+  - Improved formatting and structure
+  - Updated API endpoint documentation to reflect `/api/v1/*` paths
+  - Better code examples and patterns
+
+### Fixed
+
+- **Token Validation Request Body**: Fixed `/api/v1/auth/validate` endpoint to properly send token in request body
+  - Previously: Token was sent only in Authorization header
+  - Now: Token is sent in both Authorization header and request body `{"token": token}` as required by the API specification
+
+### Added
+
+- **API Validation Tool**: Added `validate_api_calls.py` script and `VALIDATION_REPORT.md`
+  - Validates all API calls in the codebase against OpenAPI specification
+  - Reports any endpoints used in code but not found in the OpenAPI spec
+  - Helps ensure API compatibility before releases
+  - Can be run as part of CI/CD pipeline for continuous validation
+
+---
+
 ## [1.9.1] - 2025-11-21
 
 ### Added

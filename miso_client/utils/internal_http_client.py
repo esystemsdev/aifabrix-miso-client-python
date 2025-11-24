@@ -112,7 +112,7 @@ class InternalHttpClient:
                 },
             )
 
-            response = await temp_client.post("/api/auth/token")
+            response = await temp_client.post("/api/v1/auth/token")
             await temp_client.aclose()
 
             if response.status_code != 200:

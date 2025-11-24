@@ -8,7 +8,7 @@ Optimized to extract userId from JWT token before API calls for cache optimizati
 
 import logging
 import time
-from typing import List, Optional, cast
+from typing import Any, Dict, List, Optional, cast
 
 from ..models.config import AuthStrategy, PermissionResult
 from ..services.cache import CacheService
@@ -33,6 +33,28 @@ class PermissionService:
         self.http_client = http_client
         self.cache = cache
         self.permission_ttl = self.config.permission_ttl
+
+    async def _validate_token_request(
+        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> Dict[str, Any]:
+        """
+        Helper method to call /api/v1/auth/validate endpoint with proper request body.
+
+        Args:
+            token: JWT token to validate
+            auth_strategy: Optional authentication strategy
+
+        Returns:
+            Validation result dictionary
+        """
+        if auth_strategy is not None:
+            return await self.http_client.authenticated_request(
+                "POST", "/api/v1/auth/validate", token, {"token": token}, auth_strategy=auth_strategy
+            )
+        else:
+            return await self.http_client.authenticated_request(
+                "POST", "/api/v1/auth/validate", token, {"token": token}
+            )
 
     async def get_permissions(
         self, token: str, auth_strategy: Optional[AuthStrategy] = None
@@ -63,14 +85,7 @@ class PermissionService:
             # Cache miss or no userId in token - fetch from controller
             # If we don't have userId, get it from validate endpoint
             if not user_id:
-                if auth_strategy is not None:
-                    user_info = await self.http_client.authenticated_request(
-                        "POST", "/api/auth/validate", token, auth_strategy=auth_strategy
-                    )
-                else:
-                    user_info = await self.http_client.authenticated_request(
-                        "POST", "/api/auth/validate", token
-                    )
+                user_info = await self._validate_token_request(token, auth_strategy)
                 user_id = user_info.get("user", {}).get("id") if user_info else None
                 if not user_id:
                     return []
@@ -79,11 +94,11 @@ class PermissionService:
             # Cache miss - fetch from controller
             if auth_strategy is not None:
                 permission_result = await self.http_client.authenticated_request(
-                    "GET", "/api/auth/permissions", token, auth_strategy=auth_strategy
+                    "GET", "/api/v1/auth/permissions", token, auth_strategy=auth_strategy
                 )
             else:
                 permission_result = await self.http_client.authenticated_request(
-                    "GET", "/api/auth/permissions", token
+                    "GET", "/api/v1/auth/permissions", token
                 )
 
             permission_data = PermissionResult(**permission_result)
@@ -171,11 +186,11 @@ class PermissionService:
             # Get user info to extract userId
             if auth_strategy is not None:
                 user_info = await self.http_client.authenticated_request(
-                    "POST", "/api/auth/validate", token, auth_strategy=auth_strategy
+                    "POST", "/api/v1/auth/validate", token, auth_strategy=auth_strategy
                 )
             else:
                 user_info = await self.http_client.authenticated_request(
-                    "POST", "/api/auth/validate", token
+                    "POST", "/api/v1/auth/validate", token
                 )
 
             user_id = user_info.get("user", {}).get("id") if user_info else None
@@ -187,11 +202,11 @@ class PermissionService:
             # Fetch fresh permissions from controller using refresh endpoint
             if auth_strategy is not None:
                 permission_result = await self.http_client.authenticated_request(
-                    "GET", "/api/auth/permissions/refresh", token, auth_strategy=auth_strategy
+                    "GET", "/api/v1/auth/permissions/refresh", token, auth_strategy=auth_strategy
                 )
             else:
                 permission_result = await self.http_client.authenticated_request(
-                    "GET", "/api/auth/permissions/refresh", token
+                    "GET", "/api/v1/auth/permissions/refresh", token
                 )
 
             permission_data = PermissionResult(**permission_result)
@@ -222,15 +237,7 @@ class PermissionService:
         """
         try:
             # Get user info to extract userId
-            if auth_strategy is not None:
-                user_info = await self.http_client.authenticated_request(
-                    "POST", "/api/auth/validate", token, auth_strategy=auth_strategy
-                )
-            else:
-                user_info = await self.http_client.authenticated_request(
-                    "POST", "/api/auth/validate", token
-                )
-
+            user_info = await self._validate_token_request(token, auth_strategy)
             user_id = user_info.get("user", {}).get("id") if user_info else None
             if not user_id:
                 return

@@ -120,7 +120,7 @@ class TestAuthService:
 
             result = await auth_service.validate_token("valid-token")
             assert result is True
-            mock_request.assert_called_once_with("POST", "/api/auth/validate", "valid-token")
+            mock_request.assert_called_once_with("POST", "/api/v1/auth/validate", "valid-token", {"token": "valid-token"})
 
     @pytest.mark.asyncio
     async def test_validate_token_failure(self, auth_service):
@@ -181,7 +181,7 @@ class TestAuthService:
             result = await auth_service.get_user_info("valid-token")
             assert result is not None
             assert result.id == "123"
-            mock_request.assert_called_once_with("GET", "/api/auth/user", "valid-token")
+            mock_request.assert_called_once_with("GET", "/api/v1/auth/user", "valid-token")
 
     @pytest.mark.asyncio
     async def test_get_environment_token(self, auth_service):
@@ -201,7 +201,7 @@ class TestAuthService:
         url = auth_service.login("/dashboard")
 
         assert isinstance(url, str)
-        assert "/api/auth/login" in url
+        assert "/api/v1/auth/login" in url
         assert "redirect=/dashboard" in url
 
     @pytest.mark.asyncio
@@ -211,7 +211,7 @@ class TestAuthService:
             auth_service.http_client, "request", new_callable=AsyncMock
         ) as mock_request:
             await auth_service.logout()
-            mock_request.assert_called_once_with("POST", "/api/auth/logout")
+            mock_request.assert_called_once_with("POST", "/api/v1/auth/logout")
 
     @pytest.mark.asyncio
     async def test_logout_exception(self, auth_service):
@@ -245,7 +245,7 @@ class TestAuthService:
         ) as mock_request:
             await auth_service.logout()
 
-            mock_request.assert_called_once_with("POST", "/api/auth/logout")
+            mock_request.assert_called_once_with("POST", "/api/v1/auth/logout")
 
     @pytest.mark.asyncio
     async def test_logout_exception_re_raising(self, auth_service):
@@ -307,7 +307,7 @@ class TestAuthService:
         assert result is False
         # Should call authenticated_request for OAuth2 validation
         mock_http_client.authenticated_request.assert_called_once_with(
-            "POST", "/api/auth/validate", "different-token"
+            "POST", "/api/v1/auth/validate", "different-token", {"token": "different-token"}
         )
 
     @pytest.mark.asyncio
@@ -332,7 +332,7 @@ class TestAuthService:
 
         assert result is True
         mock_http_client.authenticated_request.assert_called_once_with(
-            "POST", "/api/auth/validate", "oauth-token"
+            "POST", "/api/v1/auth/validate", "oauth-token", {"token": "oauth-token"}
         )
 
     @pytest.mark.asyncio
@@ -387,7 +387,7 @@ class TestAuthService:
         assert result.id == "123"
         # Should call authenticated_request for OAuth2 validation
         mock_http_client.authenticated_request.assert_called_once_with(
-            "POST", "/api/auth/validate", "different-token"
+            "POST", "/api/v1/auth/validate", "different-token", {"token": "different-token"}
         )
 
     @pytest.mark.asyncio
@@ -439,7 +439,7 @@ class TestAuthService:
         assert result.id == "123"
         # Should call authenticated_request for OAuth2 validation
         mock_http_client.authenticated_request.assert_called_once_with(
-            "GET", "/api/auth/user", "different-token"
+            "GET", "/api/v1/auth/user", "different-token"
         )
 
 
@@ -570,7 +570,7 @@ class TestRoleService:
                 assert "admin" in roles
                 assert "user" in roles
                 # Should call refresh endpoint
-                assert "/api/auth/roles/refresh" in str(mock_request.call_args_list[1])
+                assert "/api/v1/auth/roles/refresh" in str(mock_request.call_args_list[1])
 
 
 class TestPermissionService:
@@ -661,7 +661,7 @@ class TestPermissionService:
                 assert "read" in permissions
                 assert "write" in permissions
                 # Should call refresh endpoint
-                assert "/api/auth/permissions/refresh" in str(mock_request.call_args_list[1])
+                assert "/api/v1/auth/permissions/refresh" in str(mock_request.call_args_list[1])
 
     @pytest.mark.asyncio
     async def test_clear_permissions_cache(self, permission_service):
@@ -879,7 +879,7 @@ class TestLoggerService:
             mock_request.assert_called_once()
             # Verify it's a POST to /api/logs
             assert mock_request.call_args[0][0] == "POST"
-            assert mock_request.call_args[0][1] == "/api/logs"
+            assert mock_request.call_args[0][1] == "/api/v1/logs"
 
     @pytest.mark.asyncio
     async def test_audit_log(self, logger_service):
@@ -1263,7 +1263,7 @@ class TestLoggerService:
                 # Then fallback to HTTP
                 mock_request.assert_called_once()
                 assert mock_request.call_args[0][0] == "POST"
-                assert mock_request.call_args[0][1] == "/api/logs"
+                assert mock_request.call_args[0][1] == "/api/v1/logs"
 
     @pytest.mark.asyncio
     async def test_log_http_fallback_silently_fails(self, logger_service):

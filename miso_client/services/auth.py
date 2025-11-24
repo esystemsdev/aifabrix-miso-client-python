@@ -6,7 +6,7 @@ token validation, user information retrieval, and logout functionality.
 """
 
 import logging
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from ..models.config import AuthResult, AuthStrategy, UserInfo
 from ..services.redis import RedisService
@@ -44,6 +44,28 @@ class AuthService:
         """
         return await self.http_client.get_environment_token()
 
+    async def _validate_token_request(
+        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> Dict[str, Any]:
+        """
+        Helper method to call /api/v1/auth/validate endpoint with proper request body.
+
+        Args:
+            token: JWT token to validate
+            auth_strategy: Optional authentication strategy
+
+        Returns:
+            Validation result dictionary
+        """
+        if auth_strategy is not None:
+            return await self.http_client.authenticated_request(
+                "POST", "/api/v1/auth/validate", token, {"token": token}, auth_strategy=auth_strategy
+            )
+        else:
+            return await self.http_client.authenticated_request(
+                "POST", "/api/v1/auth/validate", token, {"token": token}
+            )
+
     def login(self, redirect_uri: str) -> str:
         """
         Initiate login flow by redirecting to controller.
@@ -57,7 +79,7 @@ class AuthService:
         Returns:
             Login URL string
         """
-        return f"{self.config.controller_url}/api/auth/login?redirect={redirect_uri}"
+        return f"{self.config.controller_url}/api/v1/auth/login?redirect={redirect_uri}"
 
     async def validate_token(
         self, token: str, auth_strategy: Optional[AuthStrategy] = None
@@ -80,15 +102,7 @@ class AuthService:
 
         # Fall back to OAuth2 validation
         try:
-            if auth_strategy is not None:
-                result = await self.http_client.authenticated_request(
-                    "POST", "/api/auth/validate", token, auth_strategy=auth_strategy
-                )
-            else:
-                result = await self.http_client.authenticated_request(
-                    "POST", "/api/auth/validate", token
-                )
-
+            result = await self._validate_token_request(token, auth_strategy)
             auth_result = AuthResult(**result)
             return auth_result.authenticated
 
@@ -118,15 +132,7 @@ class AuthService:
 
         # Fall back to OAuth2 validation
         try:
-            if auth_strategy is not None:
-                result = await self.http_client.authenticated_request(
-                    "POST", "/api/auth/validate", token, auth_strategy=auth_strategy
-                )
-            else:
-                result = await self.http_client.authenticated_request(
-                    "POST", "/api/auth/validate", token
-                )
-
+            result = await self._validate_token_request(token, auth_strategy)
             auth_result = AuthResult(**result)
 
             if auth_result.authenticated and auth_result.user:
@@ -142,7 +148,7 @@ class AuthService:
         self, token: str, auth_strategy: Optional[AuthStrategy] = None
     ) -> Optional[UserInfo]:
         """
-        Get user information from GET /api/auth/user endpoint.
+        Get user information from GET /api/v1/auth/user endpoint.
 
         If API_KEY is configured and token matches it, returns None (no user info for API key auth).
 
@@ -162,11 +168,11 @@ class AuthService:
         try:
             if auth_strategy is not None:
                 user_data = await self.http_client.authenticated_request(
-                    "GET", "/api/auth/user", token, auth_strategy=auth_strategy
+                    "GET", "/api/v1/auth/user", token, auth_strategy=auth_strategy
                 )
             else:
                 user_data = await self.http_client.authenticated_request(
-                    "GET", "/api/auth/user", token
+                    "GET", "/api/v1/auth/user", token
                 )
 
             return UserInfo(**user_data)
@@ -183,7 +189,7 @@ class AuthService:
         """
         try:
             # Backend extracts app/env from client token
-            await self.http_client.request("POST", "/api/auth/logout")
+            await self.http_client.request("POST", "/api/v1/auth/logout")
         except Exception as error:
             logger.error("Logout failed", exc_info=error)
             # Silently fail per service method pattern

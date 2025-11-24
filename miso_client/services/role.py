@@ -8,7 +8,7 @@ Optimized to extract userId from JWT token before API calls for cache optimizati
 
 import logging
 import time
-from typing import List, Optional, cast
+from typing import Any, Dict, List, Optional, cast
 
 from ..models.config import AuthStrategy, RoleResult
 from ..services.cache import CacheService
@@ -33,6 +33,28 @@ class RoleService:
         self.http_client = http_client
         self.cache = cache
         self.role_ttl = self.config.role_ttl
+
+    async def _validate_token_request(
+        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> Dict[str, Any]:
+        """
+        Helper method to call /api/v1/auth/validate endpoint with proper request body.
+
+        Args:
+            token: JWT token to validate
+            auth_strategy: Optional authentication strategy
+
+        Returns:
+            Validation result dictionary
+        """
+        if auth_strategy is not None:
+            return await self.http_client.authenticated_request(
+                "POST", "/api/v1/auth/validate", token, {"token": token}, auth_strategy=auth_strategy
+            )
+        else:
+            return await self.http_client.authenticated_request(
+                "POST", "/api/v1/auth/validate", token, {"token": token}
+            )
 
     async def get_roles(
         self, token: str, auth_strategy: Optional[AuthStrategy] = None
@@ -63,14 +85,7 @@ class RoleService:
             # Cache miss or no userId in token - fetch from controller
             # If we don't have userId, get it from validate endpoint
             if not user_id:
-                if auth_strategy is not None:
-                    user_info = await self.http_client.authenticated_request(
-                        "POST", "/api/auth/validate", token, auth_strategy=auth_strategy
-                    )
-                else:
-                    user_info = await self.http_client.authenticated_request(
-                        "POST", "/api/auth/validate", token
-                    )
+                user_info = await self._validate_token_request(token, auth_strategy)
                 user_id = user_info.get("user", {}).get("id") if user_info else None
                 if not user_id:
                     return []
@@ -79,11 +94,11 @@ class RoleService:
             # Cache miss - fetch from controller
             if auth_strategy is not None:
                 role_result = await self.http_client.authenticated_request(
-                    "GET", "/api/auth/roles", token, auth_strategy=auth_strategy
+                    "GET", "/api/v1/auth/roles", token, auth_strategy=auth_strategy
                 )
             else:
                 role_result = await self.http_client.authenticated_request(
-                    "GET", "/api/auth/roles", token
+                    "GET", "/api/v1/auth/roles", token
                 )
 
             role_data = RoleResult(**role_result)
@@ -167,15 +182,7 @@ class RoleService:
         """
         try:
             # Get user info to extract userId
-            if auth_strategy is not None:
-                user_info = await self.http_client.authenticated_request(
-                    "POST", "/api/auth/validate", token, auth_strategy=auth_strategy
-                )
-            else:
-                user_info = await self.http_client.authenticated_request(
-                    "POST", "/api/auth/validate", token
-                )
-
+            user_info = await self._validate_token_request(token, auth_strategy)
             user_id = user_info.get("user", {}).get("id") if user_info else None
             if not user_id:
                 return []
@@ -185,11 +192,11 @@ class RoleService:
             # Fetch fresh roles from controller using refresh endpoint
             if auth_strategy is not None:
                 role_result = await self.http_client.authenticated_request(
-                    "GET", "/api/auth/roles/refresh", token, auth_strategy=auth_strategy
+                    "GET", "/api/v1/auth/roles/refresh", token, auth_strategy=auth_strategy
                 )
             else:
                 role_result = await self.http_client.authenticated_request(
-                    "GET", "/api/auth/roles/refresh", token
+                    "GET", "/api/v1/auth/roles/refresh", token
                 )
 
             role_data = RoleResult(**role_result)

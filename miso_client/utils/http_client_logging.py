@@ -41,9 +41,9 @@ def should_skip_logging(url: str, config: Optional[Any] = None) -> bool:
                 return True
 
     # Default skip endpoints (always skip these regardless of config)
-    if url == "/api/logs" or url.startswith("/api/logs"):
+    if url == "/api/v1/logs" or url.startswith("/api/v1/logs"):
         return True
-    if url == "/api/auth/token" or url.startswith("/api/auth/token"):
+    if url == "/api/v1/auth/token" or url.startswith("/api/v1/auth/token"):
         return True
     return False
 

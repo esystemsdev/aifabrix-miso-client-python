@@ -165,7 +165,7 @@ class AuditLogQueue:
             try:
                 await self.http_client.request(
                     "POST",
-                    "/api/logs/batch",
+                    "/api/v1/logs/batch",
                     {
                         "logs": [
                             entry.model_dump(
