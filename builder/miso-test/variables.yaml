@@ -1,0 +1,34 @@
+app:
+  key: miso-test
+  displayName: Miso Test
+  description: miso test application
+  type: webapp
+image:
+  name: miso-test
+  tag: latest
+  registry: ''
+  registryMode: external
+port: 8083
+requires:
+  database: false
+  redis: false
+  storage: false
+build:
+  language: python
+  envOutputPath: ../../.env
+  context: null
+  dockerfile: ''
+repository:
+  enabled: false
+  repositoryUrl: ''
+deployment:
+  controllerUrl: ''
+  environment: dev
+healthCheck:
+  path: /health
+  interval: 30
+authentication:
+  type: azure
+  enableSSO: true
+  requiredRoles:
+    - aifabrix-user

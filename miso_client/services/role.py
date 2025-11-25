@@ -49,7 +49,11 @@ class RoleService:
         """
         if auth_strategy is not None:
             return await self.http_client.authenticated_request(
-                "POST", "/api/v1/auth/validate", token, {"token": token}, auth_strategy=auth_strategy
+                "POST",
+                "/api/v1/auth/validate",
+                token,
+                {"token": token},
+                auth_strategy=auth_strategy,
             )
         else:
             return await self.http_client.authenticated_request(

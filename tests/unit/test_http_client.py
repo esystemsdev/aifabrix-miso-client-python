@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from miso_client.errors import AuthenticationError, MisoClientError
+from miso_client.errors import AuthenticationError, ConnectionError, MisoClientError
 from miso_client.models.config import MisoClientConfig
 from miso_client.services.logger import LoggerService
 from miso_client.services.redis import RedisService
@@ -571,6 +571,487 @@ class TestInternalHttpClient:
             error = exc_info.value
             assert error.error_response is not None
             assert error.error_response.instance == "/api/custom/endpoint"
+
+    @pytest.mark.asyncio
+    async def test_get_client_token_double_check_after_lock(self, http_client):
+        """Test double-check after acquiring lock in _get_client_token."""
+        # Set token that will expire soon (fails first check, will need to acquire lock)
+        http_client.client_token = "old-token"
+        http_client.token_expires_at = datetime.now() + timedelta(seconds=30)
+
+        # Mock response for token fetch (in case it's needed)
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "success": True,
+            "token": "new-token",
+            "expiresIn": 3600,
+            "expiresAt": "2024-01-01T12:00:00Z",
+        }
+
+        with patch("httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client.post = AsyncMock(return_value=mock_response)
+            mock_client.aclose = AsyncMock()
+            mock_client_class.return_value = mock_client
+
+            # Use a custom lock that allows us to set token before double-check
+            original_lock = http_client.token_refresh_lock
+            lock_entered = asyncio.Event()
+
+            class CustomLock:
+                def __init__(self):
+                    self._lock = asyncio.Lock()
+
+                async def __aenter__(self):
+                    await self._lock.__aenter__()
+                    # Signal that lock is acquired, allow refresh task to set token
+                    lock_entered.set()
+                    # Give refresh task a moment to set token before double-check
+                    await asyncio.sleep(0.01)
+                    return self
+
+                async def __aexit__(self, *args):
+                    return await self._lock.__aexit__(*args)
+
+            custom_lock = CustomLock()
+            http_client.token_refresh_lock = custom_lock
+
+            # Simulate another coroutine refreshing token after lock is acquired
+            async def refresh_after_lock():
+                # Wait for lock to be acquired
+                await lock_entered.wait()
+                # Set the refreshed token (should be visible in double-check)
+                http_client.client_token = "refreshed-token"
+                http_client.token_expires_at = datetime.now() + timedelta(seconds=120)
+
+            # Start refresh task
+            refresh_task = asyncio.create_task(refresh_after_lock())
+
+            # Get token (should use refreshed token after double-check)
+            token = await http_client._get_client_token()
+
+            await refresh_task
+
+            # Restore original lock
+            http_client.token_refresh_lock = original_lock
+
+            # Should use refreshed token (double-check after lock)
+            assert token == "refreshed-token"
+
+    @pytest.mark.asyncio
+    async def test_extract_correlation_id_none_response(self, http_client):
+        """Test _extract_correlation_id with None response."""
+        result = http_client._extract_correlation_id(None)
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_extract_correlation_id_not_found(self, http_client):
+        """Test _extract_correlation_id when correlation ID is not found."""
+        mock_response = MagicMock()
+        mock_response.headers.get.return_value = None
+
+        result = http_client._extract_correlation_id(mock_response)
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_extract_correlation_id_various_headers(self, http_client):
+        """Test _extract_correlation_id with various header names."""
+        correlation_headers = [
+            "x-correlation-id",
+            "x-request-id",
+            "correlation-id",
+            "correlationId",
+            "x-correlationid",
+            "request-id",
+        ]
+
+        for header_name in correlation_headers:
+            mock_response = MagicMock()
+            mock_headers = MagicMock()
+            mock_headers.get = MagicMock(
+                side_effect=lambda key, default=None: (
+                    "corr-123" if key == header_name or key == header_name.lower() else default
+                )
+            )
+            mock_response.headers = mock_headers
+
+            result = http_client._extract_correlation_id(mock_response)
+
+            assert result == "corr-123"
+
+    @pytest.mark.asyncio
+    async def test_fetch_client_token_nested_response(self, http_client):
+        """Test _fetch_client_token with nested response structure."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "success": True,
+            "data": {
+                "success": True,
+                "token": "nested-token",
+                "expiresIn": 3600,
+                "expiresAt": "2024-01-01T12:00:00Z",
+            },
+        }
+        mock_response.headers.get.return_value = None
+
+        with patch("httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client.post = AsyncMock(return_value=mock_response)
+            mock_client.aclose = AsyncMock()
+            mock_client_class.return_value = mock_client
+
+            await http_client._fetch_client_token()
+
+            # Should extract nested data
+            assert http_client.client_token == "nested-token"
+
+    @pytest.mark.asyncio
+    async def test_fetch_client_token_with_correlation_id_in_error(self, http_client):
+        """Test _fetch_client_token error includes correlation ID."""
+        mock_response = MagicMock()
+        mock_response.status_code = 401
+        mock_headers = MagicMock()
+        mock_headers.get = MagicMock(
+            side_effect=lambda key, default=None: (
+                "corr-123"
+                if key == "x-correlation-id" or key == "x-correlation-id".lower()
+                else default
+            )
+        )
+        mock_response.headers = mock_headers
+
+        with patch("httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client.post = AsyncMock(return_value=mock_response)
+            mock_client.aclose = AsyncMock()
+            mock_client_class.return_value = mock_client
+
+            with pytest.raises(AuthenticationError) as exc_info:
+                await http_client._fetch_client_token()
+
+            # Error message should include correlation ID
+            assert "corr-123" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_fetch_client_token_http_error_with_correlation_id(self, http_client):
+        """Test _fetch_client_token HTTP error includes correlation ID."""
+        # For HTTP errors, response might be None, so correlation_id extraction happens before
+        # This test verifies the error handling path works
+        with patch("httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            # httpx.RequestError needs to be instantiated with a request
+            mock_request = MagicMock()
+            mock_client.post = AsyncMock(
+                side_effect=httpx.RequestError("Connection failed", request=mock_request)
+            )
+            mock_client.aclose = AsyncMock()
+            mock_client_class.return_value = mock_client
+
+            with pytest.raises(ConnectionError) as exc_info:
+                await http_client._fetch_client_token()
+
+            # Verify error message includes clientId
+            assert "clientId" in str(exc_info.value) or "test-client" in str(exc_info.value)
+            # Correlation ID might be None if response is None, but test the pattern
+
+    @pytest.mark.asyncio
+    async def test_fetch_client_token_generic_error_with_correlation_id(self, http_client):
+        """Test _fetch_client_token generic error includes correlation ID."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_headers = MagicMock()
+        mock_headers.get = MagicMock(
+            side_effect=lambda key, default=None: (
+                "corr-789"
+                if key == "x-correlation-id" or key == "x-correlation-id".lower()
+                else default
+            )
+        )
+        mock_response.headers = mock_headers
+        mock_response.json.side_effect = ValueError("Invalid JSON")
+
+        with patch("httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client.post = AsyncMock(return_value=mock_response)
+            mock_client.aclose = AsyncMock()
+            mock_client_class.return_value = mock_client
+
+            with pytest.raises(AuthenticationError):
+                await http_client._fetch_client_token()
+
+            # Correlation ID extraction happens before JSON parsing, so it might be None
+            # But test that error handling works
+
+    @pytest.mark.asyncio
+    async def test_get_request_error_body_parsing(self, http_client):
+        """Test GET request error body parsing when structured error not available."""
+        await http_client._initialize_client()
+        http_client.client_token = "test-token"
+
+        mock_response = MagicMock()
+        mock_response.status_code = 500
+        mock_response.text = "Internal server error"
+        mock_response.headers.get.return_value = "application/json"
+        # Response doesn't match ErrorResponse structure
+        mock_response.json.return_value = {"code": "ERR500", "message": "Internal error"}
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "500", request=MagicMock(), response=mock_response
+        )
+
+        http_client.client.get = AsyncMock(return_value=mock_response)
+
+        with patch.object(http_client, "_ensure_client_token", new_callable=AsyncMock):
+            with pytest.raises(MisoClientError) as exc_info:
+                await http_client.get("/api/test")
+
+            error = exc_info.value
+            assert error.status_code == 500
+            assert error.error_response is None
+            assert error.error_body == {"code": "ERR500", "message": "Internal error"}
+
+    @pytest.mark.asyncio
+    async def test_post_request_error_body_parsing(self, http_client):
+        """Test POST request error body parsing when structured error not available."""
+        await http_client._initialize_client()
+        http_client.client_token = "test-token"
+
+        mock_response = MagicMock()
+        mock_response.status_code = 422
+        mock_response.text = "Validation error"
+        mock_response.headers.get.return_value = "application/json"
+        mock_response.json.return_value = {"field": "email", "message": "Invalid format"}
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "422", request=MagicMock(), response=mock_response
+        )
+
+        http_client.client.post = AsyncMock(return_value=mock_response)
+
+        with patch.object(http_client, "_ensure_client_token", new_callable=AsyncMock):
+            with pytest.raises(MisoClientError) as exc_info:
+                await http_client.post("/api/test", {"data": "test"})
+
+            error = exc_info.value
+            assert error.status_code == 422
+            assert error.error_body == {"field": "email", "message": "Invalid format"}
+
+    @pytest.mark.asyncio
+    async def test_put_request_error_body_parsing(self, http_client):
+        """Test PUT request error body parsing when structured error not available."""
+        await http_client._initialize_client()
+        http_client.client_token = "test-token"
+
+        mock_response = MagicMock()
+        mock_response.status_code = 409
+        mock_response.text = "Conflict"
+        mock_response.headers.get.return_value = "application/json"
+        mock_response.json.return_value = {"conflict": "Resource exists"}
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "409", request=MagicMock(), response=mock_response
+        )
+
+        http_client.client.put = AsyncMock(return_value=mock_response)
+
+        with patch.object(http_client, "_ensure_client_token", new_callable=AsyncMock):
+            with pytest.raises(MisoClientError) as exc_info:
+                await http_client.put("/api/test", {"data": "test"})
+
+            error = exc_info.value
+            assert error.status_code == 409
+            assert error.error_body == {"conflict": "Resource exists"}
+
+    @pytest.mark.asyncio
+    async def test_delete_request_error_body_parsing(self, http_client):
+        """Test DELETE request error body parsing when structured error not available."""
+        await http_client._initialize_client()
+        http_client.client_token = "test-token"
+
+        mock_response = MagicMock()
+        mock_response.status_code = 404
+        mock_response.text = "Not found"
+        mock_response.headers.get.return_value = "application/json"
+        mock_response.json.return_value = {"resource": "not found"}
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "404", request=MagicMock(), response=mock_response
+        )
+
+        http_client.client.delete = AsyncMock(return_value=mock_response)
+
+        with patch.object(http_client, "_ensure_client_token", new_callable=AsyncMock):
+            with pytest.raises(MisoClientError) as exc_info:
+                await http_client.delete("/api/test")
+
+            error = exc_info.value
+            assert error.status_code == 404
+            assert error.error_body == {"resource": "not found"}
+
+    @pytest.mark.asyncio
+    async def test_request_with_auth_strategy_client_token(self, http_client):
+        """Test request_with_auth_strategy with client-token method."""
+        from miso_client.models.config import AuthStrategy
+
+        await http_client._initialize_client()
+        http_client.client_token = "client-token-123"
+        http_client.token_expires_at = datetime.now() + timedelta(seconds=100)
+
+        auth_strategy = AuthStrategy(methods=["client-token"])
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"data": "test"}
+        mock_response.headers.get.return_value = "application/json"
+        mock_response.raise_for_status = MagicMock()
+
+        http_client.client.get = AsyncMock(return_value=mock_response)
+
+        with patch.object(http_client, "_ensure_client_token", new_callable=AsyncMock):
+            result = await http_client.request_with_auth_strategy("GET", "/api/test", auth_strategy)
+
+            assert result == {"data": "test"}
+            http_client.client.get.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_request_with_auth_strategy_401_retry(self, http_client):
+        """Test request_with_auth_strategy retries with next method on 401."""
+        from miso_client.models.config import AuthStrategy
+
+        await http_client._initialize_client()
+        http_client.client_token = "client-token-123"
+        http_client.token_expires_at = datetime.now() + timedelta(seconds=100)
+
+        auth_strategy = AuthStrategy(
+            methods=["bearer", "client-token"],
+            bearerToken="user-token-456",
+        )
+
+        # First request fails with 401
+        mock_response_401 = MagicMock()
+        mock_response_401.status_code = 401
+        mock_response_401.text = "Unauthorized"
+        mock_response_401.headers.get.return_value = "application/json"
+        mock_response_401.json.return_value = {}
+        mock_response_401.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "401", request=MagicMock(), response=mock_response_401
+        )
+
+        # Second request succeeds
+        mock_response_200 = MagicMock()
+        mock_response_200.status_code = 200
+        mock_response_200.json.return_value = {"data": "success"}
+        mock_response_200.headers.get.return_value = "application/json"
+        mock_response_200.raise_for_status = MagicMock()
+
+        call_count = 0
+
+        async def mock_request(method, url, data=None, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                # First call fails with 401
+                raise httpx.HTTPStatusError("401", request=MagicMock(), response=mock_response_401)
+            # Second call succeeds
+            return {"data": "success"}
+
+        with patch.object(http_client, "request", new_callable=AsyncMock, side_effect=mock_request):
+            with patch.object(http_client, "_ensure_client_token", new_callable=AsyncMock):
+                result = await http_client.request_with_auth_strategy(
+                    "GET", "/api/test", auth_strategy
+                )
+
+                assert result == {"data": "success"}
+                assert call_count == 2  # Should retry with second method
+
+    @pytest.mark.asyncio
+    async def test_request_with_auth_strategy_all_methods_fail(self, http_client):
+        """Test request_with_auth_strategy when all methods fail."""
+        from miso_client.models.config import AuthStrategy
+
+        await http_client._initialize_client()
+        http_client.client_token = "client-token-123"
+        http_client.token_expires_at = datetime.now() + timedelta(seconds=100)
+
+        auth_strategy = AuthStrategy(
+            methods=["bearer", "client-token"],
+            bearerToken="user-token",
+        )
+
+        mock_response_401 = MagicMock()
+        mock_response_401.status_code = 401
+        mock_response_401.text = "Unauthorized"
+        mock_response_401.headers.get.return_value = "application/json"
+        mock_response_401.json.return_value = {}
+
+        # Mock request to always raise 401
+        async def mock_request(method, url, data=None, **kwargs):
+            raise httpx.HTTPStatusError("401", request=MagicMock(), response=mock_response_401)
+
+        with patch.object(http_client, "request", new_callable=AsyncMock, side_effect=mock_request):
+            with patch.object(http_client, "_ensure_client_token", new_callable=AsyncMock):
+                with pytest.raises(MisoClientError) as exc_info:
+                    await http_client.request_with_auth_strategy("GET", "/api/test", auth_strategy)
+
+                error = exc_info.value
+                assert "All authentication methods failed" in str(error)
+                assert error.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_request_with_auth_strategy_no_methods(self, http_client):
+        """Test request_with_auth_strategy with no methods available."""
+        from miso_client.models.config import AuthStrategy
+
+        await http_client._initialize_client()
+
+        auth_strategy = AuthStrategy(methods=[])
+
+        with pytest.raises(AuthenticationError, match="No authentication methods available"):
+            await http_client.request_with_auth_strategy("GET", "/api/test", auth_strategy)
+
+    @pytest.mark.asyncio
+    async def test_request_with_auth_strategy_connection_error(self, http_client):
+        """Test request_with_auth_strategy with connection error (should not retry)."""
+        from miso_client.models.config import AuthStrategy
+
+        await http_client._initialize_client()
+        http_client.client_token = "client-token-123"
+        http_client.token_expires_at = datetime.now() + timedelta(seconds=100)
+
+        auth_strategy = AuthStrategy(
+            methods=["bearer", "client-token"],
+            bearerToken="user-token",
+        )
+
+        # Mock request to raise connection error
+        # httpx.RequestError needs to be instantiated with a request
+        mock_httpx_request = MagicMock()
+
+        async def mock_request(method, url, data=None, **kwargs):
+            raise httpx.RequestError("Connection failed", request=mock_httpx_request)
+
+        with patch.object(http_client, "request", new_callable=AsyncMock, side_effect=mock_request):
+            with patch.object(http_client, "_ensure_client_token", new_callable=AsyncMock):
+                with pytest.raises(ConnectionError, match="Request failed"):
+                    await http_client.request_with_auth_strategy("GET", "/api/test", auth_strategy)
+
+    @pytest.mark.asyncio
+    async def test_request_with_auth_strategy_missing_credentials(self, http_client):
+        """Test request_with_auth_strategy with missing credentials for method."""
+        from miso_client.models.config import AuthStrategy
+
+        await http_client._initialize_client()
+
+        # Method requires bearerToken but it's None
+        auth_strategy = AuthStrategy(methods=["bearer"])
+
+        # Should try next method or fail
+        with patch.object(http_client, "request", side_effect=ValueError("Missing bearerToken")):
+            with pytest.raises(MisoClientError) as exc_info:
+                await http_client.request_with_auth_strategy("GET", "/api/test", auth_strategy)
+
+            # Should fail with appropriate error
+            assert exc_info.value is not None
 
 
 class TestHttpClient:

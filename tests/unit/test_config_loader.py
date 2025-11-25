@@ -24,13 +24,21 @@ class TestConfigLoader:
             },
             clear=False,
         ):
-            config = load_config()
+            # Remove conflicting variables that might be set in .env
+            os.environ.pop("MISO_CONTROLLER_URL", None)
+            os.environ.pop("REDIS_HOST", None)
+            os.environ.pop("API_KEY", None)
+            os.environ.pop("MISO_API_KEY", None)
+            # Mock load_dotenv to prevent loading from .env file
+            with patch("dotenv.load_dotenv"):
+                with patch("miso_client.utils.config_loader.load_dotenv", create=True):
+                    config = load_config()
 
-            assert config.client_id == "test-client"
-            assert config.client_secret == "test-secret"
-            assert config.controller_url == "https://controller.aifabrix.ai"
-            assert config.log_level == "info"
-            assert config.redis is None
+                assert config.client_id == "test-client"
+                assert config.client_secret == "test-secret"
+                assert config.controller_url == "https://controller.aifabrix.ai"
+                assert config.log_level == "info"
+                assert config.redis is None
 
     def test_load_config_with_custom_url(self):
         """Test loading config with custom controller URL."""
@@ -43,9 +51,12 @@ class TestConfigLoader:
             },
             clear=False,
         ):
-            config = load_config()
+            # Mock load_dotenv to prevent loading from .env file
+            with patch("dotenv.load_dotenv"):
+                with patch("miso_client.utils.config_loader.load_dotenv", create=True):
+                    config = load_config()
 
-            assert config.controller_url == "https://custom.controller.com"
+                assert config.controller_url == "https://custom.controller.com"
 
     def test_load_config_with_redis(self):
         """Test loading config with Redis."""
@@ -62,14 +73,17 @@ class TestConfigLoader:
             },
             clear=False,
         ):
-            config = load_config()
+            # Mock load_dotenv to prevent loading from .env file
+            with patch("dotenv.load_dotenv"):
+                with patch("miso_client.utils.config_loader.load_dotenv", create=True):
+                    config = load_config()
 
-            assert config.redis is not None
-            assert config.redis.host == "redis-host"
-            assert config.redis.port == 6380
-            assert config.redis.password == "redis-pass"
-            assert config.redis.db == 1
-            assert config.redis.key_prefix == "custom:"
+                assert config.redis is not None
+                assert config.redis.host == "redis-host"
+                assert config.redis.port == 6380
+                assert config.redis.password == "redis-pass"
+                assert config.redis.db == 1
+                assert config.redis.key_prefix == "custom:"
 
     def test_load_config_with_log_level(self):
         """Test loading config with log level."""
@@ -82,9 +96,12 @@ class TestConfigLoader:
             },
             clear=False,
         ):
-            config = load_config()
+            # Mock load_dotenv to prevent loading from .env file
+            with patch("dotenv.load_dotenv"):
+                with patch("miso_client.utils.config_loader.load_dotenv", create=True):
+                    config = load_config()
 
-            assert config.log_level == "debug"
+                assert config.log_level == "debug"
 
     def test_load_config_alternative_env_names(self):
         """Test loading config with alternative environment variable names."""
@@ -96,10 +113,20 @@ class TestConfigLoader:
             },
             clear=False,
         ):
-            config = load_config()
+            # Remove primary names and conflicting variables
+            os.environ.pop("MISO_CLIENTID", None)
+            os.environ.pop("MISO_CLIENTSECRET", None)
+            os.environ.pop("MISO_CONTROLLER_URL", None)
+            os.environ.pop("REDIS_HOST", None)
+            os.environ.pop("API_KEY", None)
+            os.environ.pop("MISO_API_KEY", None)
+            # Mock load_dotenv to prevent loading from .env file
+            with patch("dotenv.load_dotenv"):
+                with patch("miso_client.utils.config_loader.load_dotenv", create=True):
+                    config = load_config()
 
-            assert config.client_id == "test-client-alt"
-            assert config.client_secret == "test-secret-alt"
+                assert config.client_id == "test-client-alt"
+                assert config.client_secret == "test-secret-alt"
 
     def test_load_config_missing_client_id(self):
         """Test error when client ID is missing."""
@@ -110,12 +137,16 @@ class TestConfigLoader:
             },
             clear=False,
         ):
-            # Remove MISO_CLIENTID if it exists
+            # Remove client ID variables and conflicting variables
             os.environ.pop("MISO_CLIENTID", None)
             os.environ.pop("MISO_CLIENT_ID", None)
-
-            with pytest.raises(ConfigurationError, match="MISO_CLIENTID"):
-                load_config()
+            os.environ.pop("MISO_CONTROLLER_URL", None)
+            os.environ.pop("REDIS_HOST", None)
+            os.environ.pop("API_KEY", None)
+            os.environ.pop("MISO_API_KEY", None)
+            with patch("dotenv.load_dotenv"):
+                with pytest.raises(ConfigurationError, match="MISO_CLIENTID"):
+                    load_config()
 
     def test_load_config_missing_client_secret(self):
         """Test error when client secret is missing."""
@@ -126,12 +157,16 @@ class TestConfigLoader:
             },
             clear=False,
         ):
-            # Remove MISO_CLIENTSECRET if it exists
+            # Remove client secret variables and conflicting variables
             os.environ.pop("MISO_CLIENTSECRET", None)
             os.environ.pop("MISO_CLIENT_SECRET", None)
-
-            with pytest.raises(ConfigurationError, match="MISO_CLIENTSECRET"):
-                load_config()
+            os.environ.pop("MISO_CONTROLLER_URL", None)
+            os.environ.pop("REDIS_HOST", None)
+            os.environ.pop("API_KEY", None)
+            os.environ.pop("MISO_API_KEY", None)
+            with patch("dotenv.load_dotenv"):
+                with pytest.raises(ConfigurationError, match="MISO_CLIENTSECRET"):
+                    load_config()
 
     def test_load_config_redis_defaults(self):
         """Test Redis config with defaults."""
@@ -144,13 +179,23 @@ class TestConfigLoader:
             },
             clear=False,
         ):
-            config = load_config()
+            # Remove Redis variables that should use defaults and conflicting variables
+            os.environ.pop("REDIS_PORT", None)
+            os.environ.pop("REDIS_DB", None)
+            os.environ.pop("REDIS_KEY_PREFIX", None)
+            os.environ.pop("MISO_CONTROLLER_URL", None)
+            os.environ.pop("API_KEY", None)
+            os.environ.pop("MISO_API_KEY", None)
+            # Mock load_dotenv to prevent loading from .env file
+            with patch("dotenv.load_dotenv"):
+                with patch("miso_client.utils.config_loader.load_dotenv", create=True):
+                    config = load_config()
 
-            assert config.redis is not None
-            assert config.redis.port == 6379  # Default
-            assert config.redis.db == 0  # Default
-            assert config.redis.key_prefix == "miso:"  # Default
-            assert config.redis.password is None
+                assert config.redis is not None
+                assert config.redis.port == 6379  # Default
+                assert config.redis.db == 0  # Default
+                assert config.redis.key_prefix == "miso:"  # Default
+                assert config.redis.password is None
 
     def test_load_config_dotenv_support(self):
         """Test that dotenv is supported if available."""
@@ -174,18 +219,29 @@ class TestConfigLoader:
 
     def test_load_config_with_api_key(self):
         """Test loading config with API_KEY."""
-        with patch.dict(
-            os.environ,
-            {
-                "MISO_CLIENTID": "test-client",
-                "MISO_CLIENTSECRET": "test-secret",
-                "API_KEY": "test-api-key-123",
-            },
-            clear=False,
-        ):
-            config = load_config()
+        # Remove API_KEY and MISO_API_KEY if they exist to ensure we use the patched value
+        original_api_key = os.environ.pop("API_KEY", None)
+        original_miso_api_key = os.environ.pop("MISO_API_KEY", None)
+        try:
+            with patch.dict(
+                os.environ,
+                {
+                    "MISO_CLIENTID": "test-client",
+                    "MISO_CLIENTSECRET": "test-secret",
+                    "API_KEY": "test-api-key-123",
+                },
+                clear=False,
+            ):
+                with patch("dotenv.load_dotenv"):
+                    config = load_config()
 
-            assert config.api_key == "test-api-key-123"
+                    assert config.api_key == "test-api-key-123"
+        finally:
+            # Restore original values
+            if original_api_key:
+                os.environ["API_KEY"] = original_api_key
+            if original_miso_api_key:
+                os.environ["MISO_API_KEY"] = original_miso_api_key
 
     def test_load_config_without_api_key(self):
         """Test loading config without API_KEY (should be None)."""
@@ -197,9 +253,15 @@ class TestConfigLoader:
             },
             clear=False,
         ):
-            # Ensure API_KEY is not set
+            # Remove API_KEY variables and conflicting variables
             os.environ.pop("API_KEY", None)
+            os.environ.pop("MISO_API_KEY", None)
+            os.environ.pop("MISO_CONTROLLER_URL", None)
+            os.environ.pop("REDIS_HOST", None)
+            os.environ.pop("REDIS_PORT", None)
+            # Mock load_dotenv to prevent loading from .env file
+            with patch("dotenv.load_dotenv"):
+                with patch("miso_client.utils.config_loader.load_dotenv", create=True):
+                    config = load_config()
 
-            config = load_config()
-
-            assert config.api_key is None
+                assert config.api_key is None

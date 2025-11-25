@@ -1,0 +1,30 @@
+roles:
+  - name: AI Fabrix Admin
+    value: aifabrix-admin
+    description: Full access to all application features and configurations
+  - name: AI Fabrix User
+    value: aifabrix-user
+    description: Basic user access to the application
+  - name: AI Fabrix Developer
+    value: aifabrix-developer
+    description: Developer access for testing and debugging
+permissions:
+  - name: miso-test:read
+    roles:
+      - aifabrix-user
+      - aifabrix-admin
+      - aifabrix-developer
+    description: Read access to application data
+  - name: miso-test:write
+    roles:
+      - aifabrix-admin
+      - aifabrix-developer
+    description: Create and edit application data
+  - name: miso-test:delete
+    roles:
+      - aifabrix-admin
+    description: Delete application data
+  - name: miso-test:admin
+    roles:
+      - aifabrix-admin
+    description: Administrative access to application configuration

@@ -238,10 +238,17 @@ class TestConfigLoaderAuthStrategy:
             },
             clear=False,
         ):
-            config = load_config()
-            assert config.authStrategy is not None
-            assert config.authStrategy.methods == ["bearer", "api-key"]
-            assert config.authStrategy.apiKey == "test-api-key"
+            # Remove conflicting API_KEY and other variables
+            os.environ.pop("API_KEY", None)
+            os.environ.pop("MISO_CONTROLLER_URL", None)
+            os.environ.pop("REDIS_HOST", None)
+            # Mock load_dotenv to prevent loading from .env file
+            with patch("dotenv.load_dotenv"):
+                with patch("miso_client.utils.config_loader.load_dotenv", create=True):
+                    config = load_config()
+                assert config.authStrategy is not None
+                assert config.authStrategy.methods == ["bearer", "api-key"]
+                assert config.authStrategy.apiKey == "test-api-key"
 
     @pytest.mark.asyncio
     async def test_load_config_with_invalid_auth_strategy(self):

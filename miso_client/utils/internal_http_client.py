@@ -91,6 +91,40 @@ class InternalHttpClient:
             assert self.client_token is not None
             return self.client_token
 
+    def _extract_correlation_id(self, response: Optional[httpx.Response] = None) -> Optional[str]:
+        """
+        Extract correlation ID from response headers.
+
+        Checks common correlation ID header names.
+
+        Args:
+            response: HTTP response object (optional)
+
+        Returns:
+            Correlation ID string if found, None otherwise
+        """
+        if not response:
+            return None
+
+        # Check common correlation ID header names (case-insensitive)
+        correlation_headers = [
+            "x-correlation-id",
+            "x-request-id",
+            "correlation-id",
+            "correlationId",
+            "x-correlationid",
+            "request-id",
+        ]
+
+        for header_name in correlation_headers:
+            correlation_id = response.headers.get(header_name) or response.headers.get(
+                header_name.lower()
+            )
+            if correlation_id:
+                return str(correlation_id)
+
+        return None
+
     async def _fetch_client_token(self) -> None:
         """
         Fetch client token from controller.
@@ -100,6 +134,10 @@ class InternalHttpClient:
         """
         await self._initialize_client()
 
+        client_id = self.config.client_id
+        response: Optional[httpx.Response] = None
+        correlation_id: Optional[str] = None
+
         try:
             # Use a temporary client to avoid interceptor recursion
             temp_client = httpx.AsyncClient(
@@ -107,7 +145,7 @@ class InternalHttpClient:
                 timeout=30.0,
                 headers={
                     "Content-Type": "application/json",
-                    "x-client-id": self.config.client_id,
+                    "x-client-id": client_id,
                     "x-client-secret": self.config.client_secret,
                 },
             )
@@ -115,17 +153,37 @@ class InternalHttpClient:
             response = await temp_client.post("/api/v1/auth/token")
             await temp_client.aclose()
 
+            # Extract correlation ID from response
+            correlation_id = self._extract_correlation_id(response)
+
             if response.status_code != 200:
-                raise AuthenticationError(
-                    f"Failed to get client token: HTTP {response.status_code}",
-                    status_code=response.status_code,
-                )
+                error_msg = f"Failed to get client token: HTTP {response.status_code}"
+                if client_id:
+                    error_msg += f" (clientId: {client_id})"
+                if correlation_id:
+                    error_msg += f" (correlationId: {correlation_id})"
+                raise AuthenticationError(error_msg, status_code=response.status_code)
 
             data = response.json()
+
+            # Handle nested response structure (data field)
+            # If response has {'success': True, 'data': {...}}, extract data and preserve success
+            if isinstance(data, dict) and "data" in data and isinstance(data["data"], dict):
+                nested_data = data["data"]
+                # Merge success from top level if present
+                if "success" in data:
+                    nested_data["success"] = data["success"]
+                data = nested_data
+
             token_response = ClientTokenResponse(**data)
 
             if not token_response.success or not token_response.token:
-                raise AuthenticationError("Failed to get client token: Invalid response")
+                error_msg = "Failed to get client token: Invalid response"
+                if client_id:
+                    error_msg += f" (clientId: {client_id})"
+                if correlation_id:
+                    error_msg += f" (correlationId: {correlation_id})"
+                raise AuthenticationError(error_msg)
 
             self.client_token = token_response.token
             # Set expiration with 30 second buffer before actual expiration
@@ -133,11 +191,21 @@ class InternalHttpClient:
             self.token_expires_at = datetime.now() + timedelta(seconds=expires_in)
 
         except httpx.HTTPError as e:
-            raise ConnectionError(f"Failed to get client token: {str(e)}")
+            error_msg = f"Failed to get client token: {str(e)}"
+            if client_id:
+                error_msg += f" (clientId: {client_id})"
+            if correlation_id:
+                error_msg += f" (correlationId: {correlation_id})"
+            raise ConnectionError(error_msg)
         except Exception as e:
             if isinstance(e, (AuthenticationError, ConnectionError)):
                 raise
-            raise AuthenticationError(f"Failed to get client token: {str(e)}")
+            error_msg = f"Failed to get client token: {str(e)}"
+            if client_id:
+                error_msg += f" (clientId: {client_id})"
+            if correlation_id:
+                error_msg += f" (correlationId: {correlation_id})"
+            raise AuthenticationError(error_msg)
 
     async def _ensure_client_token(self):
         """Ensure client token is set in headers."""

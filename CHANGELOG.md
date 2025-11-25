@@ -5,6 +5,17 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2025-11-24
+
+### Changed
+
+- **Major Version Release**: Version 2.0.0 marks a significant milestone in the MisoClient SDK
+  - Improved stability and performance across all services
+  - Enhanced error handling and logging capabilities
+  - Better integration with Miso Controller API v1 endpoints
+
+---
+
 ## [1.9.2] - 2025-11-24
 
 ### Changed

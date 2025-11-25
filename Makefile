@@ -1,4 +1,4 @@
-.PHONY: help install install-dev test test-cov lint format type-check build clean clean-venv publish test-publish venv venv
+.PHONY: help install install-dev test test-cov test-integration lint format type-check build clean clean-venv publish test-publish venv venv
 
 help: ## Show this help message
 	@echo "Available commands:"
@@ -30,6 +30,9 @@ test: venv ## Run tests
 
 test-cov: venv ## Run tests with coverage
 	$(VENV_PYTHON) -m pytest tests/ -v --cov=miso_client --cov-report=html --cov-report=xml
+
+test-integration: venv ## Run integration tests against real controller
+	$(VENV_PYTHON) test_integration.py
 
 lint: venv ## Run linting
 	$(VENV_PYTHON) -m ruff check miso_client/ tests/

@@ -9,19 +9,22 @@ The **AI Fabrix Miso Client SDK** provides authentication, authorization, and lo
 
 ### 🔐 Enterprise Security
 
-**SSO and Federated Identity**
+### **SSO and Federated Identity**
+
 - Single Sign-On (SSO) with Keycloak
 - OAuth 2.0 and OpenID Connect (OIDC) support
 - Multi-factor authentication (MFA) ready
 - Social login integration (Google, Microsoft, etc.)
 
-**Centralized Access Control**
+### **Centralized Access Control**
+
 - Role-based access control (RBAC)
 - Fine-grained permissions
 - Dynamic policy enforcement
 - Attribute-based access control (ABAC)
 
-**API Security**
+### **API Security**
+
 - JWT token validation
 - API key authentication
 - Token revocation support
@@ -30,7 +33,8 @@ The **AI Fabrix Miso Client SDK** provides authentication, authorization, and lo
 
 ### 📊 Compliance & Audit
 
-**ISO 27001 Compliance**
+### **ISO 27001 Compliance**
+
 - Comprehensive audit trails for all user actions and HTTP requests
 - Automatic data masking for all sensitive information in logs
 - HTTP request/response audit logging with masked sensitive data
@@ -39,13 +43,15 @@ The **AI Fabrix Miso Client SDK** provides authentication, authorization, and lo
 - Accountability and non-repudiation
 - Configurable sensitive fields via JSON configuration
 
-**Regulatory Compliance**
+### **Regulatory Compliance**
+
 - GDPR-ready data protection
 - HIPAA-compliant audit logging
 - SOC 2 audit trail requirements
 - Industry-standard security controls
 
-**Audit Capabilities**
+### **Audit Capabilities**
+
 - Real-time audit event logging
 - Immutable audit records
 - Forensic analysis support
@@ -53,20 +59,23 @@ The **AI Fabrix Miso Client SDK** provides authentication, authorization, and lo
 
 ### ⚡ Performance & Scalability
 
-**Intelligent Caching**
+### **Intelligent Caching**
+
 - Redis-based role and permission caching
 - Generic cache service with Redis and in-memory fallback
 - Configurable cache TTL (default: 15 minutes)
 - Automatic cache invalidation
 - Fallback to controller when Redis unavailable
 
-**High Availability**
+### **High Availability**
+
 - Automatic failover to controller
 - Redundant infrastructure support
 - Load balancing compatible
 - Zero-downtime deployments
 
-**Optimized Network**
+### **Optimized Network**
+
 - Efficient API calls with caching
 - Batch operations support
 - Connection pooling
@@ -74,19 +83,22 @@ The **AI Fabrix Miso Client SDK** provides authentication, authorization, and lo
 
 ### 🛠️ Developer Experience
 
-**Easy Integration**
+### **Easy Integration**
+
 - Progressive activation (6-step setup)
 - Works with any framework (FastAPI, Django, Flask, Starlette)
 - Python 3.8+ support with full type hints
 - Async/await support throughout
 
-**Flexible Configuration**
+### **Flexible Configuration**
+
 - Environment-based configuration
 - Support for dev, test, and production environments
 - Docker and Kubernetes ready
 - CI/CD friendly
 
-**Observability**
+### **Observability**
+
 - Centralized logging with correlation IDs
 - Automatic HTTP request/response audit logging (ISO 27001 compliant)
 - Debug logging with detailed request/response information (when `log_level='debug'`)
@@ -246,12 +258,13 @@ result = await client.http_client.get('/api/users')
 **What happens to logs?** They're sent to the Miso Controller for centralized monitoring and analysis. Client token is automatically included. Audit logs are automatically batched using `AuditLogQueue` for improved performance (configurable via `AuditConfig`).
 
 **ISO 27001 Compliance:** All HTTP requests are automatically audited with sensitive data masked. Configure audit logging behavior using `AuditConfig`:
+
 - **Audit Levels**: Choose from `minimal`, `standard`, `detailed`, or `full` (default: `detailed`)
   - `minimal`: Only metadata, no masking
   - `standard`: Metadata + basic context
   - `detailed`: Full context with request/response sizes (default)
   - `full`: Complete audit trail with all available data
-- **Performance Optimizations**: 
+- **Performance Optimizations**:
   - Response body truncation based on `maxResponseSize` configuration (default: 10000 bytes)
   - Size-based masking skip for large objects (prevents performance degradation)
   - Automatic batching via `AuditLogQueue` reduces HTTP overhead for high-volume logging
@@ -367,7 +380,8 @@ user = await client.get_user(api_key_token)
 API_KEY=your-test-api-key-here
 ```
 
-**Important:** 
+**Important:**
+
 - API_KEY authentication bypasses OAuth2 validation completely
 - User information methods (`get_user()`, `get_user_info()`) return `None` when using API_KEY
 - Token validation returns `True` if the bearer token matches the configured `API_KEY`
@@ -417,6 +431,7 @@ Sensitive fields are configured via `miso_client/utils/sensitive_fields_config.j
 2. Using `DataMasker.set_config_path()` to set a custom path programmatically
 
 The default configuration includes ISO 27001 compliant sensitive fields:
+
 - Authentication: password, token, secret, key, auth, authorization
 - PII: ssn, creditcard, cc, cvv, pin, otp
 - Security: apikey, accesstoken, refreshtoken, privatekey, secretkey, cookie, session
@@ -424,6 +439,7 @@ The default configuration includes ISO 27001 compliant sensitive fields:
 **Audit Logging Configuration:**
 
 Configure audit logging behavior using `AuditConfig` (see Configuration section above):
+
 - **Audit Levels**: Control detail level (`minimal`, `standard`, `detailed`, `full`)
 - **Response Truncation**: Configure `maxResponseSize` to truncate large responses (default: 10000 bytes)
 - **Performance**: Set `maxMaskingSize` to skip masking for very large objects (default: 50000 bytes)
@@ -433,7 +449,7 @@ Configure audit logging behavior using `AuditConfig` (see Configuration section 
 
 ---
 
-## 📚 Documentation
+## 📚 Read more
 
 - **[Getting Started](docs/getting-started.md)** - Detailed setup guide
 - **[API Reference](docs/api-reference.md)** - Complete API documentation
@@ -461,6 +477,7 @@ The SDK uses a two-layer HTTP client architecture for ISO 27001 compliance:
 - **HttpClient** - Public wrapper that adds automatic ISO 27001 compliant audit and debug logging
 
 **Features:**
+
 - Automatic audit logging for all HTTP requests (`http.request.{METHOD}`)
 - Configurable audit levels (`minimal`, `standard`, `detailed`, `full`) via `AuditConfig`
 - Debug logging when `log_level === 'debug'` with detailed request/response information
@@ -471,6 +488,7 @@ The SDK uses a two-layer HTTP client architecture for ISO 27001 compliance:
 - Performance optimizations: response body truncation and size-based masking skip for large objects
 
 **ISO 27001 Compliance:**
+
 - All request headers are masked (Authorization, x-client-token, Cookie, etc.)
 - All request bodies are recursively masked for sensitive fields (password, token, secret, SSN, etc.)
 - All response bodies are masked and truncated based on `maxResponseSize` configuration (default: 10000 bytes)
@@ -488,16 +506,19 @@ The SDK uses a two-layer HTTP client architecture for ISO 27001 compliance:
 **First time setup?** Use the AI Fabrix Builder:
 
 1. **Create your app:**
+
    ```bash
    aifabrix create myapp --port 3000 --database --language python
    ```
 
 2. **Login to controller:**
+
    ```bash
    aifabrix login
    ```
 
 3. **Register your application:**
+
    ```bash
    aifabrix app register myapp --environment dev
    ```
@@ -511,6 +532,7 @@ The SDK uses a two-layer HTTP client architecture for ISO 27001 compliance:
 ## 💡 Next Steps
 
 ### Learn More
+
 - [FastAPI Integration](docs/examples.md#fastapi-integration) - Protect API routes
 - [Django Middleware](docs/examples.md#django-middleware) - Django integration
 - [Flask Decorators](docs/examples.md#flask-decorators) - Decorator-based auth
@@ -617,6 +639,7 @@ print(error_response.instance)   # "/api/endpoint"
 #### Pagination
 
 **Pagination Parameters:**
+
 - `page`: Page number (1-based, defaults to 1)
 - `page_size`: Number of items per page (defaults to 20)
 
@@ -843,6 +866,7 @@ response = await client.http_client.get_with_filters(
 ### Common Tasks
 
 **Add authentication middleware (FastAPI):**
+
 ```python
 from fastapi import Depends, HTTPException, Security
 from fastapi.security import HTTPBearer
@@ -860,6 +884,7 @@ async def get_current_user(credentials = Security(security)):
 ```
 
 **Protect routes by role (FastAPI):**
+
 ```python
 @app.get('/admin')
 async def admin_panel(user = Depends(get_current_user), credentials = Security(security)):
@@ -873,6 +898,7 @@ async def admin_panel(user = Depends(get_current_user), credentials = Security(s
 ```
 
 **Use environment variables:**
+
 ```bash
 MISO_CLIENTID=ctrl-dev-my-app
 MISO_CLIENTSECRET=your-secret

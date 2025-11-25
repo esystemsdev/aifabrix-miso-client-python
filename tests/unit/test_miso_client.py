@@ -120,7 +120,9 @@ class TestAuthService:
 
             result = await auth_service.validate_token("valid-token")
             assert result is True
-            mock_request.assert_called_once_with("POST", "/api/v1/auth/validate", "valid-token", {"token": "valid-token"})
+            mock_request.assert_called_once_with(
+                "POST", "/api/v1/auth/validate", "valid-token", {"token": "valid-token"}
+            )
 
     @pytest.mark.asyncio
     async def test_validate_token_failure(self, auth_service):
