@@ -198,35 +198,6 @@ class TestAuthService:
             assert token == "client-token-123"
             mock_get.assert_called_once()
 
-    def test_login_returns_url(self, auth_service, config):
-        """Test login returns URL string."""
-        url = auth_service.login("/dashboard")
-
-        assert isinstance(url, str)
-        assert "/api/v1/auth/login" in url
-        assert "redirect=/dashboard" in url
-
-    @pytest.mark.asyncio
-    async def test_logout(self, auth_service):
-        """Test logout functionality."""
-        with patch.object(
-            auth_service.http_client, "request", new_callable=AsyncMock
-        ) as mock_request:
-            await auth_service.logout()
-            mock_request.assert_called_once_with("POST", "/api/v1/auth/logout")
-
-    @pytest.mark.asyncio
-    async def test_logout_exception(self, auth_service):
-        """Test logout with exception - should silently fail per service method pattern."""
-        with patch.object(
-            auth_service.http_client, "request", new_callable=AsyncMock
-        ) as mock_request:
-            mock_request.side_effect = Exception("Logout failed")
-
-            # Service methods should not raise uncaught errors - they should silently fail
-            # Verify logout doesn't raise an exception
-            await auth_service.logout()  # Should complete without raising
-            mock_request.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_is_authenticated(self, auth_service):
@@ -240,26 +211,98 @@ class TestAuthService:
             mock_validate.assert_called_once_with("token")
 
     @pytest.mark.asyncio
+    async def test_login_success(self, auth_service):
+        """Test successful login."""
+        with patch.object(
+            auth_service.http_client, "get", new_callable=AsyncMock
+        ) as mock_get:
+            mock_get.return_value = {
+                "success": True,
+                "data": {
+                    "loginUrl": "https://keycloak.example.com/auth?redirect_uri=...",
+                    "state": "abc123",
+                },
+                "timestamp": "2024-01-01T00:00:00Z",
+            }
+
+            result = await auth_service.login(
+                redirect="http://localhost:3000/auth/callback", state="abc123"
+            )
+
+            assert result["success"] is True
+            assert "loginUrl" in result["data"]
+            assert result["data"]["state"] == "abc123"
+            mock_get.assert_called_once_with(
+                "/api/v1/auth/login", params={"redirect": "http://localhost:3000/auth/callback", "state": "abc123"}
+            )
+
+    @pytest.mark.asyncio
+    async def test_login_without_state(self, auth_service):
+        """Test login without state parameter."""
+        with patch.object(
+            auth_service.http_client, "get", new_callable=AsyncMock
+        ) as mock_get:
+            mock_get.return_value = {
+                "success": True,
+                "data": {
+                    "loginUrl": "https://keycloak.example.com/auth?redirect_uri=...",
+                    "state": "auto-generated-state",
+                },
+                "timestamp": "2024-01-01T00:00:00Z",
+            }
+
+            result = await auth_service.login(redirect="http://localhost:3000/auth/callback")
+
+            assert result["success"] is True
+            assert "loginUrl" in result["data"]
+            mock_get.assert_called_once_with(
+                "/api/v1/auth/login", params={"redirect": "http://localhost:3000/auth/callback"}
+            )
+
+    @pytest.mark.asyncio
+    async def test_login_exception(self, auth_service):
+        """Test login with exception - should return empty dict per service method pattern."""
+        with patch.object(
+            auth_service.http_client, "get", new_callable=AsyncMock
+        ) as mock_get:
+            mock_get.side_effect = ValueError("Network error")
+
+            result = await auth_service.login(redirect="http://localhost:3000/auth/callback")
+
+            assert result == {}
+            mock_get.assert_called_once()
+
+    @pytest.mark.asyncio
     async def test_logout_success(self, auth_service):
         """Test successful logout."""
         with patch.object(
-            auth_service.http_client, "request", new_callable=AsyncMock
+            auth_service.http_client, "authenticated_request", new_callable=AsyncMock
         ) as mock_request:
-            await auth_service.logout()
+            mock_request.return_value = {
+                "success": True,
+                "message": "Logout successful",
+                "timestamp": "2024-01-01T00:00:00Z",
+            }
 
-            mock_request.assert_called_once_with("POST", "/api/v1/auth/logout")
+            result = await auth_service.logout(token="jwt-token-123")
+
+            assert result["success"] is True
+            assert result["message"] == "Logout successful"
+            mock_request.assert_called_once_with(
+                "POST", "/api/v1/auth/logout", "jwt-token-123", {"token": "jwt-token-123"}
+            )
 
     @pytest.mark.asyncio
     async def test_logout_exception_re_raising(self, auth_service):
-        """Test logout with exception - should silently fail per service method pattern."""
+        """Test logout with exception - should return empty dict per service method pattern."""
         with patch.object(
-            auth_service.http_client, "request", new_callable=AsyncMock
+            auth_service.http_client, "authenticated_request", new_callable=AsyncMock
         ) as mock_request:
             mock_request.side_effect = ValueError("Invalid request")
 
-            # Service methods should not raise uncaught errors - they should silently fail
-            # Verify logout doesn't raise an exception
-            await auth_service.logout()  # Should complete without raising
+            # Service methods should not raise uncaught errors - they should return empty dict
+            result = await auth_service.logout(token="jwt-token-123")
+            assert result == {}
             mock_request.assert_called_once()
 
     @pytest.mark.asyncio
