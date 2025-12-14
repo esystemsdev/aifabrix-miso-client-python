@@ -5,6 +5,71 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.1] - 2025-12-14
+
+### Added
+
+- **Server-Side Environment Token Utility**: New `get_environment_token()` function for secure server-side token fetching
+  - Validates request origin against configured `allowedOrigins` before fetching token
+  - Includes ISO 27001 compliant audit logging with automatic data masking
+  - Raises `AuthenticationError` if origin validation fails
+  - Supports various request header formats (dict, FastAPI, Flask, Starlette)
+  - Exported from main module for easy integration
+
+- **Origin Validation Utility**: New `validate_origin()` function for CORS security
+  - Validates request origin against allowed origins list
+  - Checks `origin` header first, falls back to `referer` header
+  - Supports wildcard port matching (e.g., `http://localhost:*` matches any port)
+  - Returns validation result with error message if invalid
+  - Handles various request header object types (dict, FastAPI, Flask, Starlette)
+  - Exported from main module for reuse in custom middleware
+
+- **Client Token Info Extraction**: New `extract_client_token_info()` function for token introspection
+  - Extracts application and environment information from client JWT tokens
+  - Decodes JWT without verification (no secret available)
+  - Supports multiple field name variations (`application`, `applicationId`, `environment`, `clientId`)
+  - Returns dictionary with optional fields for flexible integration
+  - Exported from main module for token analysis utilities
+
+- **Configuration Enhancements**: Enhanced `MisoClientConfig` with origin validation support
+  - Added `allowedOrigins` configuration field for CORS origin validation
+  - Supports wildcard port matching in origin URLs
+  - Backward compatible - validation is optional if `allowedOrigins` is not configured
+
+### Changed
+
+- **Internal HTTP Client**: Enhanced `InternalHttpClient` with environment token method
+  - Added `get_environment_token()` method for fetching client tokens
+  - Integrates with existing client token management infrastructure
+
+- **HTTP Client**: Enhanced `HttpClient` with environment token access
+  - Added `get_environment_token()` method delegating to internal client
+  - Maintains consistent API surface for token operations
+
+- **MisoClient**: Enhanced main client with environment token access
+  - Added `get_environment_token()` method for convenient token access
+  - Delegates to `AuthService` for consistent behavior
+
+### Testing
+
+- Added comprehensive unit tests for all new utilities
+  - Tests for `get_environment_token()` with origin validation scenarios
+  - Tests for `validate_origin()` with various header formats and wildcard matching
+  - Tests for `extract_client_token_info()` with different token formats
+  - All tests follow existing test patterns with proper mocking
+
+### Technical
+
+- **New Utility Modules**: Added three new utility modules for server-side security
+  - `miso_client/utils/environment_token.py`: Server-side token wrapper with audit logging
+  - `miso_client/utils/origin_validator.py`: CORS origin validation utility
+  - `miso_client/utils/token_utils.py`: Client token introspection utilities
+
+- **Module Exports**: All new utilities exported from main `miso_client` module
+  - `get_environment_token`: Server-side token fetching with origin validation
+  - `validate_origin`: CORS origin validation utility
+  - `extract_client_token_info`: Client token information extraction
+
 ## [2.1.2] - 2025-12-11
 
 ### Added

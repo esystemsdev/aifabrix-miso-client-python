@@ -40,6 +40,7 @@ from .services.redis import RedisService
 from .services.role import RoleService
 from .utils.audit_log_queue import AuditLogQueue
 from .utils.config_loader import load_config
+from .utils.environment_token import get_environment_token
 from .utils.error_utils import (
     ApiErrorException,
     handle_api_error_snake_case,
@@ -50,6 +51,7 @@ from .utils.error_utils import (
 from .utils.filter import apply_filters, build_query_string, parse_filter_params
 from .utils.http_client import HttpClient
 from .utils.internal_http_client import InternalHttpClient
+from .utils.origin_validator import validate_origin
 from .utils.pagination import (
     apply_pagination_to_array,
     applyPaginationToArray,
@@ -61,8 +63,9 @@ from .utils.pagination import (
     parsePaginationParams,
 )
 from .utils.sort import build_sort_string, parse_sort_params
+from .utils.token_utils import extract_client_token_info
 
-__version__ = "2.1.2"
+__version__ = "3.0.1"
 __author__ = "AI Fabrix Team"
 __license__ = "MIT"
 
@@ -116,8 +119,12 @@ class MisoClient:
         self.roles = RoleService(self.http_client, self.cache)
         self.permissions = PermissionService(self.http_client, self.cache)
 
-        # Encryption service (reads ENCRYPTION_KEY from environment by default)
-        self.encryption = EncryptionService()
+        # Encryption service (optional - only initialized if ENCRYPTION_KEY is configured)
+        try:
+            self.encryption = EncryptionService()
+        except ConfigurationError:
+            # ENCRYPTION_KEY not configured or invalid - encryption service unavailable
+            self.encryption = None
         self.initialized = False
 
     async def initialize(self) -> None:
@@ -497,7 +504,15 @@ class MisoClient:
 
         Returns:
             Base64-encoded encrypted string
+
+        Raises:
+            ConfigurationError: If encryption service is not available (ENCRYPTION_KEY not configured)
         """
+        if self.encryption is None:
+            raise ConfigurationError(
+                "Encryption service is not available. Set ENCRYPTION_KEY environment variable "
+                "to enable encryption functionality."
+            )
         return self.encryption.encrypt(plaintext)
 
     def decrypt(self, encrypted_text: str) -> str:
@@ -511,7 +526,15 @@ class MisoClient:
 
         Returns:
             Decrypted plain text string
+
+        Raises:
+            ConfigurationError: If encryption service is not available (ENCRYPTION_KEY not configured)
         """
+        if self.encryption is None:
+            raise ConfigurationError(
+                "Encryption service is not available. Set ENCRYPTION_KEY environment variable "
+                "to enable encryption functionality."
+            )
         return self.encryption.decrypt(encrypted_text)
 
     # ==================== CACHING METHODS ====================
@@ -718,4 +741,8 @@ __all__ = [
     "AuthorizationError",
     "ConnectionError",
     "ConfigurationError",
+    # Server-side utilities
+    "get_environment_token",
+    "validate_origin",
+    "extract_client_token_info",
 ]

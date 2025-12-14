@@ -43,7 +43,13 @@ def should_skip_logging(url: str, config: Optional[Any] = None) -> bool:
     # Default skip endpoints (always skip these regardless of config)
     if url == "/api/v1/logs" or url.startswith("/api/v1/logs"):
         return True
-    if url == "/api/v1/auth/token" or url.startswith("/api/v1/auth/token"):
+
+    # Check configurable client token URI or default
+    client_token_uri = "/api/v1/auth/token"
+    if config and config.clientTokenUri:
+        client_token_uri = config.clientTokenUri
+
+    if url == client_token_uri or url.startswith(client_token_uri):
         return True
     return False
 
@@ -215,7 +221,7 @@ def _prepare_audit_context(
     if audit_level in ("detailed", "full"):
         request_size, response_size = calculate_request_sizes(request_data, response)
 
-    error_message = mask_error_message(error)
+    error_message = mask_error_message(error) if error is not None else None
     return build_audit_context(
         method=method,
         url=url,
@@ -288,10 +294,13 @@ async def log_http_request_audit(
 
         # Standard, detailed, or full audit levels
         # Convert AuditConfig to dict for _prepare_audit_context
-        audit_config_dict = (
-            audit_config.dict() if audit_config and hasattr(audit_config, "dict") else {}
-        )
-        audit_context = _prepare_audit_context(
+        audit_config_dict: Dict[str, Any] = {}
+        if audit_config:
+            if hasattr(audit_config, "model_dump"):
+                audit_config_dict = audit_config.model_dump()
+            elif hasattr(audit_config, "dict"):
+                audit_config_dict = audit_config.dict()  # type: ignore[attr-defined]
+        prepared_context = _prepare_audit_context(
             method,
             url,
             response,
@@ -302,9 +311,10 @@ async def log_http_request_audit(
             log_level,
             audit_config_dict,
         )
-        if audit_context is None:
+        if prepared_context is None:
             return
 
+        audit_context = prepared_context
         action = f"http.request.{method.upper()}"
         await logger.audit(action, url, audit_context)
 
@@ -474,7 +484,8 @@ def extract_and_mask_query_params(url: str) -> Optional[Dict[str, Any]]:
         query_simple: Dict[str, Any] = {
             k: v[0] if len(v) == 1 else v for k, v in query_dict.items()
         }
-        return DataMasker.mask_sensitive_data(query_simple)
+        masked = DataMasker.mask_sensitive_data(query_simple)
+        return masked if isinstance(masked, dict) else None
     except Exception:
         return None
 

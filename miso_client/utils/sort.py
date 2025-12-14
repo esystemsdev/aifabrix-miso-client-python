@@ -5,10 +5,10 @@ This module provides reusable sort utilities for parsing sort parameters
 and building sort query strings.
 """
 
-from typing import List
+from typing import List, cast
 from urllib.parse import quote
 
-from ..models.sort import SortOption
+from ..models.sort import SortOption, SortOrder
 
 
 def parse_sort_params(params: dict) -> List[SortOption]:
@@ -58,13 +58,13 @@ def parse_sort_params(params: dict) -> List[SortOption]:
         # Check for descending order (prefix with '-')
         if sort_str.startswith("-"):
             field = sort_str[1:].strip()
-            order = "desc"
+            order: SortOrder = "desc"
         else:
             field = sort_str.strip()
             order = "asc"
 
         if field:
-            sort_options.append(SortOption(field=field, order=order))
+            sort_options.append(SortOption(field=field, order=cast(SortOrder, order)))
 
     return sort_options
 

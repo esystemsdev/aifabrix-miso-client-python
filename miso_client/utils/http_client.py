@@ -121,7 +121,9 @@ class HttpClient:
             return 200
         if error is not None:
             if hasattr(error, "status_code"):
-                return error.status_code
+                status_code = getattr(error, "status_code", None)
+                if isinstance(status_code, int):
+                    return status_code
             return 500
         return None
 

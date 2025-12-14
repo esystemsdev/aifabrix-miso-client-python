@@ -265,3 +265,141 @@ class TestConfigLoader:
                     config = load_config()
 
                 assert config.api_key is None
+
+    def test_load_config_with_client_token_uri(self):
+        """Test loading config with client token URI."""
+        with patch.dict(
+            os.environ,
+            {
+                "MISO_CLIENTID": "test-client",
+                "MISO_CLIENTSECRET": "test-secret",
+                "MISO_CLIENT_TOKEN_URI": "/api/v1/auth/custom-token",
+            },
+            clear=False,
+        ):
+            # Remove conflicting variables
+            os.environ.pop("MISO_CONTROLLER_URL", None)
+            os.environ.pop("REDIS_HOST", None)
+            os.environ.pop("API_KEY", None)
+            os.environ.pop("MISO_API_KEY", None)
+            # Mock load_dotenv to prevent loading from .env file
+            with patch("dotenv.load_dotenv"):
+                with patch("miso_client.utils.config_loader.load_dotenv", create=True):
+                    config = load_config()
+
+                assert config.clientTokenUri == "/api/v1/auth/custom-token"
+
+    def test_load_config_without_client_token_uri(self):
+        """Test loading config without client token URI (should be None)."""
+        with patch.dict(
+            os.environ,
+            {
+                "MISO_CLIENTID": "test-client",
+                "MISO_CLIENTSECRET": "test-secret",
+            },
+            clear=False,
+        ):
+            # Remove conflicting variables
+            os.environ.pop("MISO_CONTROLLER_URL", None)
+            os.environ.pop("REDIS_HOST", None)
+            os.environ.pop("API_KEY", None)
+            os.environ.pop("MISO_API_KEY", None)
+            os.environ.pop("MISO_CLIENT_TOKEN_URI", None)
+            # Mock load_dotenv to prevent loading from .env file
+            with patch("dotenv.load_dotenv"):
+                with patch("miso_client.utils.config_loader.load_dotenv", create=True):
+                    config = load_config()
+
+                assert config.clientTokenUri is None
+
+    def test_load_config_with_allowed_origins(self):
+        """Test loading config with allowed origins."""
+        with patch.dict(
+            os.environ,
+            {
+                "MISO_CLIENTID": "test-client",
+                "MISO_CLIENTSECRET": "test-secret",
+                "MISO_ALLOWED_ORIGINS": "http://localhost:3000,https://example.com",
+            },
+            clear=False,
+        ):
+            # Remove conflicting variables
+            os.environ.pop("MISO_CONTROLLER_URL", None)
+            os.environ.pop("REDIS_HOST", None)
+            os.environ.pop("API_KEY", None)
+            os.environ.pop("MISO_API_KEY", None)
+            # Mock load_dotenv to prevent loading from .env file
+            with patch("dotenv.load_dotenv"):
+                with patch("miso_client.utils.config_loader.load_dotenv", create=True):
+                    config = load_config()
+
+                assert config.allowedOrigins == ["http://localhost:3000", "https://example.com"]
+
+    def test_load_config_with_allowed_origins_wildcard(self):
+        """Test loading config with allowed origins including wildcard."""
+        with patch.dict(
+            os.environ,
+            {
+                "MISO_CLIENTID": "test-client",
+                "MISO_CLIENTSECRET": "test-secret",
+                "MISO_ALLOWED_ORIGINS": "http://localhost:*,https://example.com:443",
+            },
+            clear=False,
+        ):
+            # Remove conflicting variables
+            os.environ.pop("MISO_CONTROLLER_URL", None)
+            os.environ.pop("REDIS_HOST", None)
+            os.environ.pop("API_KEY", None)
+            os.environ.pop("MISO_API_KEY", None)
+            # Mock load_dotenv to prevent loading from .env file
+            with patch("dotenv.load_dotenv"):
+                with patch("miso_client.utils.config_loader.load_dotenv", create=True):
+                    config = load_config()
+
+                assert config.allowedOrigins == ["http://localhost:*", "https://example.com:443"]
+
+    def test_load_config_with_allowed_origins_whitespace(self):
+        """Test loading config with allowed origins containing whitespace."""
+        with patch.dict(
+            os.environ,
+            {
+                "MISO_CLIENTID": "test-client",
+                "MISO_CLIENTSECRET": "test-secret",
+                "MISO_ALLOWED_ORIGINS": " http://localhost:3000 , https://example.com ",
+            },
+            clear=False,
+        ):
+            # Remove conflicting variables
+            os.environ.pop("MISO_CONTROLLER_URL", None)
+            os.environ.pop("REDIS_HOST", None)
+            os.environ.pop("API_KEY", None)
+            os.environ.pop("MISO_API_KEY", None)
+            # Mock load_dotenv to prevent loading from .env file
+            with patch("dotenv.load_dotenv"):
+                with patch("miso_client.utils.config_loader.load_dotenv", create=True):
+                    config = load_config()
+
+                assert config.allowedOrigins == ["http://localhost:3000", "https://example.com"]
+
+    def test_load_config_without_allowed_origins(self):
+        """Test loading config without allowed origins (should be None)."""
+        with patch.dict(
+            os.environ,
+            {
+                "MISO_CLIENTID": "test-client",
+                "MISO_CLIENTSECRET": "test-secret",
+            },
+            clear=False,
+        ):
+            # Remove conflicting variables
+            os.environ.pop("MISO_CONTROLLER_URL", None)
+            os.environ.pop("REDIS_HOST", None)
+            os.environ.pop("API_KEY", None)
+            os.environ.pop("MISO_API_KEY", None)
+            os.environ.pop("MISO_ALLOWED_ORIGINS", None)
+            # Mock load_dotenv to prevent loading from .env file
+            with patch("dotenv.load_dotenv"):
+                with patch("miso_client.utils.config_loader.load_dotenv", create=True):
+                    config = load_config()
+
+                assert config.allowedOrigins is None

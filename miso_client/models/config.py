@@ -109,6 +109,14 @@ class MisoClientConfig(BaseModel):
         default=None,
         description="Authentication strategy configuration (default: ['bearer', 'client-token'])",
     )
+    clientTokenUri: Optional[str] = Field(
+        default=None,
+        description="URI for client token endpoint (default: '/api/v1/auth/token')",
+    )
+    allowedOrigins: Optional[List[str]] = Field(
+        default=None,
+        description="Array of allowed origins for CORS validation",
+    )
 
     @property
     def role_ttl(self) -> int:

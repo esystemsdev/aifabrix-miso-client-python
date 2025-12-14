@@ -25,6 +25,8 @@ def load_config() -> MisoClientConfig:
     - API_KEY (for testing - bypasses OAuth2 authentication)
     - MISO_API_KEY (alternative to API_KEY)
     - MISO_AUTH_STRATEGY (comma-separated list: bearer,client-token,api-key)
+    - MISO_CLIENT_TOKEN_URI (custom client token endpoint URI)
+    - MISO_ALLOWED_ORIGINS (comma-separated list of allowed origins, supports wildcard ports)
     - REDIS_HOST (if Redis is used)
     - REDIS_PORT (default: 6379)
     - REDIS_PASSWORD
@@ -97,6 +99,20 @@ def load_config() -> MisoClientConfig:
                 raise
             raise ConfigurationError(f"Failed to parse MISO_AUTH_STRATEGY: {str(e)}")
 
+    # Optional client token URI
+    client_token_uri = os.environ.get("MISO_CLIENT_TOKEN_URI")
+
+    # Optional allowed origins
+    allowed_origins = None
+    allowed_origins_str = os.environ.get("MISO_ALLOWED_ORIGINS")
+    if allowed_origins_str:
+        # Split comma-separated list and trim whitespace
+        origins_list = [
+            origin.strip() for origin in allowed_origins_str.split(",") if origin.strip()
+        ]
+        if origins_list:
+            allowed_origins = origins_list
+
     config: MisoClientConfig = MisoClientConfig(
         controller_url=controller_url,
         client_id=client_id,
@@ -104,6 +120,8 @@ def load_config() -> MisoClientConfig:
         log_level=log_level,
         api_key=api_key,
         authStrategy=auth_strategy,
+        clientTokenUri=client_token_uri,
+        allowedOrigins=allowed_origins,
     )
 
     # Optional Redis configuration

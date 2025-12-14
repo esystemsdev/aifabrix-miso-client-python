@@ -5,10 +5,10 @@ This module provides reusable filter utilities for parsing filter parameters,
 building query strings, and applying filters to arrays.
 """
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union, cast
 from urllib.parse import quote, unquote
 
-from ..models.filter import FilterOption, FilterQuery
+from ..models.filter import FilterOperator, FilterOption, FilterQuery
 
 
 def parse_filter_params(params: dict) -> List[FilterOption]:
@@ -67,24 +67,27 @@ def parse_filter_params(params: dict) -> List[FilterOption]:
         # Parse value based on operator
         if op in ("in", "nin"):
             # Array values: comma-separated
-            value = [v.strip() for v in value_str.split(",") if v.strip()]
+            value: Union[str, int, float, bool, List[Any]] = [
+                v.strip() for v in value_str.split(",") if v.strip()
+            ]
         else:
             # Single value: try to parse as number/boolean, fallback to string
-            value = value_str
+            parsed_value: Union[str, int, float, bool] = value_str
             # Try to parse as integer
             try:
                 if "." not in value_str:
-                    value = int(value_str)
+                    parsed_value = int(value_str)
                 else:
-                    value = float(value_str)
+                    parsed_value = float(value_str)
             except (ValueError, TypeError):
                 # Try boolean
                 if value_str.lower() in ("true", "false"):
-                    value = value_str.lower() == "true"
+                    parsed_value = value_str.lower() == "true"
                 else:
-                    value = value_str
+                    parsed_value = value_str
+            value = parsed_value
 
-        filters.append(FilterOption(field=field, op=op, value=value))
+        filters.append(FilterOption(field=field, op=cast(FilterOperator, op), value=value))
 
     return filters
 

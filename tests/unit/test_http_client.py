@@ -1199,6 +1199,57 @@ class TestHttpClient:
         http_client.logger.audit.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_skip_logging_for_custom_token_endpoint(self, config):
+        """Test that custom client token URI endpoint is not audited."""
+        config.clientTokenUri = "/api/v1/auth/custom-token"
+        http_client = HttpClient(config, LoggerService(MagicMock(), MagicMock()))
+
+        # Mock InternalHttpClient
+        mock_internal_client = AsyncMock()
+        mock_internal_client.post = AsyncMock(return_value={"token": "abc123"})
+        http_client._internal_client = mock_internal_client
+
+        # Mock logger
+        http_client.logger.audit = AsyncMock()
+
+        result = await http_client.post("/api/v1/auth/custom-token", {})
+
+        assert result == {"token": "abc123"}
+        # Verify audit logging was NOT called for custom token endpoint
+        http_client.logger.audit.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_fetch_client_token_with_custom_uri(self, config):
+        """Test fetching client token with custom URI."""
+        config.clientTokenUri = "/api/v1/auth/custom-token"
+        http_client = InternalHttpClient(config)
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "success": True,
+            "token": "client-token-123",
+            "expiresIn": 3600,
+            "expiresAt": "2024-01-01T12:00:00Z",
+        }
+        mock_response.headers = {}
+
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_client.aclose = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            await http_client._fetch_client_token()
+
+            # Verify custom URI was used
+            mock_client.post.assert_called_once()
+            call_args = mock_client.post.call_args
+            assert call_args[0][0] == "/api/v1/auth/custom-token"
+            assert http_client.client_token == "client-token-123"
+
+    @pytest.mark.asyncio
     async def test_error_logging_with_masked_data(self, http_client):
         """Test error logging with masked sensitive data."""
         # Mock InternalHttpClient to raise error

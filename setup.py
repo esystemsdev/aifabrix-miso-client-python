@@ -8,7 +8,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="miso-client",
-    version="2.1.2",
+    version="3.0.1",
     author="AI Fabrix Team",
     author_email="team@aifabrix.ai",
     description="Python client SDK for AI Fabrix authentication, authorization, and logging",

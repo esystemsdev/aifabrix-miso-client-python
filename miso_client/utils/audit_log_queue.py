@@ -8,7 +8,7 @@ import asyncio
 import signal
 from typing import TYPE_CHECKING, List, Optional
 
-from ..models.config import LogEntry, MisoClientConfig
+from ..models.config import AuditConfig, LogEntry, MisoClientConfig
 from ..services.redis import RedisService
 
 if TYPE_CHECKING:
@@ -59,9 +59,15 @@ class AuditLogQueue:
         self.flush_timer: Optional[asyncio.Task] = None
         self.is_flushing = False
 
-        audit_config = config.audit or {}
-        self.batch_size = audit_config.batchSize or 10
-        self.batch_interval = audit_config.batchInterval or 100
+        audit_config: Optional[AuditConfig] = config.audit
+        self.batch_size: int = (
+            audit_config.batchSize if audit_config and audit_config.batchSize is not None else 10
+        )
+        self.batch_interval: int = (
+            audit_config.batchInterval
+            if audit_config and audit_config.batchInterval is not None
+            else 100
+        )
 
         # Setup graceful shutdown handlers (if available)
         try:

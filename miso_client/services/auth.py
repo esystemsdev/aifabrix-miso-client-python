@@ -58,17 +58,19 @@ class AuthService:
             Validation result dictionary
         """
         if auth_strategy is not None:
-            return await self.http_client.authenticated_request(
+            result = await self.http_client.authenticated_request(
                 "POST",
                 "/api/v1/auth/validate",
                 token,
                 {"token": token},
                 auth_strategy=auth_strategy,
             )
+            return result  # type: ignore[no-any-return]
         else:
-            return await self.http_client.authenticated_request(
+            result = await self.http_client.authenticated_request(
                 "POST", "/api/v1/auth/validate", token, {"token": token}
             )
+            return result  # type: ignore[no-any-return]
 
     async def login(self, redirect: str, state: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -101,7 +103,7 @@ class AuthService:
                 params["state"] = state
 
             response = await self.http_client.get("/api/v1/auth/login", params=params)
-            return response
+            return response  # type: ignore[no-any-return]
         except Exception as error:
             logger.error("Login failed", exc_info=error)
             # Return empty dict on error per service method pattern
@@ -232,7 +234,7 @@ class AuthService:
             response = await self.http_client.authenticated_request(
                 "POST", "/api/v1/auth/logout", token, {"token": token}
             )
-            return response
+            return response  # type: ignore[no-any-return]
         except Exception as error:
             logger.error("Logout failed", exc_info=error)
             # Return empty dict on error per service method pattern

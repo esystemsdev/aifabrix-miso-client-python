@@ -48,17 +48,19 @@ class PermissionService:
             Validation result dictionary
         """
         if auth_strategy is not None:
-            return await self.http_client.authenticated_request(
+            result = await self.http_client.authenticated_request(
                 "POST",
                 "/api/v1/auth/validate",
                 token,
                 {"token": token},
                 auth_strategy=auth_strategy,
             )
+            return result  # type: ignore[no-any-return]
         else:
-            return await self.http_client.authenticated_request(
+            result = await self.http_client.authenticated_request(
                 "POST", "/api/v1/auth/validate", token, {"token": token}
             )
+            return result  # type: ignore[no-any-return]
 
     async def get_permissions(
         self, token: str, auth_strategy: Optional[AuthStrategy] = None

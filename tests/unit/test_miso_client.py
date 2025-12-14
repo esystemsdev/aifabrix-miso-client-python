@@ -198,7 +198,6 @@ class TestAuthService:
             assert token == "client-token-123"
             mock_get.assert_called_once()
 
-
     @pytest.mark.asyncio
     async def test_is_authenticated(self, auth_service):
         """Test is_authenticated method."""
@@ -213,9 +212,7 @@ class TestAuthService:
     @pytest.mark.asyncio
     async def test_login_success(self, auth_service):
         """Test successful login."""
-        with patch.object(
-            auth_service.http_client, "get", new_callable=AsyncMock
-        ) as mock_get:
+        with patch.object(auth_service.http_client, "get", new_callable=AsyncMock) as mock_get:
             mock_get.return_value = {
                 "success": True,
                 "data": {
@@ -233,15 +230,14 @@ class TestAuthService:
             assert "loginUrl" in result["data"]
             assert result["data"]["state"] == "abc123"
             mock_get.assert_called_once_with(
-                "/api/v1/auth/login", params={"redirect": "http://localhost:3000/auth/callback", "state": "abc123"}
+                "/api/v1/auth/login",
+                params={"redirect": "http://localhost:3000/auth/callback", "state": "abc123"},
             )
 
     @pytest.mark.asyncio
     async def test_login_without_state(self, auth_service):
         """Test login without state parameter."""
-        with patch.object(
-            auth_service.http_client, "get", new_callable=AsyncMock
-        ) as mock_get:
+        with patch.object(auth_service.http_client, "get", new_callable=AsyncMock) as mock_get:
             mock_get.return_value = {
                 "success": True,
                 "data": {
@@ -262,9 +258,7 @@ class TestAuthService:
     @pytest.mark.asyncio
     async def test_login_exception(self, auth_service):
         """Test login with exception - should return empty dict per service method pattern."""
-        with patch.object(
-            auth_service.http_client, "get", new_callable=AsyncMock
-        ) as mock_get:
+        with patch.object(auth_service.http_client, "get", new_callable=AsyncMock) as mock_get:
             mock_get.side_effect = ValueError("Network error")
 
             result = await auth_service.login(redirect="http://localhost:3000/auth/callback")

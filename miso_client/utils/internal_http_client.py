@@ -150,7 +150,9 @@ class InternalHttpClient:
                 },
             )
 
-            response = await temp_client.post("/api/v1/auth/token")
+            # Use configurable client token URI or default
+            token_uri = self.config.clientTokenUri or "/api/v1/auth/token"
+            response = await temp_client.post(token_uri)
             await temp_client.aclose()
 
             # Extract correlation ID from response
