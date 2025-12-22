@@ -48,6 +48,9 @@ class AuditConfig(BaseModel):
     skipEndpoints: Optional[List[str]] = Field(
         default=None, description="Array of endpoint patterns to exclude from audit logging"
     )
+    circuitBreaker: Optional["CircuitBreakerConfig"] = Field(
+        default=None, description="Circuit breaker configuration for HTTP logging"
+    )
 
 
 class AuthStrategy(BaseModel):
@@ -116,6 +119,14 @@ class MisoClientConfig(BaseModel):
     allowedOrigins: Optional[List[str]] = Field(
         default=None,
         description="Array of allowed origins for CORS validation",
+    )
+    controllerPublicUrl: Optional[str] = Field(
+        default=None,
+        description="Public controller URL for browser environments (accessible from internet)",
+    )
+    controllerPrivateUrl: Optional[str] = Field(
+        default=None,
+        description="Private controller URL for server environments (internal network access)",
     )
 
     @property
@@ -223,4 +234,58 @@ class ClientLoggingOptions(BaseModel):
     maskSensitiveData: Optional[bool] = Field(default=None, description="Enable data masking")
     performanceMetrics: Optional[bool] = Field(
         default=None, description="Include performance metrics"
+    )
+
+
+class CircuitBreakerConfig(BaseModel):
+    """Circuit breaker configuration for HTTP logging."""
+
+    failureThreshold: Optional[int] = Field(
+        default=3, description="Number of consecutive failures before opening circuit (default: 3)"
+    )
+    resetTimeout: Optional[int] = Field(
+        default=60, description="Seconds to wait before resetting circuit (default: 60)"
+    )
+
+
+class DataClientConfigResponse(BaseModel):
+    """DataClient configuration returned by client-token endpoint.
+
+    Contains all necessary configuration for browser-side DataClient initialization.
+    """
+
+    baseUrl: str = Field(..., description="API base URL (derived from request)")
+    controllerUrl: str = Field(..., description="MISO Controller URL (from misoClient config)")
+    controllerPublicUrl: Optional[str] = Field(
+        default=None, description="Public controller URL for browser environments (if set)"
+    )
+    clientId: str = Field(..., description="Client ID (from misoClient config)")
+    clientTokenUri: str = Field(..., description="Client token endpoint URI")
+
+
+class ClientTokenEndpointResponse(BaseModel):
+    """Client token endpoint response.
+
+    Includes token, expiration, and DataClient configuration.
+    """
+
+    token: str = Field(..., description="Client token string")
+    expiresIn: int = Field(..., description="Token expiration time in seconds")
+    config: Optional[DataClientConfigResponse] = Field(
+        default=None, description="DataClient configuration (included when includeConfig is true)"
+    )
+
+
+class ClientTokenEndpointOptions(BaseModel):
+    """Options for createClientTokenEndpoint."""
+
+    clientTokenUri: Optional[str] = Field(
+        default="/api/v1/auth/client-token",
+        description="Client token endpoint URI (default: '/api/v1/auth/client-token')",
+    )
+    expiresIn: Optional[int] = Field(
+        default=1800, description="Token expiration time in seconds (default: 1800)"
+    )
+    includeConfig: Optional[bool] = Field(
+        default=True, description="Whether to include DataClient config in response (default: true)"
     )

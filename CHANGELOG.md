@@ -5,6 +5,107 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.0] - 2025-12-22
+
+### Added
+
+- **Circuit breaker for HTTP logging** - Prevents infinite retry loops when logging service is unavailable
+  - Added circuit breaker pattern to `LoggerService` and `AuditLogQueue`
+  - Automatically disables HTTP logging after 3 consecutive failures
+  - Circuit breaker opens for 60 seconds after failures, then resets
+  - Prevents performance degradation when controller logging endpoint is unavailable
+  - Gracefully handles network errors and server unavailability
+  - Configurable via `AuditConfig.circuitBreaker` with `failureThreshold` and `resetTimeout`
+
+- **Client token expiration checking** - Enhanced token validation with JWT expiration support
+  - Improved `_fetch_client_token()` to check JWT expiration claims when expiration timestamp is missing
+  - Decodes JWT tokens to extract `exp` claim for expiration validation
+  - Better logging for debugging token expiration issues
+  - Handles missing expiration timestamps gracefully
+  - Automatically removes expired tokens from cache
+
+- **Controller URL validation utility** - Exported URL validation function
+  - `validate_url()` function now exported from `url_validator.py`
+  - Validates HTTP/HTTPS URLs with comprehensive checks
+  - Rejects dangerous protocols (`javascript:`, `data:`, `file:`, etc.)
+  - Useful for validating URLs before use in application code
+  - Exported from `miso_client` module for public use
+
+- **Public and Private Controller URL Support** - Separate URLs for browser and server environments
+  - New `controllerPublicUrl` configuration option for browser/public environments (accessible from internet)
+  - New `controllerPrivateUrl` configuration option for server environments (internal network access)
+  - New `resolve_controller_url()` utility function that automatically detects environment and selects appropriate URL
+  - New `is_browser()` utility function for environment detection (always returns False for Python SDK)
+  - Environment variable support: `MISO_WEB_SERVER_URL` (maps to `controllerPublicUrl` for browser)
+  - Environment variable support: `MISO_CONTROLLER_URL` (maps to `controllerPrivateUrl` for server, maintains backward compatibility)
+  - Automatic URL resolution based on environment:
+    - Server environment: Uses `controllerPrivateUrl` → falls back to `controller_url`
+  - URL validation ensures resolved URLs are valid HTTP/HTTPS URLs
+  - Clear error messages when no URL is configured
+  - `InternalHttpClient` and `AuthService` now use resolved URLs automatically
+
+- **Flask/FastAPI Client Token Endpoint Utilities** - Server-side route handlers for client token endpoints
+  - New `create_flask_client_token_endpoint()` function for Flask applications
+  - New `create_fastapi_client_token_endpoint()` function for FastAPI applications
+  - Automatically enriches response with DataClient configuration including `controllerPublicUrl`
+  - Uses `get_environment_token()` with origin validation for security
+  - Returns client token + DataClient config to frontend clients
+  - Handles errors appropriately: 503 (not initialized), 403 (origin validation), 500 (other errors)
+  - Supports optional configuration via `ClientTokenEndpointOptions`
+  - Zero-config server-side setup for DataClient initialization
+  - Flask and FastAPI are optional peer dependencies (graceful import handling)
+
+### Changed
+
+- **InternalHttpClient** - Now uses `resolve_controller_url()` for automatic URL resolution
+  - Constructor uses resolved URL instead of hardcoded `config.controller_url`
+  - Client token fetch uses resolved URL for temporary httpx instance
+  - Maintains backward compatibility with existing `controller_url` configuration
+
+- **Config Loader** - Enhanced environment variable parsing
+  - `MISO_WEB_SERVER_URL` loads into `controllerPublicUrl` (browser/public)
+  - `MISO_CONTROLLER_URL` loads into `controllerPrivateUrl` (server/private) and `controller_url` (backward compatibility)
+  - Maintains existing behavior for applications using `MISO_CONTROLLER_URL`
+
+- **LoggerService** - Integrated circuit breaker for HTTP logging
+  - Checks circuit breaker state before attempting HTTP logging
+  - Records success/failure in circuit breaker
+  - Skips HTTP logging when circuit is OPEN to prevent infinite retry loops
+
+- **AuditLogQueue** - Integrated circuit breaker for batch logging
+  - Checks circuit breaker state before attempting HTTP batch logging
+  - Records success/failure in circuit breaker
+  - Skips HTTP logging when circuit is OPEN
+
+### Technical
+
+- **New utility files**:
+  - `miso_client/utils/circuit_breaker.py` - Circuit breaker implementation
+  - `miso_client/utils/url_validator.py` - URL validation utility
+  - `miso_client/utils/controller_url_resolver.py` - URL resolution with environment detection
+  - `miso_client/utils/flask_endpoints.py` - Flask route handler utilities
+  - `miso_client/utils/fastapi_endpoints.py` - FastAPI route handler utilities
+
+- **New test files**:
+  - `tests/unit/test_circuit_breaker.py` - Circuit breaker tests
+  - `tests/unit/test_url_validator.py` - URL validation tests
+  - `tests/unit/test_controller_url_resolver.py` - URL resolution tests
+  - `tests/unit/test_flask_endpoints.py` - Flask endpoint tests
+  - `tests/unit/test_fastapi_endpoints.py` - FastAPI endpoint tests
+
+- **Exports updated**:
+  - `miso_client/__init__.py` - Exports `validate_url`, `resolve_controller_url`, `is_browser`, `create_flask_client_token_endpoint`, `create_fastapi_client_token_endpoint`
+  - Public API maintains snake_case naming convention for functions
+
+- **Configuration models updated**:
+  - `AuditConfig` - Added `circuitBreaker` field (camelCase)
+  - `MisoClientConfig` - Added `controllerPublicUrl` and `controllerPrivateUrl` fields (camelCase)
+  - New models: `CircuitBreakerConfig`, `DataClientConfigResponse`, `ClientTokenEndpointResponse`, `ClientTokenEndpointOptions`
+
+- **Package dependencies**:
+  - Added optional dependencies: `flask>=2.0.0`, `fastapi>=0.100.0`
+  - Flask and FastAPI are peer dependencies (not required unless using endpoint utilities)
+
 ## [3.0.1] - 2025-12-14
 
 ### Added

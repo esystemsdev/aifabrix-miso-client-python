@@ -16,6 +16,8 @@ from ..errors import AuthenticationError, ConnectionError, MisoClientError
 from ..models.config import AuthStrategy, ClientTokenResponse, MisoClientConfig
 from ..models.error_response import ErrorResponse
 from .auth_strategy import AuthStrategyHandler
+from .controller_url_resolver import resolve_controller_url
+from .jwt_tools import decode_token
 
 
 class InternalHttpClient:
@@ -42,8 +44,10 @@ class InternalHttpClient:
     async def _initialize_client(self):
         """Initialize HTTP client if not already initialized."""
         if self.client is None:
+            # Use resolved URL (controllerPrivateUrl or controller_url)
+            resolved_url = resolve_controller_url(self.config)
             self.client = httpx.AsyncClient(
-                base_url=self.config.controller_url,
+                base_url=resolved_url,
                 timeout=30.0,
                 headers={
                     "Content-Type": "application/json",
@@ -139,9 +143,11 @@ class InternalHttpClient:
         correlation_id: Optional[str] = None
 
         try:
+            # Use resolved URL for temporary client
+            resolved_url = resolve_controller_url(self.config)
             # Use a temporary client to avoid interceptor recursion
             temp_client = httpx.AsyncClient(
-                base_url=self.config.controller_url,
+                base_url=resolved_url,
                 timeout=30.0,
                 headers={
                     "Content-Type": "application/json",
@@ -188,8 +194,27 @@ class InternalHttpClient:
                 raise AuthenticationError(error_msg)
 
             self.client_token = token_response.token
+
+            # Calculate expiration: use expiresIn if available, otherwise decode JWT to get exp claim
+            expires_in = token_response.expiresIn
+            if not expires_in or expires_in <= 0:
+                # Try to extract expiration from JWT token
+                try:
+                    decoded = decode_token(token_response.token)
+                    if decoded and "exp" in decoded and isinstance(decoded["exp"], (int, float)):
+                        # Calculate expires_in from JWT exp claim
+                        token_exp = datetime.fromtimestamp(decoded["exp"])
+                        now = datetime.now()
+                        expires_in = max(0, int((token_exp - now).total_seconds()))
+                    else:
+                        # No expiration found, use default (30 minutes)
+                        expires_in = 1800
+                except Exception:
+                    # JWT decode failed, use default (30 minutes)
+                    expires_in = 1800
+
             # Set expiration with 30 second buffer before actual expiration
-            expires_in = max(0, token_response.expiresIn - 30)
+            expires_in = max(0, expires_in - 30)
             self.token_expires_at = datetime.now() + timedelta(seconds=expires_in)
 
         except httpx.HTTPError as e:

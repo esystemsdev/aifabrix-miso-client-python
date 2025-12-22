@@ -14,6 +14,7 @@ from typing import Any, Dict, Literal, Optional
 from ..models.config import ClientLoggingOptions, LogEntry
 from ..services.redis import RedisService
 from ..utils.audit_log_queue import AuditLogQueue
+from ..utils.circuit_breaker import CircuitBreaker
 from ..utils.data_masker import DataMasker
 from ..utils.internal_http_client import InternalHttpClient
 from ..utils.jwt_tools import decode_token
@@ -43,6 +44,10 @@ class LoggerService:
         self.correlation_counter = 0
         self.performance_metrics: Dict[str, Dict[str, Any]] = {}
         self.audit_log_queue: Optional[AuditLogQueue] = None
+
+        # Initialize circuit breaker for HTTP logging
+        circuit_breaker_config = self.config.audit.circuitBreaker if self.config.audit else None
+        self.circuit_breaker = CircuitBreaker(circuit_breaker_config)
 
         # Audit log queue will be initialized later by MisoClient after http_client is created
         # This avoids circular dependency issues
@@ -378,6 +383,11 @@ class LoggerService:
             if success:
                 return  # Successfully queued in Redis
 
+        # Check circuit breaker before attempting HTTP logging
+        if self.circuit_breaker.is_open():
+            # Circuit is open, skip HTTP logging to prevent infinite retry loops
+            return
+
         # Fallback to unified logging endpoint with client credentials
         # Use InternalHttpClient to avoid circular dependency with HttpClient
         try:
@@ -386,8 +396,12 @@ class LoggerService:
                 exclude={"environment", "application"}, exclude_none=True
             )
             await self.internal_http_client.request("POST", "/api/v1/logs", log_payload)
+            # Record success in circuit breaker
+            self.circuit_breaker.record_success()
         except Exception:
             # Failed to send log to controller
+            # Record failure in circuit breaker
+            self.circuit_breaker.record_failure()
             # Silently fail to avoid infinite logging loops
             # Application should implement retry or buffer strategy if needed
             pass

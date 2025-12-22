@@ -27,6 +27,8 @@ def load_config() -> MisoClientConfig:
     - MISO_AUTH_STRATEGY (comma-separated list: bearer,client-token,api-key)
     - MISO_CLIENT_TOKEN_URI (custom client token endpoint URI)
     - MISO_ALLOWED_ORIGINS (comma-separated list of allowed origins, supports wildcard ports)
+    - MISO_CONTROLLER_URL (maps to controllerPrivateUrl and controller_url for backward compatibility)
+    - MISO_WEB_SERVER_URL (maps to controllerPublicUrl for browser/public access)
     - REDIS_HOST (if Redis is used)
     - REDIS_PORT (default: 6379)
     - REDIS_PASSWORD
@@ -47,7 +49,13 @@ def load_config() -> MisoClientConfig:
     except ImportError:
         pass  # dotenv not installed, continue without it
 
+    # MISO_CONTROLLER_URL maps to controllerPrivateUrl (server/internal) and controller_url (backward compatibility)
     controller_url = os.environ.get("MISO_CONTROLLER_URL") or "https://controller.aifabrix.ai"
+    controller_private_url = os.environ.get(
+        "MISO_CONTROLLER_URL"
+    )  # Same as controller_url for server
+    # MISO_WEB_SERVER_URL maps to controllerPublicUrl (browser/public)
+    controller_public_url = os.environ.get("MISO_WEB_SERVER_URL")
 
     client_id = os.environ.get("MISO_CLIENTID") or os.environ.get("MISO_CLIENT_ID") or ""
     if not client_id:
@@ -122,6 +130,8 @@ def load_config() -> MisoClientConfig:
         authStrategy=auth_strategy,
         clientTokenUri=client_token_uri,
         allowedOrigins=allowed_origins,
+        controllerPrivateUrl=controller_private_url,
+        controllerPublicUrl=controller_public_url,
     )
 
     # Optional Redis configuration

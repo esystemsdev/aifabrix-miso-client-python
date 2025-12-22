@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, List, Optional
 
 from ..models.config import AuditConfig, LogEntry, MisoClientConfig
 from ..services.redis import RedisService
+from ..utils.circuit_breaker import CircuitBreaker
 
 if TYPE_CHECKING:
     from ..utils.http_client import HttpClient
@@ -68,6 +69,10 @@ class AuditLogQueue:
             if audit_config and audit_config.batchInterval is not None
             else 100
         )
+
+        # Initialize circuit breaker for HTTP logging
+        circuit_breaker_config = audit_config.circuitBreaker if audit_config else None
+        self.circuit_breaker = CircuitBreaker(circuit_breaker_config)
 
         # Setup graceful shutdown handlers (if available)
         try:
@@ -167,6 +172,12 @@ class AuditLogQueue:
                     self.is_flushing = False
                     return  # Successfully queued in Redis
 
+            # Check circuit breaker before attempting HTTP logging
+            if self.circuit_breaker.is_open():
+                # Circuit is open, skip HTTP logging to prevent infinite retry loops
+                self.is_flushing = False
+                return
+
             # Fallback to HTTP batch endpoint
             try:
                 await self.http_client.request(
@@ -181,9 +192,12 @@ class AuditLogQueue:
                         ]
                     },
                 )
+                # Record success in circuit breaker
+                self.circuit_breaker.record_success()
             except Exception:
-                # Failed to send logs - could implement retry logic here
-                # For now, silently fail to avoid infinite loops
+                # Failed to send logs - record failure in circuit breaker
+                self.circuit_breaker.record_failure()
+                # Silently fail to avoid infinite loops
                 pass
         except Exception:
             # Silently swallow errors - never break logging

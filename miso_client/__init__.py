@@ -17,8 +17,12 @@ from .errors import (
 from .models.config import (
     AuthResult,
     AuthStrategy,
+    CircuitBreakerConfig,
     ClientLoggingOptions,
+    ClientTokenEndpointOptions,
+    ClientTokenEndpointResponse,
     ClientTokenResponse,
+    DataClientConfigResponse,
     LogEntry,
     MisoClientConfig,
     PerformanceMetrics,
@@ -40,6 +44,7 @@ from .services.redis import RedisService
 from .services.role import RoleService
 from .utils.audit_log_queue import AuditLogQueue
 from .utils.config_loader import load_config
+from .utils.controller_url_resolver import is_browser, resolve_controller_url
 from .utils.environment_token import get_environment_token
 from .utils.error_utils import (
     ApiErrorException,
@@ -48,7 +53,9 @@ from .utils.error_utils import (
     transform_error_to_snake_case,
     transformError,
 )
+from .utils.fastapi_endpoints import create_fastapi_client_token_endpoint
 from .utils.filter import apply_filters, build_query_string, parse_filter_params
+from .utils.flask_endpoints import create_flask_client_token_endpoint
 from .utils.http_client import HttpClient
 from .utils.internal_http_client import InternalHttpClient
 from .utils.origin_validator import validate_origin
@@ -64,8 +71,9 @@ from .utils.pagination import (
 )
 from .utils.sort import build_sort_string, parse_sort_params
 from .utils.token_utils import extract_client_token_info
+from .utils.url_validator import validate_url
 
-__version__ = "3.0.1"
+__version__ = "3.2.0"
 __author__ = "AI Fabrix Team"
 __license__ = "MIT"
 
@@ -120,6 +128,7 @@ class MisoClient:
         self.permissions = PermissionService(self.http_client, self.cache)
 
         # Encryption service (optional - only initialized if ENCRYPTION_KEY is configured)
+        self.encryption: Optional[EncryptionService]
         try:
             self.encryption = EncryptionService()
         except ConfigurationError:
@@ -687,6 +696,10 @@ __all__ = [
     "RoleResult",
     "PermissionResult",
     "ClientTokenResponse",
+    "ClientTokenEndpointResponse",
+    "ClientTokenEndpointOptions",
+    "DataClientConfigResponse",
+    "CircuitBreakerConfig",
     "PerformanceMetrics",
     "ClientLoggingOptions",
     "ErrorResponse",
@@ -745,4 +758,9 @@ __all__ = [
     "get_environment_token",
     "validate_origin",
     "extract_client_token_info",
+    "validate_url",
+    "resolve_controller_url",
+    "is_browser",
+    "create_flask_client_token_endpoint",
+    "create_fastapi_client_token_endpoint",
 ]
