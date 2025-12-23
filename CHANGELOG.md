@@ -5,6 +5,98 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.0] - 2025-12-23
+
+### Added
+
+- **Centralized API Layer with Typed Interfaces** - New architecture for controller API communication
+  - New `ApiClient` class providing centralized access to all controller APIs
+  - Domain-specific API classes: `AuthApi`, `RolesApi`, `PermissionsApi`, `LogsApi`
+  - Typed request/response models in `miso_client/api/types/` for type safety
+  - All API methods use camelCase naming convention for consistency
+  - Services now use API layer internally for better separation of concerns
+  - Improved maintainability and testability with clear API boundaries
+
+- **User Token Refresh Manager** - Automatic user token refresh with proactive expiration handling
+  - New `UserTokenRefreshManager` class for managing user Bearer token refresh
+  - Supports multiple refresh mechanisms: callback functions, stored refresh tokens, JWT refresh tokens
+  - Proactive token refresh before expiration to prevent 401 errors
+  - Automatic retry on 401 errors with token refresh
+  - Thread-safe concurrent refresh handling with per-user locks
+  - Integrated with `AuthService` for seamless token refresh endpoint calls
+  - Exported from main module for advanced use cases
+
+- **Request Context Extraction Utilities** - Standardized request context extraction for HTTP frameworks
+  - New `RequestContext` class for structured request metadata
+  - New `extract_request_context()` function supporting multiple frameworks
+  - Supports FastAPI/Starlette, Flask, and generic dict-like request objects
+  - Extracts IP address, correlation ID, HTTP method, path, and user information
+  - Handles various header formats and proxy configurations
+  - Useful for audit logging and request tracing
+  - Exported from main module for framework integration
+
+- **Logging Helpers** - Enhanced logging utilities for structured logging
+  - New `miso_client/utils/logging_helpers.py` with helper functions
+  - Improved integration with request context for audit logging
+  - Better support for correlation IDs and request tracing
+
+- **Enhanced Logger Chain** - Improved fluent API for logging
+  - Enhanced `LoggerChain` class with additional context methods
+  - Better integration with request context extraction
+  - Improved error handling and context propagation
+
+### Changed
+
+- **Service Layer Architecture** - Services now use centralized API layer
+  - `AuthService`, `RoleService`, `PermissionService` now use `ApiClient` internally
+  - Better separation between service logic and API communication
+  - Improved type safety with typed API interfaces
+  - Maintains backward compatibility with existing service methods
+
+- **MisoClient Initialization** - Enhanced client initialization
+  - `MisoClient` now creates `ApiClient` instance for API access
+  - Services receive `ApiClient` instead of direct `HttpClient` access
+  - Improved architecture with clear API boundaries
+
+- **Logger Service** - Enhanced logging capabilities
+  - Better integration with request context extraction
+  - Improved structured logging with indexed fields
+  - Enhanced error handling and context propagation
+
+### Technical
+
+- **New API layer files**:
+  - `miso_client/api/__init__.py` - API client factory
+  - `miso_client/api/auth_api.py` - Authentication API interface
+  - `miso_client/api/roles_api.py` - Roles API interface
+  - `miso_client/api/permissions_api.py` - Permissions API interface
+  - `miso_client/api/logs_api.py` - Logs API interface
+  - `miso_client/api/types/` - Typed request/response models
+
+- **New utility files**:
+  - `miso_client/utils/user_token_refresh.py` - User token refresh manager
+  - `miso_client/utils/request_context.py` - Request context extraction
+  - `miso_client/utils/logging_helpers.py` - Logging helper functions
+
+- **New test files**:
+  - `tests/unit/test_api_client.py` - API client tests
+  - `tests/unit/test_auth_api.py` - Auth API tests
+  - `tests/unit/test_roles_api.py` - Roles API tests
+  - `tests/unit/test_permissions_api.py` - Permissions API tests
+  - `tests/unit/test_logs_api.py` - Logs API tests
+  - `tests/unit/test_request_context.py` - Request context tests
+  - `tests/unit/test_user_token_refresh.py` - User token refresh tests
+  - `tests/unit/test_logging_helpers.py` - Logging helpers tests
+
+- **Exports updated**:
+  - `miso_client/__init__.py` - Exports `ApiClient`, `UserTokenRefreshManager`, `RequestContext`, `extract_request_context`
+  - Public API maintains snake_case naming convention for functions
+
+- **Package structure**:
+  - New `miso_client/api/` package for API layer
+  - New `miso_client/api/types/` package for typed interfaces
+  - Enhanced service layer with API integration
+
 ## [3.2.0] - 2025-12-22
 
 ### Added

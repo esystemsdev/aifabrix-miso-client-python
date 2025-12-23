@@ -8,12 +8,15 @@ Optimized to extract userId from JWT token before API calls for cache optimizati
 
 import logging
 import time
-from typing import Any, Dict, List, Optional, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 from ..models.config import AuthStrategy, PermissionResult
 from ..services.cache import CacheService
 from ..utils.http_client import HttpClient
 from ..utils.jwt_tools import extract_user_id
+
+if TYPE_CHECKING:
+    from ..api import ApiClient
 
 logger = logging.getLogger(__name__)
 
@@ -21,17 +24,21 @@ logger = logging.getLogger(__name__)
 class PermissionService:
     """Permission service for user authorization with caching."""
 
-    def __init__(self, http_client: HttpClient, cache: CacheService):
+    def __init__(
+        self, http_client: HttpClient, cache: CacheService, api_client: Optional["ApiClient"] = None
+    ):
         """
         Initialize permission service.
 
         Args:
-            http_client: HTTP client instance
+            http_client: HTTP client instance (for backward compatibility)
             cache: Cache service instance (handles Redis + in-memory fallback)
+            api_client: Optional API client instance (for typed API calls)
         """
         self.config = http_client.config
         self.http_client = http_client
         self.cache = cache
+        self.api_client = api_client
         self.permission_ttl = self.config.permission_ttl
 
     async def _validate_token_request(
@@ -47,20 +54,35 @@ class PermissionService:
         Returns:
             Validation result dictionary
         """
-        if auth_strategy is not None:
-            result = await self.http_client.authenticated_request(
-                "POST",
-                "/api/v1/auth/validate",
-                token,
-                {"token": token},
-                auth_strategy=auth_strategy,
-            )
-            return result  # type: ignore[no-any-return]
+        if self.api_client:
+            # Use ApiClient for typed API calls
+            response = await self.api_client.auth.validate_token(token, auth_strategy=auth_strategy)
+            # Extract data from typed response
+            return {
+                "success": response.success,
+                "data": {
+                    "authenticated": response.data.authenticated,
+                    "user": response.data.user.model_dump() if response.data.user else None,
+                    "expiresAt": response.data.expiresAt,
+                },
+                "timestamp": response.timestamp,
+            }
         else:
-            result = await self.http_client.authenticated_request(
-                "POST", "/api/v1/auth/validate", token, {"token": token}
-            )
-            return result  # type: ignore[no-any-return]
+            # Fallback to HttpClient for backward compatibility
+            if auth_strategy is not None:
+                result = await self.http_client.authenticated_request(
+                    "POST",
+                    "/api/v1/auth/validate",
+                    token,
+                    {"token": token},
+                    auth_strategy=auth_strategy,
+                )
+                return result  # type: ignore[no-any-return]
+            else:
+                result = await self.http_client.authenticated_request(
+                    "POST", "/api/v1/auth/validate", token, {"token": token}
+                )
+                return result  # type: ignore[no-any-return]
 
     async def get_permissions(
         self, token: str, auth_strategy: Optional[AuthStrategy] = None
@@ -98,17 +120,25 @@ class PermissionService:
                 cache_key = f"permissions:{user_id}"
 
             # Cache miss - fetch from controller
-            if auth_strategy is not None:
-                permission_result = await self.http_client.authenticated_request(
-                    "GET", "/api/v1/auth/permissions", token, auth_strategy=auth_strategy
+            if self.api_client:
+                # Use ApiClient for typed API calls
+                response = await self.api_client.permissions.get_permissions(
+                    token, auth_strategy=auth_strategy
                 )
+                permissions = response.data.permissions or []
             else:
-                permission_result = await self.http_client.authenticated_request(
-                    "GET", "/api/v1/auth/permissions", token
-                )
+                # Fallback to HttpClient for backward compatibility
+                if auth_strategy is not None:
+                    permission_result = await self.http_client.authenticated_request(
+                        "GET", "/api/v1/auth/permissions", token, auth_strategy=auth_strategy
+                    )
+                else:
+                    permission_result = await self.http_client.authenticated_request(
+                        "GET", "/api/v1/auth/permissions", token
+                    )
 
-            permission_data = PermissionResult(**permission_result)
-            permissions = permission_data.permissions or []
+                permission_data = PermissionResult(**permission_result)
+                permissions = permission_data.permissions or []
 
             # Cache the result (CacheService handles Redis + in-memory automatically)
             assert cache_key is not None
@@ -190,15 +220,7 @@ class PermissionService:
         """
         try:
             # Get user info to extract userId
-            if auth_strategy is not None:
-                user_info = await self.http_client.authenticated_request(
-                    "POST", "/api/v1/auth/validate", token, auth_strategy=auth_strategy
-                )
-            else:
-                user_info = await self.http_client.authenticated_request(
-                    "POST", "/api/v1/auth/validate", token
-                )
-
+            user_info = await self._validate_token_request(token, auth_strategy)
             user_id = user_info.get("user", {}).get("id") if user_info else None
             if not user_id:
                 return []
@@ -206,17 +228,28 @@ class PermissionService:
             cache_key = f"permissions:{user_id}"
 
             # Fetch fresh permissions from controller using refresh endpoint
-            if auth_strategy is not None:
-                permission_result = await self.http_client.authenticated_request(
-                    "GET", "/api/v1/auth/permissions/refresh", token, auth_strategy=auth_strategy
+            if self.api_client:
+                # Use ApiClient for typed API calls
+                response = await self.api_client.permissions.refresh_permissions(
+                    token, auth_strategy=auth_strategy
                 )
+                permissions = response.data.permissions or []
             else:
-                permission_result = await self.http_client.authenticated_request(
-                    "GET", "/api/v1/auth/permissions/refresh", token
-                )
+                # Fallback to HttpClient for backward compatibility
+                if auth_strategy is not None:
+                    permission_result = await self.http_client.authenticated_request(
+                        "GET",
+                        "/api/v1/auth/permissions/refresh",
+                        token,
+                        auth_strategy=auth_strategy,
+                    )
+                else:
+                    permission_result = await self.http_client.authenticated_request(
+                        "GET", "/api/v1/auth/permissions/refresh", token
+                    )
 
-            permission_data = PermissionResult(**permission_result)
-            permissions = permission_data.permissions or []
+                permission_data = PermissionResult(**permission_result)
+                permissions = permission_data.permissions or []
 
             # Update cache with fresh data (CacheService handles Redis + in-memory automatically)
             await self.cache.set(

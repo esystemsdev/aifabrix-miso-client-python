@@ -9,6 +9,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from miso_client.api.types.auth_types import (
+    LoginResponse,
+    LoginResponseData,
+    ValidateTokenResponse,
+    ValidateTokenResponseData,
+)
 from miso_client.models.config import PermissionResult, RoleResult, UserInfo
 from miso_client.services.auth import AuthService
 from miso_client.services.logger import LoggerChain, LoggerService
@@ -98,18 +104,164 @@ class TestMisoClient:
             assert token == "env-token-123"
             mock_get.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_logout_clears_all_caches(self, client):
+        """Test that logout clears all caches (roles, permissions, JWT)."""
+        import jwt
+
+        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+
+        with patch.object(client.auth, "logout", new_callable=AsyncMock) as mock_auth_logout:
+            mock_auth_logout.return_value = {
+                "success": True,
+                "message": "Logout successful",
+                "timestamp": "2024-01-01T00:00:00Z",
+            }
+
+            with patch.object(
+                client.roles, "clear_roles_cache", new_callable=AsyncMock
+            ) as mock_clear_roles:
+                with patch.object(
+                    client.permissions, "clear_permissions_cache", new_callable=AsyncMock
+                ) as mock_clear_permissions:
+                    result = await client.logout(token)
+
+                    # Verify logout was called
+                    mock_auth_logout.assert_called_once_with(token)
+
+                    # Verify all caches are cleared
+                    mock_clear_roles.assert_called_once_with(token)
+                    mock_clear_permissions.assert_called_once_with(token)
+
+                    # Verify response is returned
+                    assert result["success"] is True
+
+    @pytest.mark.asyncio
+    async def test_logout_clears_caches_even_on_failure(self, client):
+        """Test that caches are cleared even if logout API call fails."""
+        import jwt
+
+        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+
+        with patch.object(client.auth, "logout", new_callable=AsyncMock) as mock_auth_logout:
+            mock_auth_logout.return_value = {}  # Logout failed
+
+            with patch.object(
+                client.roles, "clear_roles_cache", new_callable=AsyncMock
+            ) as mock_clear_roles:
+                with patch.object(
+                    client.permissions, "clear_permissions_cache", new_callable=AsyncMock
+                ) as mock_clear_permissions:
+                    result = await client.logout(token)
+
+                    # Verify logout was called
+                    mock_auth_logout.assert_called_once_with(token)
+
+                    # Verify caches are still cleared (security best practice)
+                    mock_clear_roles.assert_called_once_with(token)
+                    mock_clear_permissions.assert_called_once_with(token)
+
+                    # Verify response is returned
+                    assert result == {}
+
+    @pytest.mark.asyncio
+    async def test_logout_clears_refresh_data(self, client):
+        """Test that logout clears refresh tokens and callbacks."""
+        import jwt
+
+        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+
+        # Register refresh callback and token
+        async def refresh_callback(token: str) -> str:
+            return "new-token"
+
+        client.register_user_token_refresh_callback("user-123", refresh_callback)
+        client.register_user_refresh_token("user-123", "refresh-token-abc")
+
+        # Verify they're registered
+        assert "user-123" in client.http_client._user_token_refresh._refresh_callbacks
+        assert (
+            client.http_client._user_token_refresh._refresh_tokens["user-123"]
+            == "refresh-token-abc"
+        )
+
+        with patch.object(client.auth, "logout", new_callable=AsyncMock) as mock_auth_logout:
+            mock_auth_logout.return_value = {"success": True}
+
+            with patch.object(client.roles, "clear_roles_cache", new_callable=AsyncMock):
+                with patch.object(
+                    client.permissions, "clear_permissions_cache", new_callable=AsyncMock
+                ):
+                    await client.logout(token)
+
+                    # Verify refresh data is cleared
+                    assert (
+                        "user-123" not in client.http_client._user_token_refresh._refresh_callbacks
+                    )
+                    assert "user-123" not in client.http_client._user_token_refresh._refresh_tokens
+
+    def test_register_user_token_refresh_callback(self, client):
+        """Test registering refresh callback."""
+
+        async def refresh_callback(token: str) -> str:
+            return "new-token"
+
+        client.register_user_token_refresh_callback("user-123", refresh_callback)
+
+        assert "user-123" in client.http_client._user_token_refresh._refresh_callbacks
+        assert (
+            client.http_client._user_token_refresh._refresh_callbacks["user-123"]
+            == refresh_callback
+        )
+
+    def test_register_user_refresh_token(self, client):
+        """Test registering refresh token."""
+        client.register_user_refresh_token("user-123", "refresh-token-abc")
+
+        assert (
+            client.http_client._user_token_refresh._refresh_tokens["user-123"]
+            == "refresh-token-abc"
+        )
+
+    def test_clear_user_token_refresh(self, client):
+        """Test clearing refresh data for a user."""
+
+        # Register callback and token
+        async def refresh_callback(token: str) -> str:
+            return "new-token"
+
+        client.register_user_token_refresh_callback("user-123", refresh_callback)
+        client.register_user_refresh_token("user-123", "refresh-token-abc")
+
+        # Verify they're registered
+        assert "user-123" in client.http_client._user_token_refresh._refresh_callbacks
+        assert "user-123" in client.http_client._user_token_refresh._refresh_tokens
+
+        # Clear refresh data
+        client.clear_user_token_refresh("user-123")
+
+        # Verify they're cleared
+        assert "user-123" not in client.http_client._user_token_refresh._refresh_callbacks
+        assert "user-123" not in client.http_client._user_token_refresh._refresh_tokens
+
+    def test_auth_service_set_on_refresh_manager(self, client):
+        """Test that auth_service is set on refresh manager after initialization."""
+        assert client.http_client._user_token_refresh._auth_service == client.auth
+
 
 class TestAuthService:
     """Test cases for AuthService."""
 
     @pytest.fixture
-    def auth_service(self, mock_http_client, mock_redis):
+    def auth_service(self, mock_http_client, mock_redis, mock_cache, mock_api_client):
         """Test AuthService instance."""
-        return AuthService(mock_http_client, mock_redis)
+        return AuthService(mock_http_client, mock_redis, mock_cache, mock_api_client)
 
     @pytest.mark.asyncio
     async def test_validate_token_success(self, auth_service):
         """Test successful token validation."""
+        # Disable api_client to use HTTP client fallback
+        auth_service.api_client = None
         with patch.object(
             auth_service.http_client, "authenticated_request", new_callable=AsyncMock
         ) as mock_request:
@@ -121,69 +273,89 @@ class TestAuthService:
             result = await auth_service.validate_token("valid-token")
             assert result is True
             mock_request.assert_called_once_with(
-                "POST", "/api/v1/auth/validate", "valid-token", {"token": "valid-token"}
+                "POST",
+                "/api/v1/auth/validate",
+                "valid-token",
+                {"token": "valid-token"},
             )
 
     @pytest.mark.asyncio
     async def test_validate_token_failure(self, auth_service):
         """Test failed token validation."""
-        with patch.object(
-            auth_service.http_client, "authenticated_request", new_callable=AsyncMock
-        ) as mock_request:
-            mock_request.return_value = {"authenticated": False, "error": "Invalid token"}
+        validate_response = ValidateTokenResponse(
+            success=True,
+            data=ValidateTokenResponseData(authenticated=False, user=None),
+            timestamp="2024-01-01T00:00:00Z",
+        )
+        auth_service.api_client.auth.validate_token = AsyncMock(return_value=validate_response)
 
-            result = await auth_service.validate_token("invalid-token")
-            assert result is False
+        result = await auth_service.validate_token("invalid-token")
+        assert result is False
 
     @pytest.mark.asyncio
     async def test_validate_token_exception(self, auth_service):
         """Test token validation with exception."""
-        with patch.object(
-            auth_service.http_client, "authenticated_request", new_callable=AsyncMock
-        ) as mock_request:
-            mock_request.side_effect = Exception("Network error")
+        auth_service.api_client.auth.validate_token = AsyncMock(
+            side_effect=Exception("Network error")
+        )
 
-            result = await auth_service.validate_token("token")
-            assert result is False
+        result = await auth_service.validate_token("token")
+        assert result is False
 
     @pytest.mark.asyncio
     async def test_get_user_success(self, auth_service):
         """Test successful user retrieval."""
         user_info = UserInfo(id="123", username="testuser", email="test@example.com")
-        with patch.object(
-            auth_service.http_client, "authenticated_request", new_callable=AsyncMock
-        ) as mock_request:
-            mock_request.return_value = {"authenticated": True, "user": user_info.model_dump()}
+        validate_response = ValidateTokenResponse(
+            success=True,
+            data=ValidateTokenResponseData(authenticated=True, user=user_info),
+            timestamp="2024-01-01T00:00:00Z",
+        )
+        auth_service.api_client.auth.validate_token = AsyncMock(return_value=validate_response)
 
-            result = await auth_service.get_user("valid-token")
-            assert result is not None
-            assert result.id == "123"
-            assert result.username == "testuser"
+        result = await auth_service.get_user("valid-token")
+        assert result is not None
+        assert result.id == "123"
+        assert result.username == "testuser"
 
     @pytest.mark.asyncio
     async def test_get_user_failure(self, auth_service):
         """Test failed user retrieval."""
-        with patch.object(
-            auth_service.http_client, "authenticated_request", new_callable=AsyncMock
-        ) as mock_request:
-            mock_request.return_value = {"authenticated": False, "error": "Invalid token"}
+        validate_response = ValidateTokenResponse(
+            success=True,
+            data=ValidateTokenResponseData(authenticated=False, user=None),
+            timestamp="2024-01-01T00:00:00Z",
+        )
+        auth_service.api_client.auth.validate_token = AsyncMock(return_value=validate_response)
 
-            result = await auth_service.get_user("invalid-token")
-            assert result is None
+        result = await auth_service.get_user("invalid-token")
+        assert result is None
 
     @pytest.mark.asyncio
     async def test_get_user_info(self, auth_service):
         """Test getting user info from /api/auth/user endpoint."""
-        user_info = UserInfo(id="123", username="testuser")
-        with patch.object(
-            auth_service.http_client, "authenticated_request", new_callable=AsyncMock
-        ) as mock_request:
-            mock_request.return_value = user_info.model_dump()
+        from miso_client.api.types.auth_types import GetUserResponse, GetUserResponseData
 
-            result = await auth_service.get_user_info("valid-token")
-            assert result is not None
-            assert result.id == "123"
-            mock_request.assert_called_once_with("GET", "/api/v1/auth/user", "valid-token")
+        user_info = UserInfo(id="123", username="testuser")
+        get_user_response = GetUserResponse(
+            success=True,
+            data=GetUserResponseData(user=user_info, authenticated=True),
+            timestamp="2024-01-01T00:00:00Z",
+        )
+        auth_service.api_client.auth.get_user = AsyncMock(return_value=get_user_response)
+        get_user_response = GetUserResponse(
+            success=True,
+            data=GetUserResponseData(user=user_info, authenticated=True),
+            timestamp="2024-01-01T00:00:00Z",
+        )
+        auth_service.api_client.auth.get_user = AsyncMock(return_value=get_user_response)
+
+        result = await auth_service.get_user_info("valid-token")
+        assert result is not None
+        assert result.id == "123"
+        auth_service.api_client.auth.get_user.assert_called_once_with(
+            "valid-token", auth_strategy=None
+        )
 
     @pytest.mark.asyncio
     async def test_get_environment_token(self, auth_service):
@@ -212,92 +384,263 @@ class TestAuthService:
     @pytest.mark.asyncio
     async def test_login_success(self, auth_service):
         """Test successful login."""
-        with patch.object(auth_service.http_client, "get", new_callable=AsyncMock) as mock_get:
-            mock_get.return_value = {
-                "success": True,
-                "data": {
-                    "loginUrl": "https://keycloak.example.com/auth?redirect_uri=...",
-                    "state": "abc123",
-                },
-                "timestamp": "2024-01-01T00:00:00Z",
-            }
+        login_response = LoginResponse(
+            success=True,
+            data=LoginResponseData(loginUrl="https://keycloak.example.com/auth?redirect_uri=..."),
+            timestamp="2024-01-01T00:00:00Z",
+        )
+        auth_service.api_client.auth.login = AsyncMock(return_value=login_response)
 
-            result = await auth_service.login(
-                redirect="http://localhost:3000/auth/callback", state="abc123"
-            )
+        result = await auth_service.login(
+            redirect="http://localhost:3000/auth/callback", state="abc123"
+        )
 
-            assert result["success"] is True
-            assert "loginUrl" in result["data"]
-            assert result["data"]["state"] == "abc123"
-            mock_get.assert_called_once_with(
-                "/api/v1/auth/login",
-                params={"redirect": "http://localhost:3000/auth/callback", "state": "abc123"},
-            )
+        assert result["success"] is True
+        assert "loginUrl" in result["data"]
+        assert result["data"]["state"] == "abc123"
+        auth_service.api_client.auth.login.assert_called_once_with(
+            "http://localhost:3000/auth/callback", "abc123"
+        )
 
     @pytest.mark.asyncio
     async def test_login_without_state(self, auth_service):
         """Test login without state parameter."""
-        with patch.object(auth_service.http_client, "get", new_callable=AsyncMock) as mock_get:
-            mock_get.return_value = {
-                "success": True,
-                "data": {
-                    "loginUrl": "https://keycloak.example.com/auth?redirect_uri=...",
-                    "state": "auto-generated-state",
-                },
-                "timestamp": "2024-01-01T00:00:00Z",
-            }
+        login_response = LoginResponse(
+            success=True,
+            data=LoginResponseData(loginUrl="https://keycloak.example.com/auth?redirect_uri=..."),
+            timestamp="2024-01-01T00:00:00Z",
+        )
+        auth_service.api_client.auth.login = AsyncMock(return_value=login_response)
 
-            result = await auth_service.login(redirect="http://localhost:3000/auth/callback")
+        result = await auth_service.login(redirect="http://localhost:3000/auth/callback")
 
-            assert result["success"] is True
-            assert "loginUrl" in result["data"]
-            mock_get.assert_called_once_with(
-                "/api/v1/auth/login", params={"redirect": "http://localhost:3000/auth/callback"}
-            )
+        assert result["success"] is True
+        assert "loginUrl" in result["data"]
+        auth_service.api_client.auth.login.assert_called_once_with(
+            "http://localhost:3000/auth/callback", None
+        )
 
     @pytest.mark.asyncio
     async def test_login_exception(self, auth_service):
         """Test login with exception - should return empty dict per service method pattern."""
-        with patch.object(auth_service.http_client, "get", new_callable=AsyncMock) as mock_get:
-            mock_get.side_effect = ValueError("Network error")
+        auth_service.api_client.auth.login = AsyncMock(side_effect=ValueError("Network error"))
 
-            result = await auth_service.login(redirect="http://localhost:3000/auth/callback")
+        result = await auth_service.login(redirect="http://localhost:3000/auth/callback")
 
-            assert result == {}
-            mock_get.assert_called_once()
+        assert result == {}
+        auth_service.api_client.auth.login.assert_called_once_with(
+            "http://localhost:3000/auth/callback", None
+        )
 
     @pytest.mark.asyncio
     async def test_logout_success(self, auth_service):
         """Test successful logout."""
-        with patch.object(
-            auth_service.http_client, "authenticated_request", new_callable=AsyncMock
-        ) as mock_request:
-            mock_request.return_value = {
-                "success": True,
-                "message": "Logout successful",
-                "timestamp": "2024-01-01T00:00:00Z",
-            }
+        from miso_client.api.types.auth_types import LogoutResponse
 
+        logout_response = LogoutResponse(
+            success=True,
+            message="Logout successful",
+            timestamp="2024-01-01T00:00:00Z",
+        )
+        auth_service.api_client.auth.logout = AsyncMock(return_value=logout_response)
+
+        with patch.object(auth_service.http_client, "clear_user_token") as mock_clear_token:
             result = await auth_service.logout(token="jwt-token-123")
 
             assert result["success"] is True
             assert result["message"] == "Logout successful"
-            mock_request.assert_called_once_with(
-                "POST", "/api/v1/auth/logout", "jwt-token-123", {"token": "jwt-token-123"}
-            )
+            auth_service.api_client.auth.logout.assert_called_once_with("jwt-token-123")
+            # Verify JWT cache is cleared
+            mock_clear_token.assert_called_once_with("jwt-token-123")
 
     @pytest.mark.asyncio
     async def test_logout_exception_re_raising(self, auth_service):
         """Test logout with exception - should return empty dict per service method pattern."""
-        with patch.object(
-            auth_service.http_client, "authenticated_request", new_callable=AsyncMock
-        ) as mock_request:
-            mock_request.side_effect = ValueError("Invalid request")
+        auth_service.api_client.auth.logout = AsyncMock(side_effect=ValueError("Invalid request"))
 
-            # Service methods should not raise uncaught errors - they should return empty dict
-            result = await auth_service.logout(token="jwt-token-123")
-            assert result == {}
-            mock_request.assert_called_once()
+        # Service methods should not raise uncaught errors - they should return empty dict
+        result = await auth_service.logout(token="jwt-token-123")
+        assert result == {}
+        auth_service.api_client.auth.logout.assert_called_once_with("jwt-token-123")
+
+    @pytest.mark.asyncio
+    async def test_validate_token_cache_hit(self, auth_service, mock_cache):
+        """Test token validation cache hit - should return cached result without HTTP request."""
+        cached_result = {
+            "success": True,
+            "data": {"authenticated": True, "user": {"id": "123", "username": "testuser"}},
+            "timestamp": "2024-01-01T00:00:00Z",
+        }
+        mock_cache.get = AsyncMock(return_value=cached_result)
+
+        result = await auth_service._validate_token_request("valid-token")
+
+        assert result == cached_result
+        mock_cache.get.assert_called_once()
+        # Should not make HTTP request on cache hit
+        auth_service.api_client.auth.validate_token.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_validate_token_cache_miss(self, auth_service, mock_cache):
+        """Test token validation cache miss - should make HTTP request and cache result."""
+        mock_cache.get = AsyncMock(return_value=None)
+        validate_response = ValidateTokenResponse(
+            success=True,
+            data=ValidateTokenResponseData(
+                authenticated=True,
+                user=UserInfo(id="123", username="testuser"),
+            ),
+            timestamp="2024-01-01T00:00:00Z",
+        )
+        auth_service.api_client.auth.validate_token = AsyncMock(return_value=validate_response)
+
+        result = await auth_service._validate_token_request("valid-token")
+
+        assert result["data"]["authenticated"] is True
+        mock_cache.get.assert_called_once()
+        auth_service.api_client.auth.validate_token.assert_called_once()
+        # Should cache successful validation
+        mock_cache.set.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_validate_token_cache_failed_validation(self, auth_service, mock_cache):
+        """Test that failed validations are not cached."""
+        mock_cache.get = AsyncMock(return_value=None)
+        validate_response = ValidateTokenResponse(
+            success=True,
+            data=ValidateTokenResponseData(authenticated=False, user=None),
+            timestamp="2024-01-01T00:00:00Z",
+        )
+        auth_service.api_client.auth.validate_token = AsyncMock(return_value=validate_response)
+
+        result = await auth_service._validate_token_request("invalid-token")
+
+        assert result["data"]["authenticated"] is False
+        # Should not cache failed validations
+        mock_cache.set.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_logout_clears_validation_cache(self, auth_service, mock_cache):
+        """Test that logout clears validation cache entry."""
+        from miso_client.api.types.auth_types import LogoutResponse
+
+        logout_response = LogoutResponse(
+            success=True,
+            message="Logout successful",
+            timestamp="2024-01-01T00:00:00Z",
+        )
+        auth_service.api_client.auth.logout = AsyncMock(return_value=logout_response)
+
+        with patch.object(auth_service.http_client, "clear_user_token"):
+            await auth_service.logout(token="jwt-token-123")
+
+        # Should clear validation cache
+        mock_cache.delete.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_validate_token_no_cache_service(self, auth_service):
+        """Test token validation when cache service is not available."""
+        auth_service.cache = None
+        validate_response = ValidateTokenResponse(
+            success=True,
+            data=ValidateTokenResponseData(
+                authenticated=True,
+                user=UserInfo(id="123", username="testuser"),
+            ),
+            timestamp="2024-01-01T00:00:00Z",
+        )
+        auth_service.api_client.auth.validate_token = AsyncMock(return_value=validate_response)
+
+        result = await auth_service._validate_token_request("valid-token")
+
+        assert result["data"]["authenticated"] is True
+        auth_service.api_client.auth.validate_token.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_cache_ttl_from_token_with_expiration(self, auth_service):
+        """Test smart TTL calculation from token expiration."""
+        import time
+
+        with patch("miso_client.services.auth.decode_token") as mock_decode:
+            # Token expires in 300 seconds (5 minutes)
+            future_exp = int(time.time()) + 300
+            mock_decode.return_value = {"exp": future_exp}
+
+            ttl = auth_service._get_cache_ttl_from_token("token-with-exp")
+
+            # Should be token_exp - now - 30s buffer, clamped between 60s and validation_ttl
+            assert 60 <= ttl <= auth_service.validation_ttl
+            assert ttl <= 270  # Should be less than 300 - 30 buffer
+
+    @pytest.mark.asyncio
+    async def test_get_cache_ttl_from_token_no_expiration(self, auth_service):
+        """Test TTL calculation when token has no expiration claim."""
+        with patch("miso_client.services.auth.decode_token") as mock_decode:
+            mock_decode.return_value = {"sub": "123"}  # No exp claim
+
+            ttl = auth_service._get_cache_ttl_from_token("token-no-exp")
+
+            # Should use default validation_ttl
+            assert ttl == auth_service.validation_ttl
+
+    @pytest.mark.asyncio
+    async def test_get_cache_ttl_from_token_malformed(self, auth_service):
+        """Test TTL calculation with malformed token."""
+        with patch("miso_client.services.auth.decode_token") as mock_decode:
+            mock_decode.return_value = None  # Decode failed
+
+            ttl = auth_service._get_cache_ttl_from_token("malformed-token")
+
+            # Should use default validation_ttl
+            assert ttl == auth_service.validation_ttl
+
+    def test_get_token_cache_key(self, auth_service):
+        """Test cache key generation using SHA-256 hash."""
+        token = "test-token-123"
+        cache_key = auth_service._get_token_cache_key(token)
+
+        assert cache_key.startswith("token_validation:")
+        assert len(cache_key) > len("token_validation:")
+        # Should be deterministic
+        assert auth_service._get_token_cache_key(token) == cache_key
+        # Different tokens should have different keys
+        assert auth_service._get_token_cache_key("different-token") != cache_key
+
+    @pytest.mark.asyncio
+    async def test_refresh_user_token_success(self, auth_service):
+        """Test successful user token refresh."""
+        from miso_client.api.types.auth_types import DeviceCodeTokenResponse, RefreshTokenResponse
+
+        refresh_response = RefreshTokenResponse(
+            success=True,
+            data=DeviceCodeTokenResponse(
+                accessToken="new-access-token",
+                refreshToken="new-refresh-token",
+                expiresIn=3600,
+            ),
+            timestamp="2024-01-01T00:00:00Z",
+        )
+        auth_service.api_client.auth.refresh_token = AsyncMock(return_value=refresh_response)
+
+        result = await auth_service.refresh_user_token("refresh-token-abc")
+
+        assert result is not None
+        assert result["data"]["token"] == "new-access-token"
+        assert result["data"]["refreshToken"] == "new-refresh-token"
+        assert result["data"]["expiresIn"] == 3600
+        auth_service.api_client.auth.refresh_token.assert_called_once_with("refresh-token-abc")
+
+    @pytest.mark.asyncio
+    async def test_refresh_user_token_failure(self, auth_service):
+        """Test refresh user token failure."""
+        auth_service.api_client.auth.refresh_token = AsyncMock(
+            side_effect=Exception("Refresh failed")
+        )
+
+        result = await auth_service.refresh_user_token("refresh-token-abc")
+
+        assert result is None
+        auth_service.api_client.auth.refresh_token.assert_called_once_with("refresh-token-abc")
 
     @pytest.mark.asyncio
     async def test_validate_token_with_api_key_match(self, mock_http_client, mock_redis):
@@ -413,11 +756,15 @@ class TestAuthService:
 
         auth_service = AuthService(mock_http_client, mock_redis)
 
+        # Disable api_client to use HTTP client fallback
+        auth_service.api_client = None
         # Token doesn't match API_KEY - should fall back to OAuth2
         user_info = UserInfo(id="123", username="testuser")
         mock_http_client.authenticated_request.return_value = {
-            "authenticated": True,
-            "user": user_info.model_dump(),
+            "data": {
+                "authenticated": True,
+                "user": user_info.model_dump(),
+            }
         }
 
         result = await auth_service.get_user("different-token")
@@ -426,7 +773,10 @@ class TestAuthService:
         assert result.id == "123"
         # Should call authenticated_request for OAuth2 validation
         mock_http_client.authenticated_request.assert_called_once_with(
-            "POST", "/api/v1/auth/validate", "different-token", {"token": "different-token"}
+            "POST",
+            "/api/v1/auth/validate",
+            "different-token",
+            {"token": "different-token"},
         )
 
     @pytest.mark.asyncio
@@ -610,6 +960,74 @@ class TestRoleService:
                 assert "user" in roles
                 # Should call refresh endpoint
                 assert "/api/v1/auth/roles/refresh" in str(mock_request.call_args_list[1])
+
+    @pytest.mark.asyncio
+    async def test_clear_roles_cache(self, role_service):
+        """Test clearing roles cache."""
+        with patch.object(
+            role_service.http_client, "authenticated_request", new_callable=AsyncMock
+        ) as mock_request:
+            mock_request.return_value = {"user": {"id": "user-123"}}
+
+            with patch.object(role_service.cache, "delete", new_callable=AsyncMock) as mock_delete:
+                await role_service.clear_roles_cache("token")
+                mock_delete.assert_called_once()
+                assert mock_delete.call_args[0][0] == "roles:user-123"
+
+    @pytest.mark.asyncio
+    async def test_clear_roles_cache_with_jwt_userid(self, role_service):
+        """Test clearing roles cache when userId is in JWT token."""
+        import jwt
+
+        token = jwt.encode({"sub": "user-456"}, "secret", algorithm="HS256")
+
+        with patch.object(role_service.cache, "delete", new_callable=AsyncMock) as mock_delete:
+            await role_service.clear_roles_cache(token)
+            mock_delete.assert_called_once()
+            assert mock_delete.call_args[0][0] == "roles:user-456"
+
+    @pytest.mark.asyncio
+    async def test_clear_roles_cache_validate_fails(self, role_service):
+        """Test clear_roles_cache when validate fails."""
+        with patch.object(
+            role_service.http_client, "authenticated_request", new_callable=AsyncMock
+        ) as mock_request:
+            mock_request.side_effect = Exception("Validate failed")
+
+            # Should silently fail
+            await role_service.clear_roles_cache("token")
+
+            # Cache delete should not be called
+            with patch.object(role_service.cache, "delete", new_callable=AsyncMock) as mock_delete:
+                await role_service.clear_roles_cache("token")
+                mock_delete.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_clear_roles_cache_user_id_none(self, role_service):
+        """Test clear_roles_cache when user_id is None."""
+        with patch.object(
+            role_service.http_client, "authenticated_request", new_callable=AsyncMock
+        ) as mock_request:
+            mock_request.return_value = {"user": {}}  # No id field
+
+            # Should silently fail
+            await role_service.clear_roles_cache("token")
+
+            # Cache delete should not be called
+            with patch.object(role_service.cache, "delete", new_callable=AsyncMock) as mock_delete:
+                await role_service.clear_roles_cache("token")
+                mock_delete.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_clear_roles_cache_exception_handling(self, role_service):
+        """Test clear_roles_cache exception handling (should silently fail)."""
+        with patch.object(
+            role_service.http_client, "authenticated_request", new_callable=AsyncMock
+        ) as mock_request:
+            mock_request.side_effect = Exception("Unexpected error")
+
+            # Should not raise exception
+            await role_service.clear_roles_cache("token")
 
 
 class TestPermissionService:
@@ -1005,115 +1423,6 @@ class TestLoggerService:
         logger_service.set_masking(True)
         assert logger_service.mask_sensitive_data is True
 
-    def test_start_performance_tracking_with_psutil(self, logger_service):
-        """Test starting performance tracking with psutil available."""
-        # Mock psutil module by patching the import
-        import sys
-
-        mock_psutil = MagicMock()
-        mock_process = MagicMock()
-        mock_memory_info = MagicMock()
-        mock_memory_info.rss = 1000000
-        mock_memory_info.available = 500000
-        mock_process.memory_info.return_value = mock_memory_info
-        mock_psutil.Process.return_value = mock_process
-
-        with patch.dict(sys.modules, {"psutil": mock_psutil}):
-            logger_service.start_performance_tracking("op-123")
-
-            assert "op-123" in logger_service.performance_metrics
-            metrics = logger_service.performance_metrics["op-123"]
-            assert "startTime" in metrics
-            assert "memoryUsage" in metrics
-            assert metrics["memoryUsage"]["rss"] == 1000000
-
-    def test_start_performance_tracking_without_psutil(self, logger_service):
-        """Test starting performance tracking without psutil."""
-        with patch("builtins.__import__", side_effect=ImportError("No module named psutil")):
-            # Force ImportError by making psutil import fail
-            logger_service.start_performance_tracking("op-456")
-
-            assert "op-456" in logger_service.performance_metrics
-            metrics = logger_service.performance_metrics["op-456"]
-            assert "startTime" in metrics
-            assert metrics["memoryUsage"] is None
-
-    def test_end_performance_tracking_not_found(self, logger_service):
-        """Test ending performance tracking when operation not found."""
-        result = logger_service.end_performance_tracking("nonexistent")
-
-        assert result is None
-
-    def test_end_performance_tracking_with_psutil(self, logger_service):
-        """Test ending performance tracking with psutil available."""
-        import sys
-        import time
-
-        # Mock psutil module
-        mock_psutil = MagicMock()
-        mock_process = MagicMock()
-        mock_memory_info = MagicMock()
-        mock_memory_info.rss = 2000000
-        mock_memory_info.available = 1000000
-        mock_process.memory_info.return_value = mock_memory_info
-        mock_psutil.Process.return_value = mock_process
-
-        with patch.dict(sys.modules, {"psutil": mock_psutil}):
-            # Start tracking first
-            logger_service.start_performance_tracking("op-789")
-            time.sleep(0.001)  # Small delay to ensure different timestamps
-
-            # End tracking
-            result = logger_service.end_performance_tracking("op-789")
-
-            assert result is not None
-            assert "startTime" in result
-            assert "endTime" in result
-            assert "duration" in result
-            assert result["duration"] > 0
-            assert "memoryUsage" in result
-            assert result["memoryUsage"]["rss"] == 2000000
-            # Operation should be removed
-            assert "op-789" not in logger_service.performance_metrics
-
-    def test_end_performance_tracking_without_psutil(self, logger_service):
-        """Test ending performance tracking without psutil."""
-        # Start tracking first
-        logger_service.start_performance_tracking("op-no-psutil")
-
-        # Mock psutil import failure
-        with patch("builtins.__import__", side_effect=ImportError("No module named psutil")):
-            result = logger_service.end_performance_tracking("op-no-psutil")
-
-            assert result is not None
-            assert "startTime" in result
-            assert "endTime" in result
-            assert "duration" in result
-            # memoryUsage should remain None or unchanged
-            assert "op-no-psutil" not in logger_service.performance_metrics
-
-    def test_performance_tracking_lifecycle(self, logger_service):
-        """Test full performance tracking lifecycle (start → end)."""
-        # Start tracking
-        logger_service.start_performance_tracking("lifecycle-op")
-        assert "lifecycle-op" in logger_service.performance_metrics
-
-        import time
-
-        time.sleep(0.001)
-
-        # End tracking
-        result = logger_service.end_performance_tracking("lifecycle-op")
-
-        assert result is not None
-        assert "startTime" in result
-        assert "endTime" in result
-        assert result["endTime"] > result["startTime"]
-        assert "duration" in result
-        assert result["duration"] > 0
-        # Should be removed after end
-        assert "lifecycle-op" not in logger_service.performance_metrics
-
     def test_extract_jwt_context_with_roles_list(self, logger_service):
         """Test JWT context extraction with roles as list."""
         with patch("miso_client.services.logger.decode_token") as mock_decode:
@@ -1320,58 +1629,6 @@ class TestLoggerService:
             mock_request.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_log_with_performance_metrics_enabled(self, logger_service):
-        """Test logging with performance metrics enabled."""
-        logger_service.redis.is_connected.return_value = False
-
-        from miso_client.models.config import ClientLoggingOptions
-
-        options = ClientLoggingOptions(performanceMetrics=True)
-
-        with patch.object(
-            logger_service.internal_http_client, "request", new_callable=AsyncMock
-        ) as mock_request:
-            import sys
-
-            mock_psutil = MagicMock()
-            mock_process = MagicMock()
-            mock_memory_info = MagicMock()
-            mock_memory_info.rss = 1000000
-            mock_memory_info.available = 500000
-            mock_process.memory_info.return_value = mock_memory_info
-            mock_psutil.Process.return_value = mock_process
-            mock_psutil.boot_time = MagicMock(return_value=1234567890)
-
-            with patch.dict(sys.modules, {"psutil": mock_psutil}):
-                await logger_service.info("Test message", {"key": "value"}, options=options)
-
-                mock_request.assert_called_once()
-                call_args = mock_request.call_args
-                log_data = call_args[1]["data"] if "data" in call_args[1] else call_args[0][2]
-
-                assert "context" in log_data
-                assert "performance" in log_data["context"]
-                assert "memoryUsage" in log_data["context"]["performance"]
-
-    @pytest.mark.asyncio
-    async def test_log_with_performance_metrics_psutil_unavailable(self, logger_service):
-        """Test logging with performance metrics when psutil is unavailable."""
-        logger_service.redis.is_connected.return_value = False
-
-        from miso_client.models.config import ClientLoggingOptions
-
-        options = ClientLoggingOptions(performanceMetrics=True)
-
-        with patch.object(
-            logger_service.internal_http_client, "request", new_callable=AsyncMock
-        ) as mock_request:
-            with patch("builtins.__import__", side_effect=ImportError("No module named psutil")):
-                await logger_service.info("Test message", {"key": "value"}, options=options)
-
-                mock_request.assert_called_once()
-                # Should still log without performance metrics
-
-    @pytest.mark.asyncio
     async def test_log_with_custom_correlation_id(self, logger_service):
         """Test logging with custom correlation ID in options."""
         logger_service.redis.is_connected.return_value = False
@@ -1417,6 +1674,131 @@ class TestLoggerService:
 
                 assert log_data["userId"] == "user-123"
 
+    @pytest.mark.asyncio
+    async def test_event_emission_mode_with_listeners(self, logger_service):
+        """Test event emission mode when listeners are registered."""
+        logger_service.config.emit_events = True
+        logger_service.redis.is_connected.return_value = True
+
+        # Track events
+        events_received = []
+
+        def sync_handler(log_entry):
+            events_received.append(log_entry)
+
+        async def async_handler(log_entry):
+            events_received.append(log_entry)
+
+        # Register listeners
+        logger_service.on(sync_handler)
+        logger_service.on(async_handler)
+
+        # Log should emit events, not send via Redis/HTTP
+        with patch.object(logger_service.redis, "rpush", new_callable=AsyncMock) as mock_rpush:
+            with patch.object(
+                logger_service.internal_http_client, "request", new_callable=AsyncMock
+            ) as mock_request:
+                await logger_service.info("Test message", {"key": "value"})
+
+                # Events should be emitted
+                assert len(events_received) == 2
+                assert events_received[0].message == "Test message"
+                assert events_received[1].message == "Test message"
+
+                # Should NOT send via Redis or HTTP
+                mock_rpush.assert_not_called()
+                mock_request.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_event_emission_mode_without_listeners(self, logger_service):
+        """Test event emission mode without listeners falls back to HTTP/Redis."""
+        logger_service.config.emit_events = True
+        logger_service.redis.is_connected.return_value = False
+
+        # No listeners registered, should fall back to HTTP
+        with patch.object(
+            logger_service.internal_http_client, "request", new_callable=AsyncMock
+        ) as mock_request:
+            await logger_service.info("Test message", {"key": "value"})
+
+            # Should fall back to HTTP when no listeners
+            mock_request.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_event_emission_mode_disabled(self, logger_service):
+        """Test that HTTP/Redis is used when emit_events=False."""
+        logger_service.config.emit_events = False
+        logger_service.redis.is_connected.return_value = False
+
+        events_received = []
+
+        def handler(log_entry):
+            events_received.append(log_entry)
+
+        logger_service.on(handler)
+
+        # Even with listeners, should use HTTP when emit_events=False
+        with patch.object(
+            logger_service.internal_http_client, "request", new_callable=AsyncMock
+        ) as mock_request:
+            await logger_service.info("Test message", {"key": "value"})
+
+            # Should use HTTP, not emit events
+            assert len(events_received) == 0
+            mock_request.assert_called_once()
+
+    def test_event_listener_registration(self, logger_service):
+        """Test event listener registration and unregistration."""
+        events_received = []
+
+        def handler1(log_entry):
+            events_received.append(("handler1", log_entry))
+
+        def handler2(log_entry):
+            events_received.append(("handler2", log_entry))
+
+        # Register listeners
+        logger_service.on(handler1)
+        logger_service.on(handler2)
+
+        assert len(logger_service._event_listeners) == 2
+
+        # Unregister one
+        logger_service.off(handler1)
+
+        assert len(logger_service._event_listeners) == 1
+        assert logger_service._event_listeners[0] == handler2
+
+    @pytest.mark.asyncio
+    async def test_event_listener_error_handling(self, logger_service):
+        """Test that listener errors don't break logging."""
+        logger_service.config.emit_events = True
+        logger_service.redis.is_connected.return_value = False
+
+        events_received = []
+
+        def failing_handler(log_entry):
+            raise ValueError("Handler error")
+
+        def working_handler(log_entry):
+            events_received.append(log_entry)
+
+        logger_service.on(failing_handler)
+        logger_service.on(working_handler)
+
+        # Should not raise exception, working handler should still receive event
+        with patch.object(
+            logger_service.internal_http_client, "request", new_callable=AsyncMock
+        ) as mock_request:
+            await logger_service.info("Test message")
+
+            # Working handler should receive event
+            assert len(events_received) == 1
+            assert events_received[0].message == "Test message"
+
+            # Should not fall back to HTTP when listeners exist (even if one fails)
+            mock_request.assert_not_called()
+
 
 class TestLoggerChain:
     """Test cases for LoggerChain."""
@@ -1444,13 +1826,6 @@ class TestLoggerChain:
 
         assert isinstance(chain, LoggerChain)
         assert chain.options.token == "test-token"
-
-    def test_with_performance(self, logger_service):
-        """Test with_performance chain method."""
-        chain = logger_service.with_performance()
-
-        assert isinstance(chain, LoggerChain)
-        assert chain.options.performanceMetrics is True
 
     def test_without_masking(self, logger_service):
         """Test without_masking chain method."""

@@ -4,7 +4,12 @@ Unit tests for JWT tools.
 
 import jwt
 
-from miso_client.utils.jwt_tools import decode_token, extract_session_id, extract_user_id
+from miso_client.utils.jwt_tools import (
+    JwtTokenCache,
+    decode_token,
+    extract_session_id,
+    extract_user_id,
+)
 
 
 class TestJwtTools:
@@ -125,3 +130,61 @@ class TestJwtTools:
         session_id = extract_session_id("invalid.token")
 
         assert session_id is None
+
+
+class TestJwtTokenCache:
+    """Test cases for JwtTokenCache."""
+
+    def test_clear_token_existing(self):
+        """Test clearing existing token from cache."""
+        cache = JwtTokenCache()
+        payload = {"sub": "user-123"}
+        token = jwt.encode(payload, "secret", algorithm="HS256")
+
+        # Add token to cache by decoding it
+        cache.get_decoded_token(token)
+
+        # Verify token is in cache
+        assert token in cache._cache
+
+        # Clear token
+        cache.clear_token(token)
+
+        # Verify token is removed from cache
+        assert token not in cache._cache
+
+    def test_clear_token_non_existent(self):
+        """Test clearing non-existent token (idempotent operation)."""
+        cache = JwtTokenCache()
+        payload = {"sub": "user-123"}
+        token = jwt.encode(payload, "secret", algorithm="HS256")
+
+        # Token not in cache
+        assert token not in cache._cache
+
+        # Clear token (should not raise exception)
+        cache.clear_token(token)
+
+        # Verify token still not in cache
+        assert token not in cache._cache
+
+    def test_clear_token_reduces_cache_size(self):
+        """Test that clearing token reduces cache size."""
+        cache = JwtTokenCache()
+        token1 = jwt.encode({"sub": "user-1"}, "secret", algorithm="HS256")
+        token2 = jwt.encode({"sub": "user-2"}, "secret", algorithm="HS256")
+
+        # Add tokens to cache
+        cache.get_decoded_token(token1)
+        cache.get_decoded_token(token2)
+
+        # Verify both tokens are in cache
+        assert len(cache._cache) == 2
+
+        # Clear one token
+        cache.clear_token(token1)
+
+        # Verify cache size reduced
+        assert len(cache._cache) == 1
+        assert token1 not in cache._cache
+        assert token2 in cache._cache

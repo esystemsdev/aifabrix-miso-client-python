@@ -175,3 +175,13 @@ class JwtTokenCache:
             pass
 
         return None
+
+    def clear_token(self, token: str) -> None:
+        """
+        Clear a specific token from cache.
+
+        Args:
+            token: JWT token string to remove from cache
+        """
+        if token in self._cache:
+            del self._cache[token]

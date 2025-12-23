@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from miso_client import MisoClient, MisoClientConfig, RedisConfig
+from miso_client.api import ApiClient
 from miso_client.services.cache import CacheService
 from miso_client.services.redis import RedisService
 from miso_client.utils.http_client import HttpClient
@@ -98,6 +99,26 @@ def mock_http_client(config):
     http_client.get_environment_token = AsyncMock(return_value="mock-client-token")
     http_client.close = AsyncMock()
     return http_client
+
+
+@pytest.fixture
+def mock_api_client(mock_http_client):
+    """Mock API client."""
+    from miso_client.api.auth_api import AuthApi
+    from miso_client.api.logs_api import LogsApi
+    from miso_client.api.permissions_api import PermissionsApi
+    from miso_client.api.roles_api import RolesApi
+
+    api_client = MagicMock(spec=ApiClient)
+    api_client.http_client = mock_http_client
+
+    # Mock API sub-clients
+    api_client.auth = MagicMock(spec=AuthApi)
+    api_client.roles = MagicMock(spec=RolesApi)
+    api_client.permissions = MagicMock(spec=PermissionsApi)
+    api_client.logs = MagicMock(spec=LogsApi)
+
+    return api_client
 
 
 @pytest.fixture

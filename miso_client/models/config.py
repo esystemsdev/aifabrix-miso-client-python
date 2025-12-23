@@ -143,6 +143,13 @@ class MisoClientConfig(BaseModel):
             return self.cache["permission_ttl"]
         return self.cache.get("permissionTTL", 900) if self.cache else 900  # 15 minutes default
 
+    @property
+    def validation_ttl(self) -> int:
+        """Get token validation cache TTL in seconds."""
+        if self.cache and "validation_ttl" in self.cache:
+            return self.cache["validation_ttl"]
+        return self.cache.get("validationTTL", 120) if self.cache else 120  # 2 minutes default
+
 
 class UserInfo(BaseModel):
     """User information from token validation."""
@@ -182,6 +189,40 @@ class LogEntry(BaseModel):
     userAgent: Optional[str] = Field(default=None, description="User agent")
     hostname: Optional[str] = Field(default=None, description="Hostname")
 
+    # Indexed context fields (top-level for fast queries)
+    sourceKey: Optional[str] = Field(default=None, description="ExternalDataSource.key")
+    sourceDisplayName: Optional[str] = Field(default=None, description="Human-readable source name")
+    externalSystemKey: Optional[str] = Field(default=None, description="ExternalSystem.key")
+    externalSystemDisplayName: Optional[str] = Field(
+        default=None, description="Human-readable system name"
+    )
+    recordKey: Optional[str] = Field(default=None, description="ExternalRecord.key")
+    recordDisplayName: Optional[str] = Field(
+        default=None, description="Human-readable record identifier"
+    )
+
+    # Credential context (for performance analysis)
+    credentialId: Optional[str] = Field(default=None, description="Credential ID")
+    credentialType: Optional[str] = Field(
+        default=None, description="Credential type (apiKey, oauth2, etc.)"
+    )
+
+    # Request/Response metrics
+    requestSize: Optional[int] = Field(default=None, description="Request body size in bytes")
+    responseSize: Optional[int] = Field(default=None, description="Response body size in bytes")
+    durationMs: Optional[int] = Field(default=None, description="Duration in milliseconds")
+    durationSeconds: Optional[float] = Field(default=None, description="Duration in seconds")
+    timeout: Optional[float] = Field(default=None, description="Request timeout in seconds")
+    retryCount: Optional[int] = Field(default=None, description="Number of retry attempts")
+
+    # Error classification
+    errorCategory: Optional[str] = Field(
+        default=None, description="Error category: network, timeout, auth, validation, server"
+    )
+    httpStatusCategory: Optional[str] = Field(
+        default=None, description="HTTP status category: 2xx, 4xx, 5xx"
+    )
+
 
 class RoleResult(BaseModel):
     """Role query result."""
@@ -210,18 +251,6 @@ class ClientTokenResponse(BaseModel):
     expiresAt: str = Field(..., description="Token expiration ISO timestamp")
 
 
-class PerformanceMetrics(BaseModel):
-    """Performance metrics for logging."""
-
-    startTime: int = Field(..., description="Start time in milliseconds")
-    endTime: Optional[int] = Field(default=None, description="End time in milliseconds")
-    duration: Optional[int] = Field(default=None, description="Duration in milliseconds")
-    memoryUsage: Optional[Dict[str, int]] = Field(
-        default=None,
-        description="Memory usage metrics (rss, heapTotal, heapUsed, external, arrayBuffers)",
-    )
-
-
 class ClientLoggingOptions(BaseModel):
     """Options for client logging."""
 
@@ -232,9 +261,36 @@ class ClientLoggingOptions(BaseModel):
     sessionId: Optional[str] = Field(default=None, description="Session ID")
     token: Optional[str] = Field(default=None, description="JWT token for context extraction")
     maskSensitiveData: Optional[bool] = Field(default=None, description="Enable data masking")
-    performanceMetrics: Optional[bool] = Field(
-        default=None, description="Include performance metrics"
+    ipAddress: Optional[str] = Field(default=None, description="Client IP address")
+    userAgent: Optional[str] = Field(default=None, description="User agent string")
+
+    # Indexed context
+    sourceKey: Optional[str] = Field(default=None, description="ExternalDataSource.key")
+    sourceDisplayName: Optional[str] = Field(default=None, description="Human-readable source name")
+    externalSystemKey: Optional[str] = Field(default=None, description="ExternalSystem.key")
+    externalSystemDisplayName: Optional[str] = Field(
+        default=None, description="Human-readable system name"
     )
+    recordKey: Optional[str] = Field(default=None, description="ExternalRecord.key")
+    recordDisplayName: Optional[str] = Field(
+        default=None, description="Human-readable record identifier"
+    )
+
+    # Credential context
+    credentialId: Optional[str] = Field(default=None, description="Credential ID")
+    credentialType: Optional[str] = Field(default=None, description="Credential type")
+
+    # Request metrics
+    requestSize: Optional[int] = Field(default=None, description="Request body size in bytes")
+    responseSize: Optional[int] = Field(default=None, description="Response body size in bytes")
+    durationMs: Optional[int] = Field(default=None, description="Duration in milliseconds")
+    durationSeconds: Optional[float] = Field(default=None, description="Duration in seconds")
+    timeout: Optional[float] = Field(default=None, description="Request timeout in seconds")
+    retryCount: Optional[int] = Field(default=None, description="Retry count")
+
+    # Error classification
+    errorCategory: Optional[str] = Field(default=None, description="Error category")
+    httpStatusCategory: Optional[str] = Field(default=None, description="HTTP status category")
 
 
 class CircuitBreakerConfig(BaseModel):

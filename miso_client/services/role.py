@@ -8,12 +8,15 @@ Optimized to extract userId from JWT token before API calls for cache optimizati
 
 import logging
 import time
-from typing import Any, Dict, List, Optional, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 from ..models.config import AuthStrategy, RoleResult
 from ..services.cache import CacheService
 from ..utils.http_client import HttpClient
 from ..utils.jwt_tools import extract_user_id
+
+if TYPE_CHECKING:
+    from ..api import ApiClient
 
 logger = logging.getLogger(__name__)
 
@@ -21,17 +24,21 @@ logger = logging.getLogger(__name__)
 class RoleService:
     """Role service for user authorization with caching."""
 
-    def __init__(self, http_client: HttpClient, cache: CacheService):
+    def __init__(
+        self, http_client: HttpClient, cache: CacheService, api_client: Optional["ApiClient"] = None
+    ):
         """
         Initialize role service.
 
         Args:
-            http_client: HTTP client instance
+            http_client: HTTP client instance (for backward compatibility)
             cache: Cache service instance (handles Redis + in-memory fallback)
+            api_client: Optional API client instance (for typed API calls)
         """
         self.config = http_client.config
         self.http_client = http_client
         self.cache = cache
+        self.api_client = api_client
         self.role_ttl = self.config.role_ttl
 
     async def _validate_token_request(
@@ -47,20 +54,35 @@ class RoleService:
         Returns:
             Validation result dictionary
         """
-        if auth_strategy is not None:
-            result = await self.http_client.authenticated_request(
-                "POST",
-                "/api/v1/auth/validate",
-                token,
-                {"token": token},
-                auth_strategy=auth_strategy,
-            )
-            return result  # type: ignore[no-any-return]
+        if self.api_client:
+            # Use ApiClient for typed API calls
+            response = await self.api_client.auth.validate_token(token, auth_strategy=auth_strategy)
+            # Extract data from typed response
+            return {
+                "success": response.success,
+                "data": {
+                    "authenticated": response.data.authenticated,
+                    "user": response.data.user.model_dump() if response.data.user else None,
+                    "expiresAt": response.data.expiresAt,
+                },
+                "timestamp": response.timestamp,
+            }
         else:
-            result = await self.http_client.authenticated_request(
-                "POST", "/api/v1/auth/validate", token, {"token": token}
-            )
-            return result  # type: ignore[no-any-return]
+            # Fallback to HttpClient for backward compatibility
+            if auth_strategy is not None:
+                result = await self.http_client.authenticated_request(
+                    "POST",
+                    "/api/v1/auth/validate",
+                    token,
+                    {"token": token},
+                    auth_strategy=auth_strategy,
+                )
+                return result  # type: ignore[no-any-return]
+            else:
+                result = await self.http_client.authenticated_request(
+                    "POST", "/api/v1/auth/validate", token, {"token": token}
+                )
+                return result  # type: ignore[no-any-return]
 
     async def get_roles(
         self, token: str, auth_strategy: Optional[AuthStrategy] = None
@@ -98,17 +120,23 @@ class RoleService:
                 cache_key = f"roles:{user_id}"
 
             # Cache miss - fetch from controller
-            if auth_strategy is not None:
-                role_result = await self.http_client.authenticated_request(
-                    "GET", "/api/v1/auth/roles", token, auth_strategy=auth_strategy
-                )
+            if self.api_client:
+                # Use ApiClient for typed API calls
+                response = await self.api_client.roles.get_roles(token, auth_strategy=auth_strategy)
+                roles = response.data.roles or []
             else:
-                role_result = await self.http_client.authenticated_request(
-                    "GET", "/api/v1/auth/roles", token
-                )
+                # Fallback to HttpClient for backward compatibility
+                if auth_strategy is not None:
+                    role_result = await self.http_client.authenticated_request(
+                        "GET", "/api/v1/auth/roles", token, auth_strategy=auth_strategy
+                    )
+                else:
+                    role_result = await self.http_client.authenticated_request(
+                        "GET", "/api/v1/auth/roles", token
+                    )
 
-            role_data = RoleResult(**role_result)
-            roles = role_data.roles or []
+                role_data = RoleResult(**role_result)
+                roles = role_data.roles or []
 
             # Cache the result (CacheService handles Redis + in-memory automatically)
             assert cache_key is not None
@@ -196,17 +224,25 @@ class RoleService:
             cache_key = f"roles:{user_id}"
 
             # Fetch fresh roles from controller using refresh endpoint
-            if auth_strategy is not None:
-                role_result = await self.http_client.authenticated_request(
-                    "GET", "/api/v1/auth/roles/refresh", token, auth_strategy=auth_strategy
+            if self.api_client:
+                # Use ApiClient for typed API calls
+                response = await self.api_client.roles.refresh_roles(
+                    token, auth_strategy=auth_strategy
                 )
+                roles = response.data.roles or []
             else:
-                role_result = await self.http_client.authenticated_request(
-                    "GET", "/api/v1/auth/roles/refresh", token
-                )
+                # Fallback to HttpClient for backward compatibility
+                if auth_strategy is not None:
+                    role_result = await self.http_client.authenticated_request(
+                        "GET", "/api/v1/auth/roles/refresh", token, auth_strategy=auth_strategy
+                    )
+                else:
+                    role_result = await self.http_client.authenticated_request(
+                        "GET", "/api/v1/auth/roles/refresh", token
+                    )
 
-            role_data = RoleResult(**role_result)
-            roles = role_data.roles or []
+                role_data = RoleResult(**role_result)
+                roles = role_data.roles or []
 
             # Update cache with fresh data (CacheService handles Redis + in-memory automatically)
             await self.cache.set(
@@ -218,3 +254,30 @@ class RoleService:
         except Exception as error:
             logger.error("Failed to refresh roles", exc_info=error)
             return []
+
+    async def clear_roles_cache(
+        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> None:
+        """
+        Clear cached roles for a user.
+
+        Args:
+            token: JWT token
+            auth_strategy: Optional authentication strategy
+        """
+        try:
+            # Extract userId from token to avoid unnecessary API calls
+            user_id = extract_user_id(token)
+            if not user_id:
+                # If userId not in token, try to get it from validate endpoint
+                user_info = await self._validate_token_request(token, auth_strategy)
+                user_id = user_info.get("user", {}).get("id") if user_info else None
+                if not user_id:
+                    return  # Cannot clear cache without userId
+
+            cache_key = f"roles:{user_id}"
+            await self.cache.delete(cache_key)
+
+        except Exception as error:
+            logger.error("Failed to clear roles cache", exc_info=error)
+            # Silently continue per service method pattern

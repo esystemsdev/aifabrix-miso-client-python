@@ -11,11 +11,14 @@ import time
 from typing import Any, Dict, Literal, Optional
 from urllib.parse import parse_qs
 
+import httpx
+
 from ..models.config import AuthStrategy, MisoClientConfig
 from ..services.logger import LoggerService
-from ..utils.jwt_tools import JwtTokenCache
+from ..utils.jwt_tools import JwtTokenCache, extract_user_id
 from .http_client_logging import log_http_request_audit, log_http_request_debug
 from .internal_http_client import InternalHttpClient
+from .user_token_refresh import UserTokenRefreshManager
 
 
 class HttpClient:
@@ -43,6 +46,7 @@ class HttpClient:
         self.logger = logger
         self._internal_client = InternalHttpClient(config)
         self._jwt_cache = JwtTokenCache(max_size=1000)
+        self._user_token_refresh = UserTokenRefreshManager()
 
     async def close(self):
         """Close the HTTP client."""
@@ -399,6 +403,35 @@ class HttpClient:
         else:
             raise ValueError(f"Unsupported HTTP method: {method}")
 
+    def register_user_token_refresh_callback(self, user_id: str, callback: Any) -> None:
+        """
+        Register refresh callback for a user.
+
+        Args:
+            user_id: User ID
+            callback: Async function that takes old token and returns new token
+        """
+        self._user_token_refresh.register_refresh_callback(user_id, callback)
+
+    def register_user_refresh_token(self, user_id: str, refresh_token: str) -> None:
+        """
+        Register refresh token for a user.
+
+        Args:
+            user_id: User ID
+            refresh_token: Refresh token string
+        """
+        self._user_token_refresh.register_refresh_token(user_id, refresh_token)
+
+    def set_auth_service_for_refresh(self, auth_service: Any) -> None:
+        """
+        Set AuthService instance for refresh endpoint calls.
+
+        Args:
+            auth_service: AuthService instance
+        """
+        self._user_token_refresh.set_auth_service(auth_service)
+
     async def authenticated_request(
         self,
         method: Literal["GET", "POST", "PUT", "DELETE"],
@@ -406,10 +439,11 @@ class HttpClient:
         token: str,
         data: Optional[Dict[str, Any]] = None,
         auth_strategy: Optional[AuthStrategy] = None,
+        auto_refresh: bool = True,
         **kwargs,
     ) -> Any:
         """
-        Make authenticated request with Bearer token and automatic audit/debug logging.
+        Make authenticated request with Bearer token and automatic refresh.
 
         IMPORTANT: Client token is sent as x-client-token header (via InternalHttpClient)
         User token is sent as Authorization: Bearer header (this method parameter)
@@ -421,6 +455,7 @@ class HttpClient:
             token: User authentication token (sent as Bearer token)
             data: Request data (for POST/PUT)
             auth_strategy: Optional authentication strategy (defaults to bearer + client-token)
+            auto_refresh: Whether to automatically refresh token on 401 (default: True)
             **kwargs: Additional httpx request parameters
 
         Returns:
@@ -429,16 +464,46 @@ class HttpClient:
         Raises:
             MisoClientError: If request fails
         """
+        # Get valid token (refresh if expired)
+        valid_token = await self._user_token_refresh.get_valid_token(
+            token, refresh_if_needed=auto_refresh
+        )
+        if not valid_token:
+            valid_token = token  # Fallback to original token
+
         # Add Bearer token to headers for logging context
         headers = kwargs.get("headers", {})
-        headers["Authorization"] = f"Bearer {token}"
+        headers["Authorization"] = f"Bearer {valid_token}"
         kwargs["headers"] = headers
 
         # Use internal client's authenticated_request which handles auth strategy
         async def _authenticated_request():
-            return await self._internal_client.authenticated_request(
-                method, url, token, data, auth_strategy, **kwargs
-            )
+            try:
+                return await self._internal_client.authenticated_request(
+                    method, url, valid_token, data, auth_strategy, **kwargs
+                )
+            except httpx.HTTPStatusError as e:
+                # Handle 401 with automatic refresh
+                if e.response.status_code == 401 and auto_refresh:
+                    user_id = extract_user_id(valid_token)
+                    refreshed_token = await self._user_token_refresh._refresh_token(
+                        valid_token, user_id
+                    )
+
+                    if refreshed_token:
+                        # Retry request with refreshed token
+                        try:
+                            headers["Authorization"] = f"Bearer {refreshed_token}"
+                            kwargs["headers"] = headers
+                            return await self._internal_client.authenticated_request(
+                                method, url, refreshed_token, data, auth_strategy, **kwargs
+                            )
+                        except httpx.HTTPStatusError:
+                            # Retry failed, raise original error
+                            raise e
+
+                # Re-raise if not 401 or refresh failed
+                raise
 
         return await self._execute_with_logging(method, url, _authenticated_request, data, **kwargs)
 
@@ -618,3 +683,12 @@ class HttpClient:
         self._add_pagination_params(kwargs, page, page_size)
         response_data = await self.get(url, **kwargs)
         return self._parse_paginated_response(response_data)
+
+    def clear_user_token(self, token: str) -> None:
+        """
+        Clear a user's JWT token from cache.
+
+        Args:
+            token: JWT token string to remove from cache
+        """
+        self._jwt_cache.clear_token(token)

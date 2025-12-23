@@ -5,6 +5,7 @@ This package provides a reusable client SDK for integrating with the Miso Contro
 for authentication, role-based access control, permission management, and logging.
 """
 
+import asyncio
 from typing import Any, Dict, List, Literal, Optional
 
 from .errors import (
@@ -25,7 +26,6 @@ from .models.config import (
     DataClientConfigResponse,
     LogEntry,
     MisoClientConfig,
-    PerformanceMetrics,
     PermissionResult,
     RedisConfig,
     RoleResult,
@@ -38,7 +38,8 @@ from .models.sort import SortOption
 from .services.auth import AuthService
 from .services.cache import CacheService
 from .services.encryption import EncryptionService
-from .services.logger import LoggerChain, LoggerService
+from .services.logger import LoggerService
+from .services.logger_chain import LoggerChain
 from .services.permission import PermissionService
 from .services.redis import RedisService
 from .services.role import RoleService
@@ -58,6 +59,8 @@ from .utils.filter import apply_filters, build_query_string, parse_filter_params
 from .utils.flask_endpoints import create_flask_client_token_endpoint
 from .utils.http_client import HttpClient
 from .utils.internal_http_client import InternalHttpClient
+from .utils.jwt_tools import extract_user_id
+from .utils.logging_helpers import extract_logging_context
 from .utils.origin_validator import validate_origin
 from .utils.pagination import (
     apply_pagination_to_array,
@@ -69,11 +72,12 @@ from .utils.pagination import (
     parse_pagination_params,
     parsePaginationParams,
 )
+from .utils.request_context import RequestContext, extract_request_context
 from .utils.sort import build_sort_string, parse_sort_params
 from .utils.token_utils import extract_client_token_info
 from .utils.url_validator import validate_url
 
-__version__ = "3.2.0"
+__version__ = "3.3.0"
 __author__ = "AI Fabrix Team"
 __license__ = "MIT"
 
@@ -112,20 +116,32 @@ class MisoClient:
         # This HttpClient adds automatic ISO 27001 compliant audit and debug logging
         self.http_client = HttpClient(config, self.logger)
 
-        # Update LoggerService with http_client for audit log queue (if needed)
+        # Create ApiClient for typed API calls (import here to avoid circular import)
+        from .api import ApiClient
+
+        self.api_client = ApiClient(self.http_client)
+
+        # Update LoggerService with http_client and api_client for audit log queue (if needed)
         # This is safe because http_client is already created and logger is already set
         if config.audit and (
             config.audit.batchSize is not None or config.audit.batchInterval is not None
         ):
             self.logger.audit_log_queue = AuditLogQueue(self.http_client, self.redis, config)
 
+        # Update LoggerService with api_client (optional, for typed API calls)
+        # Note: LoggerService primarily uses InternalHttpClient to avoid circular dependency
+        # ApiClient is provided as optional fallback
+        self.logger.api_client = self.api_client
+
         # Cache service (uses Redis if available, falls back to in-memory)
         self.cache = CacheService(self.redis)
 
-        # Services use public HttpClient (with audit logging)
-        self.auth = AuthService(self.http_client, self.redis)
-        self.roles = RoleService(self.http_client, self.cache)
-        self.permissions = PermissionService(self.http_client, self.cache)
+        # Services use ApiClient for typed API calls (with HttpClient fallback for backward compatibility)
+        self.auth = AuthService(self.http_client, self.redis, self.cache, self.api_client)
+        # Set auth_service on refresh manager for refresh endpoint calls
+        self.http_client.set_auth_service_for_refresh(self.auth)
+        self.roles = RoleService(self.http_client, self.cache, self.api_client)
+        self.permissions = PermissionService(self.http_client, self.cache, self.api_client)
 
         # Encryption service (optional - only initialized if ENCRYPTION_KEY is configured)
         self.encryption: Optional[EncryptionService]
@@ -296,7 +312,8 @@ class MisoClient:
         Logout user by invalidating the access token.
 
         This method calls POST /api/v1/auth/logout with the user's access token in the request body.
-        The token will be invalidated on the server side.
+        The token will be invalidated on the server side, and all local caches (roles, permissions, JWT)
+        will be cleared automatically. Refresh tokens and callbacks are also cleared.
 
         Args:
             token: Access token to invalidate (required)
@@ -312,7 +329,77 @@ class MisoClient:
             >>> if response.get("success"):
             ...     print("Logout successful")
         """
-        return await self.auth.logout(token)
+        # Extract user ID before logout
+        user_id = extract_user_id(token)
+
+        # Call AuthService logout (invalidates token on server)
+        response = await self.auth.logout(token)
+
+        # Clear refresh data for user
+        if user_id:
+            self.clear_user_token_refresh(user_id)
+
+        # Clear all caches after logout (even if logout failed, clear caches for security)
+        # Use asyncio.gather() for concurrent cache clearing
+        await asyncio.gather(
+            self.roles.clear_roles_cache(token),
+            self.permissions.clear_permissions_cache(token),
+            return_exceptions=True,  # Don't fail if any cache clear fails
+        )
+
+        return response
+
+    def register_user_token_refresh_callback(self, user_id: str, callback: Any) -> None:
+        """
+        Register refresh callback for a user.
+
+        The callback will be called when the user's token needs to be refreshed.
+        The callback should be an async function that takes the old token and returns
+        the new token.
+
+        Args:
+            user_id: User ID
+            callback: Async function that takes old token and returns new token
+
+        Example:
+            >>> async def refresh_token(old_token: str) -> str:
+            ...     # Call your refresh endpoint
+            ...     response = await your_auth_client.refresh(old_token)
+            ...     return response["access_token"]
+            >>>
+            >>> client.register_user_token_refresh_callback("user-123", refresh_token)
+        """
+        self.http_client.register_user_token_refresh_callback(user_id, callback)
+
+    def register_user_refresh_token(self, user_id: str, refresh_token: str) -> None:
+        """
+        Register refresh token for a user.
+
+        The SDK will use this refresh token to automatically refresh the user's
+        access token when it expires.
+
+        Args:
+            user_id: User ID
+            refresh_token: Refresh token string
+
+        Example:
+            >>> client.register_user_refresh_token("user-123", "refresh-token-abc")
+        """
+        self.http_client.register_user_refresh_token(user_id, refresh_token)
+
+    def clear_user_token_refresh(self, user_id: str) -> None:
+        """
+        Clear refresh callback and tokens for a user.
+
+        Useful when user logs out or refresh tokens are revoked.
+
+        Args:
+            user_id: User ID
+
+        Example:
+            >>> client.clear_user_token_refresh("user-123")
+        """
+        self.http_client._user_token_refresh.clear_user_tokens(user_id)
 
     # ==================== AUTHORIZATION METHODS ====================
 
@@ -700,7 +787,6 @@ __all__ = [
     "ClientTokenEndpointOptions",
     "DataClientConfigResponse",
     "CircuitBreakerConfig",
-    "PerformanceMetrics",
     "ClientLoggingOptions",
     "ErrorResponse",
     # Pagination models
@@ -763,4 +849,9 @@ __all__ = [
     "is_browser",
     "create_flask_client_token_endpoint",
     "create_fastapi_client_token_endpoint",
+    # Request context utilities
+    "extract_request_context",
+    "RequestContext",
+    # Logging utilities
+    "extract_logging_context",
 ]
