@@ -18,6 +18,7 @@ from miso_client.services.logger import LoggerService
 from miso_client.services.redis import RedisService
 from miso_client.utils.data_masker import DataMasker
 from miso_client.utils.http_client import HttpClient
+from miso_client.utils.http_error_handler import parse_error_response
 from miso_client.utils.internal_http_client import InternalHttpClient
 
 
@@ -54,10 +55,10 @@ class TestInternalHttpClient:
             mock_client.aclose = AsyncMock()
             mock_client_class.return_value = mock_client
 
-            await http_client._fetch_client_token()
+            await http_client.token_manager.fetch_client_token()
 
-            assert http_client.client_token == "client-token-123"
-            assert http_client.token_expires_at is not None
+            assert http_client.token_manager.client_token == "client-token-123"
+            assert http_client.token_manager.token_expires_at is not None
 
     @pytest.mark.asyncio
     async def test_fetch_client_token_failure(self, http_client):
@@ -72,23 +73,23 @@ class TestInternalHttpClient:
             mock_client_class.return_value = mock_client
 
             with pytest.raises(AuthenticationError):
-                await http_client._fetch_client_token()
+                await http_client.token_manager.fetch_client_token()
 
     @pytest.mark.asyncio
     async def test_get_client_token_cached(self, http_client):
         """Test getting cached client token."""
-        http_client.client_token = "cached-token"
-        http_client.token_expires_at = datetime.now() + timedelta(seconds=120)
+        http_client.token_manager.client_token = "cached-token"
+        http_client.token_manager.token_expires_at = datetime.now() + timedelta(seconds=120)
 
-        token = await http_client._get_client_token()
+        token = await http_client.token_manager.get_client_token()
 
         assert token == "cached-token"
 
     @pytest.mark.asyncio
     async def test_get_client_token_refresh_needed(self, http_client):
         """Test token refresh when about to expire."""
-        http_client.client_token = "old-token"
-        http_client.token_expires_at = datetime.now() + timedelta(seconds=30)  # < 60s
+        http_client.token_manager.client_token = "old-token"
+        http_client.token_manager.token_expires_at = datetime.now() + timedelta(seconds=30)  # < 60s
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -105,7 +106,7 @@ class TestInternalHttpClient:
             mock_client.aclose = AsyncMock()
             mock_client_class.return_value = mock_client
 
-            token = await http_client._get_client_token()
+            token = await http_client.token_manager.get_client_token()
 
             assert token == "new-token"
 
@@ -113,7 +114,7 @@ class TestInternalHttpClient:
     async def test_get_request_success(self, http_client):
         """Test successful GET request."""
         await http_client._initialize_client()
-        http_client.client_token = "test-token"
+        http_client.token_manager.client_token = "test-token"
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -139,8 +140,8 @@ class TestInternalHttpClient:
     async def test_get_request_401_clears_token(self, http_client):
         """Test that 401 clears client token."""
         await http_client._initialize_client()
-        http_client.client_token = "test-token"
-        http_client.token_expires_at = datetime.now() + timedelta(seconds=100)
+        http_client.token_manager.client_token = "test-token"
+        http_client.token_manager.token_expires_at = datetime.now() + timedelta(seconds=100)
 
         mock_response = MagicMock()
         mock_response.status_code = 401
@@ -156,14 +157,14 @@ class TestInternalHttpClient:
         with pytest.raises(MisoClientError):
             await http_client.get("/test")
 
-        assert http_client.client_token is None
-        assert http_client.token_expires_at is None
+        assert http_client.token_manager.client_token is None
+        assert http_client.token_manager.token_expires_at is None
 
     @pytest.mark.asyncio
     async def test_post_request(self, http_client):
         """Test POST request."""
         await http_client._initialize_client()
-        http_client.client_token = "test-token"
+        http_client.token_manager.client_token = "test-token"
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -182,7 +183,7 @@ class TestInternalHttpClient:
     async def test_authenticated_request(self, http_client):
         """Test authenticated request with Bearer token."""
         await http_client._initialize_client()
-        http_client.client_token = "client-token"
+        http_client.token_manager.client_token = "client-token"
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -206,7 +207,7 @@ class TestInternalHttpClient:
     async def test_request_methods(self, http_client):
         """Test all request methods."""
         await http_client._initialize_client()
-        http_client.client_token = "test-token"
+        http_client.token_manager.client_token = "test-token"
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -234,8 +235,8 @@ class TestInternalHttpClient:
     @pytest.mark.asyncio
     async def test_get_environment_token(self, http_client):
         """Test get_environment_token method."""
-        http_client.client_token = "env-token"
-        http_client.token_expires_at = datetime.now() + timedelta(seconds=100)
+        http_client.token_manager.client_token = "env-token"
+        http_client.token_manager.token_expires_at = datetime.now() + timedelta(seconds=100)
 
         token = await http_client.get_environment_token()
 
@@ -245,7 +246,7 @@ class TestInternalHttpClient:
     async def test_put_request_success(self, http_client):
         """Test successful PUT request."""
         await http_client._initialize_client()
-        http_client.client_token = "test-token"
+        http_client.token_manager.client_token = "test-token"
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -264,8 +265,8 @@ class TestInternalHttpClient:
     async def test_put_request_401_clears_token(self, http_client):
         """Test PUT request with 401 error clears token."""
         await http_client._initialize_client()
-        http_client.client_token = "existing-token"
-        http_client.token_expires_at = datetime.now() + timedelta(seconds=3600)
+        http_client.token_manager.client_token = "existing-token"
+        http_client.token_manager.token_expires_at = datetime.now() + timedelta(seconds=3600)
 
         mock_response = MagicMock()
         mock_response.status_code = 401
@@ -281,14 +282,14 @@ class TestInternalHttpClient:
             with pytest.raises(MisoClientError):
                 await http_client.put("/api/resource", {"key": "value"})
 
-            assert http_client.client_token is None
-            assert http_client.token_expires_at is None
+            assert http_client.token_manager.client_token is None
+            assert http_client.token_manager.token_expires_at is None
 
     @pytest.mark.asyncio
     async def test_delete_request_success(self, http_client):
         """Test successful DELETE request."""
         await http_client._initialize_client()
-        http_client.client_token = "test-token"
+        http_client.token_manager.client_token = "test-token"
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -307,8 +308,8 @@ class TestInternalHttpClient:
     async def test_delete_request_401_clears_token(self, http_client):
         """Test DELETE request with 401 error clears token."""
         await http_client._initialize_client()
-        http_client.client_token = "existing-token"
-        http_client.token_expires_at = datetime.now() + timedelta(seconds=3600)
+        http_client.token_manager.client_token = "existing-token"
+        http_client.token_manager.token_expires_at = datetime.now() + timedelta(seconds=3600)
 
         mock_response = MagicMock()
         mock_response.status_code = 401
@@ -324,8 +325,8 @@ class TestInternalHttpClient:
             with pytest.raises(MisoClientError):
                 await http_client.delete("/api/resource")
 
-            assert http_client.client_token is None
-            assert http_client.token_expires_at is None
+            assert http_client.token_manager.client_token is None
+            assert http_client.token_manager.token_expires_at is None
 
     @pytest.mark.asyncio
     async def test_context_manager_usage(self, http_client):
@@ -362,39 +363,39 @@ class TestInternalHttpClient:
 
     @pytest.mark.asyncio
     async def test_parse_error_response_non_json(self, http_client):
-        """Test _parse_error_response with non-JSON content."""
+        """Test parse_error_response with non-JSON content."""
         await http_client._initialize_client()
 
         mock_response = MagicMock()
         mock_response.headers.get.return_value = "text/plain"
 
-        result = http_client._parse_error_response(mock_response, "/api/test")
+        result = parse_error_response(mock_response, "/api/test")
 
         assert result is None
 
     @pytest.mark.asyncio
     async def test_parse_error_response_malformed_json(self, http_client):
-        """Test _parse_error_response with malformed JSON."""
+        """Test parse_error_response with malformed JSON."""
         await http_client._initialize_client()
 
         mock_response = MagicMock()
         mock_response.headers.get.return_value = "application/json"
         mock_response.json.side_effect = ValueError("Invalid JSON")
 
-        result = http_client._parse_error_response(mock_response, "/api/test")
+        result = parse_error_response(mock_response, "/api/test")
 
         assert result is None
 
     @pytest.mark.asyncio
     async def test_parse_error_response_missing_fields(self, http_client):
-        """Test _parse_error_response with missing required fields."""
+        """Test parse_error_response with missing required fields."""
         await http_client._initialize_client()
 
         mock_response = MagicMock()
         mock_response.headers.get.return_value = "application/json"
         mock_response.json.return_value = {"type": "error"}  # Missing required fields
 
-        result = http_client._parse_error_response(mock_response, "/api/test")
+        result = parse_error_response(mock_response, "/api/test")
 
         assert result is None
 
@@ -402,7 +403,7 @@ class TestInternalHttpClient:
     async def test_concurrent_token_refresh(self, http_client):
         """Test concurrent token refresh (lock mechanism)."""
         await http_client._initialize_client()
-        http_client.client_token = None  # Force refresh
+        http_client.token_manager.client_token = None  # Force refresh
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -421,9 +422,9 @@ class TestInternalHttpClient:
 
             # Simulate concurrent token fetches
             tokens = await asyncio.gather(
-                http_client._get_client_token(),
-                http_client._get_client_token(),
-                http_client._get_client_token(),
+                http_client.token_manager.get_client_token(),
+                http_client.token_manager.get_client_token(),
+                http_client.token_manager.get_client_token(),
             )
 
             # All should return the same token
@@ -447,7 +448,7 @@ class TestInternalHttpClient:
     async def test_get_request_with_structured_error_response(self, http_client):
         """Test GET request with structured error response."""
         await http_client._initialize_client()
-        http_client.client_token = "test-token"
+        http_client.token_manager.client_token = "test-token"
 
         mock_response = MagicMock()
         mock_response.status_code = 400
@@ -483,7 +484,7 @@ class TestInternalHttpClient:
     async def test_post_request_with_structured_error_response(self, http_client):
         """Test POST request with structured error response."""
         await http_client._initialize_client()
-        http_client.client_token = "test-token"
+        http_client.token_manager.client_token = "test-token"
 
         mock_response = MagicMock()
         mock_response.status_code = 422
@@ -519,7 +520,7 @@ class TestInternalHttpClient:
     async def test_error_response_fallback_to_error_body(self, http_client):
         """Test fallback to error_body when response doesn't match structured format."""
         await http_client._initialize_client()
-        http_client.client_token = "test-token"
+        http_client.token_manager.client_token = "test-token"
 
         mock_response = MagicMock()
         mock_response.status_code = 500
@@ -545,7 +546,7 @@ class TestInternalHttpClient:
     async def test_error_response_instance_extraction_from_url(self, http_client):
         """Test that instance URI is extracted from request URL when not in response."""
         await http_client._initialize_client()
-        http_client.client_token = "test-token"
+        http_client.token_manager.client_token = "test-token"
 
         mock_response = MagicMock()
         mock_response.status_code = 400
@@ -576,8 +577,8 @@ class TestInternalHttpClient:
     async def test_get_client_token_double_check_after_lock(self, http_client):
         """Test double-check after acquiring lock in _get_client_token."""
         # Set token that will expire soon (fails first check, will need to acquire lock)
-        http_client.client_token = "old-token"
-        http_client.token_expires_at = datetime.now() + timedelta(seconds=30)
+        http_client.token_manager.client_token = "old-token"
+        http_client.token_manager.token_expires_at = datetime.now() + timedelta(seconds=30)
 
         # Mock response for token fetch (in case it's needed)
         mock_response = MagicMock()
@@ -596,7 +597,7 @@ class TestInternalHttpClient:
             mock_client_class.return_value = mock_client
 
             # Use a custom lock that allows us to set token before double-check
-            original_lock = http_client.token_refresh_lock
+            original_lock = http_client.token_manager.token_refresh_lock
             lock_entered = asyncio.Event()
 
             class CustomLock:
@@ -615,26 +616,26 @@ class TestInternalHttpClient:
                     return await self._lock.__aexit__(*args)
 
             custom_lock = CustomLock()
-            http_client.token_refresh_lock = custom_lock
+            http_client.token_manager.token_refresh_lock = custom_lock
 
             # Simulate another coroutine refreshing token after lock is acquired
             async def refresh_after_lock():
                 # Wait for lock to be acquired
                 await lock_entered.wait()
                 # Set the refreshed token (should be visible in double-check)
-                http_client.client_token = "refreshed-token"
-                http_client.token_expires_at = datetime.now() + timedelta(seconds=120)
+                http_client.token_manager.client_token = "refreshed-token"
+                http_client.token_manager.token_expires_at = datetime.now() + timedelta(seconds=120)
 
             # Start refresh task
             refresh_task = asyncio.create_task(refresh_after_lock())
 
             # Get token (should use refreshed token after double-check)
-            token = await http_client._get_client_token()
+            token = await http_client.token_manager.get_client_token()
 
             await refresh_task
 
             # Restore original lock
-            http_client.token_refresh_lock = original_lock
+            http_client.token_manager.token_refresh_lock = original_lock
 
             # Should use refreshed token (double-check after lock)
             assert token == "refreshed-token"
@@ -642,7 +643,7 @@ class TestInternalHttpClient:
     @pytest.mark.asyncio
     async def test_extract_correlation_id_none_response(self, http_client):
         """Test _extract_correlation_id with None response."""
-        result = http_client._extract_correlation_id(None)
+        result = http_client.token_manager.extract_correlation_id(None)
 
         assert result is None
 
@@ -652,7 +653,7 @@ class TestInternalHttpClient:
         mock_response = MagicMock()
         mock_response.headers.get.return_value = None
 
-        result = http_client._extract_correlation_id(mock_response)
+        result = http_client.token_manager.extract_correlation_id(mock_response)
 
         assert result is None
 
@@ -678,7 +679,7 @@ class TestInternalHttpClient:
             )
             mock_response.headers = mock_headers
 
-            result = http_client._extract_correlation_id(mock_response)
+            result = http_client.token_manager.extract_correlation_id(mock_response)
 
             assert result == "corr-123"
 
@@ -704,10 +705,10 @@ class TestInternalHttpClient:
             mock_client.aclose = AsyncMock()
             mock_client_class.return_value = mock_client
 
-            await http_client._fetch_client_token()
+            await http_client.token_manager.fetch_client_token()
 
             # Should extract nested data
-            assert http_client.client_token == "nested-token"
+            assert http_client.token_manager.client_token == "nested-token"
 
     @pytest.mark.asyncio
     async def test_fetch_client_token_with_correlation_id_in_error(self, http_client):
@@ -731,7 +732,7 @@ class TestInternalHttpClient:
             mock_client_class.return_value = mock_client
 
             with pytest.raises(AuthenticationError) as exc_info:
-                await http_client._fetch_client_token()
+                await http_client.token_manager.fetch_client_token()
 
             # Error message should include correlation ID
             assert "corr-123" in str(exc_info.value)
@@ -752,7 +753,7 @@ class TestInternalHttpClient:
             mock_client_class.return_value = mock_client
 
             with pytest.raises(ConnectionError) as exc_info:
-                await http_client._fetch_client_token()
+                await http_client.token_manager.fetch_client_token()
 
             # Verify error message includes clientId
             assert "clientId" in str(exc_info.value) or "test-client" in str(exc_info.value)
@@ -781,7 +782,7 @@ class TestInternalHttpClient:
             mock_client_class.return_value = mock_client
 
             with pytest.raises(AuthenticationError):
-                await http_client._fetch_client_token()
+                await http_client.token_manager.fetch_client_token()
 
             # Correlation ID extraction happens before JSON parsing, so it might be None
             # But test that error handling works
@@ -790,7 +791,7 @@ class TestInternalHttpClient:
     async def test_get_request_error_body_parsing(self, http_client):
         """Test GET request error body parsing when structured error not available."""
         await http_client._initialize_client()
-        http_client.client_token = "test-token"
+        http_client.token_manager.client_token = "test-token"
 
         mock_response = MagicMock()
         mock_response.status_code = 500
@@ -832,7 +833,7 @@ class TestInternalHttpClient:
             else ("corr-header-123" if k == "x-correlation-id" else d)
         )
 
-        error_response = http_client._parse_error_response(mock_response, "/api/test")
+        error_response = parse_error_response(mock_response, "/api/test")
 
         assert error_response is not None
         assert error_response.correlationId == "corr-header-123"
@@ -851,7 +852,7 @@ class TestInternalHttpClient:
             "correlationId": "corr-body-456",  # Correlation ID in body
         }
 
-        error_response = http_client._parse_error_response(mock_response, "/api/test")
+        error_response = parse_error_response(mock_response, "/api/test")
 
         assert error_response is not None
         # Body correlation ID should take precedence
@@ -861,7 +862,7 @@ class TestInternalHttpClient:
     async def test_post_request_error_body_parsing(self, http_client):
         """Test POST request error body parsing when structured error not available."""
         await http_client._initialize_client()
-        http_client.client_token = "test-token"
+        http_client.token_manager.client_token = "test-token"
 
         mock_response = MagicMock()
         mock_response.status_code = 422
@@ -886,7 +887,7 @@ class TestInternalHttpClient:
     async def test_put_request_error_body_parsing(self, http_client):
         """Test PUT request error body parsing when structured error not available."""
         await http_client._initialize_client()
-        http_client.client_token = "test-token"
+        http_client.token_manager.client_token = "test-token"
 
         mock_response = MagicMock()
         mock_response.status_code = 409
@@ -911,7 +912,7 @@ class TestInternalHttpClient:
     async def test_delete_request_error_body_parsing(self, http_client):
         """Test DELETE request error body parsing when structured error not available."""
         await http_client._initialize_client()
-        http_client.client_token = "test-token"
+        http_client.token_manager.client_token = "test-token"
 
         mock_response = MagicMock()
         mock_response.status_code = 404
@@ -938,8 +939,8 @@ class TestInternalHttpClient:
         from miso_client.models.config import AuthStrategy
 
         await http_client._initialize_client()
-        http_client.client_token = "client-token-123"
-        http_client.token_expires_at = datetime.now() + timedelta(seconds=100)
+        http_client.token_manager.client_token = "client-token-123"
+        http_client.token_manager.token_expires_at = datetime.now() + timedelta(seconds=100)
 
         auth_strategy = AuthStrategy(methods=["client-token"])
 
@@ -963,8 +964,8 @@ class TestInternalHttpClient:
         from miso_client.models.config import AuthStrategy
 
         await http_client._initialize_client()
-        http_client.client_token = "client-token-123"
-        http_client.token_expires_at = datetime.now() + timedelta(seconds=100)
+        http_client.token_manager.client_token = "client-token-123"
+        http_client.token_manager.token_expires_at = datetime.now() + timedelta(seconds=100)
 
         auth_strategy = AuthStrategy(
             methods=["bearer", "client-token"],
@@ -1014,8 +1015,8 @@ class TestInternalHttpClient:
         from miso_client.models.config import AuthStrategy
 
         await http_client._initialize_client()
-        http_client.client_token = "client-token-123"
-        http_client.token_expires_at = datetime.now() + timedelta(seconds=100)
+        http_client.token_manager.client_token = "client-token-123"
+        http_client.token_manager.token_expires_at = datetime.now() + timedelta(seconds=100)
 
         auth_strategy = AuthStrategy(
             methods=["bearer", "client-token"],
@@ -1059,8 +1060,8 @@ class TestInternalHttpClient:
         from miso_client.models.config import AuthStrategy
 
         await http_client._initialize_client()
-        http_client.client_token = "client-token-123"
-        http_client.token_expires_at = datetime.now() + timedelta(seconds=100)
+        http_client.token_manager.client_token = "client-token-123"
+        http_client.token_manager.token_expires_at = datetime.now() + timedelta(seconds=100)
 
         auth_strategy = AuthStrategy(
             methods=["bearer", "client-token"],
@@ -1285,13 +1286,13 @@ class TestHttpClient:
         mock_client.__aexit__ = AsyncMock(return_value=None)
 
         with patch("httpx.AsyncClient", return_value=mock_client):
-            await http_client._fetch_client_token()
+            await http_client.token_manager.fetch_client_token()
 
             # Verify custom URI was used
             mock_client.post.assert_called_once()
             call_args = mock_client.post.call_args
             assert call_args[0][0] == "/api/v1/auth/custom-token"
-            assert http_client.client_token == "client-token-123"
+            assert http_client.token_manager.client_token == "client-token-123"
 
     @pytest.mark.asyncio
     async def test_error_logging_with_masked_data(self, http_client):
@@ -1773,9 +1774,7 @@ class TestHttpClient:
         http_client.logger.debug = AsyncMock()
 
         # Mock DataMasker.mask_sensitive_data
-        with patch(
-            "miso_client.utils.http_client_logging.DataMasker.mask_sensitive_data"
-        ) as mock_mask:
+        with patch("miso_client.utils.http_log_masker.DataMasker.mask_sensitive_data") as mock_mask:
             mock_mask.return_value = {"Authorization": DataMasker.MASKED_VALUE}
 
             headers = {"Authorization": "Bearer token123"}
@@ -1805,9 +1804,7 @@ class TestHttpClient:
         http_client.logger.debug = AsyncMock()
 
         # Mock DataMasker.mask_sensitive_data
-        with patch(
-            "miso_client.utils.http_client_logging.DataMasker.mask_sensitive_data"
-        ) as mock_mask:
+        with patch("miso_client.utils.http_log_masker.DataMasker.mask_sensitive_data") as mock_mask:
             mock_mask.return_value = {"password": DataMasker.MASKED_VALUE, "username": "john"}
 
             request_data = {"password": "secret123", "username": "john"}
@@ -1946,9 +1943,7 @@ class TestHttpClient:
         http_client.logger.debug = AsyncMock()
 
         # Mock DataMasker.mask_sensitive_data
-        with patch(
-            "miso_client.utils.http_client_logging.DataMasker.mask_sensitive_data"
-        ) as mock_mask:
+        with patch("miso_client.utils.http_log_masker.DataMasker.mask_sensitive_data") as mock_mask:
             request_data = {"password": "secret123", "username": "john"}
             await http_client.post("/api/login", request_data)
             await asyncio.sleep(0.1)  # Increased wait time for async tasks  # Wait for logging task
@@ -1982,9 +1977,7 @@ class TestHttpClient:
         http_client.logger.debug = AsyncMock()
 
         # Mock DataMasker.mask_sensitive_data
-        with patch(
-            "miso_client.utils.http_client_logging.DataMasker.mask_sensitive_data"
-        ) as mock_mask:
+        with patch("miso_client.utils.http_log_masker.DataMasker.mask_sensitive_data") as mock_mask:
             mock_mask.return_value = {"password": DataMasker.MASKED_VALUE, "username": "john"}
 
             request_data = {"password": "secret123", "username": "john"}

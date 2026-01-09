@@ -8,10 +8,11 @@ Optimized to extract userId from JWT token before API calls for cache optimizati
 
 import logging
 import time
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
+from typing import TYPE_CHECKING, List, Optional, cast
 
 from ..models.config import AuthStrategy, PermissionResult
 from ..services.cache import CacheService
+from ..utils.auth_utils import validate_token_request
 from ..utils.error_utils import extract_correlation_id_from_error
 from ..utils.http_client import HttpClient
 from ..utils.jwt_tools import extract_user_id
@@ -42,49 +43,6 @@ class PermissionService:
         self.api_client = api_client
         self.permission_ttl = self.config.permission_ttl
 
-    async def _validate_token_request(
-        self, token: str, auth_strategy: Optional[AuthStrategy] = None
-    ) -> Dict[str, Any]:
-        """
-        Helper method to call /api/v1/auth/validate endpoint with proper request body.
-
-        Args:
-            token: JWT token to validate
-            auth_strategy: Optional authentication strategy
-
-        Returns:
-            Validation result dictionary
-        """
-        if self.api_client:
-            # Use ApiClient for typed API calls
-            response = await self.api_client.auth.validate_token(token, auth_strategy=auth_strategy)
-            # Extract data from typed response
-            return {
-                "success": response.success,
-                "data": {
-                    "authenticated": response.data.authenticated,
-                    "user": response.data.user.model_dump() if response.data.user else None,
-                    "expiresAt": response.data.expiresAt,
-                },
-                "timestamp": response.timestamp,
-            }
-        else:
-            # Fallback to HttpClient for backward compatibility
-            if auth_strategy is not None:
-                result = await self.http_client.authenticated_request(
-                    "POST",
-                    "/api/v1/auth/validate",
-                    token,
-                    {"token": token},
-                    auth_strategy=auth_strategy,
-                )
-                return result  # type: ignore[no-any-return]
-            else:
-                result = await self.http_client.authenticated_request(
-                    "POST", "/api/v1/auth/validate", token, {"token": token}
-                )
-                return result  # type: ignore[no-any-return]
-
     async def get_permissions(
         self, token: str, auth_strategy: Optional[AuthStrategy] = None
     ) -> List[str]:
@@ -114,7 +72,9 @@ class PermissionService:
             # Cache miss or no userId in token - fetch from controller
             # If we don't have userId, get it from validate endpoint
             if not user_id:
-                user_info = await self._validate_token_request(token, auth_strategy)
+                user_info = await validate_token_request(
+                    token, self.http_client, self.api_client, auth_strategy
+                )
                 user_id = user_info.get("user", {}).get("id") if user_info else None
                 if not user_id:
                     return []
@@ -226,7 +186,9 @@ class PermissionService:
         """
         try:
             # Get user info to extract userId
-            user_info = await self._validate_token_request(token, auth_strategy)
+            user_info = await validate_token_request(
+                token, self.http_client, self.api_client, auth_strategy
+            )
             user_id = user_info.get("user", {}).get("id") if user_info else None
             if not user_id:
                 return []
@@ -287,7 +249,9 @@ class PermissionService:
         """
         try:
             # Get user info to extract userId
-            user_info = await self._validate_token_request(token, auth_strategy)
+            user_info = await validate_token_request(
+                token, self.http_client, self.api_client, auth_strategy
+            )
             user_id = user_info.get("user", {}).get("id") if user_info else None
             if not user_id:
                 return

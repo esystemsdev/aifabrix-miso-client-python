@@ -6,18 +6,16 @@ token management. This class is not meant to be used directly - use the public
 HttpClient class instead which adds ISO 27001 compliant audit and debug logging.
 """
 
-import asyncio
-from datetime import datetime, timedelta
 from typing import Any, Dict, Literal, Optional
 
 import httpx
 
 from ..errors import AuthenticationError, ConnectionError, MisoClientError
-from ..models.config import AuthStrategy, ClientTokenResponse, MisoClientConfig
-from ..models.error_response import ErrorResponse
+from ..models.config import AuthStrategy, MisoClientConfig
 from .auth_strategy import AuthStrategyHandler
+from .client_token_manager import ClientTokenManager
 from .controller_url_resolver import resolve_controller_url
-from .jwt_tools import decode_token
+from .http_error_handler import parse_error_response
 
 
 class InternalHttpClient:
@@ -37,9 +35,7 @@ class InternalHttpClient:
         """
         self.config = config
         self.client: Optional[httpx.AsyncClient] = None
-        self.client_token: Optional[str] = None
-        self.token_expires_at: Optional[datetime] = None
-        self.token_refresh_lock = asyncio.Lock()
+        self.token_manager = ClientTokenManager(config)
 
     async def _initialize_client(self):
         """Initialize HTTP client if not already initialized."""
@@ -54,234 +50,12 @@ class InternalHttpClient:
                 },
             )
 
-    async def _get_client_token(self) -> str:
-        """
-        Get client token, fetching if needed.
-
-        Proactively refreshes if token will expire within 60 seconds.
-
-        Returns:
-            Client token string
-
-        Raises:
-            AuthenticationError: If token fetch fails
-        """
-        await self._initialize_client()
-
-        now = datetime.now()
-
-        # If token exists and not expired (with 60s buffer for proactive refresh), return it
-        if (
-            self.client_token
-            and self.token_expires_at
-            and self.token_expires_at > now + timedelta(seconds=60)
-        ):
-            assert self.client_token is not None
-            return self.client_token
-
-        # Acquire lock to prevent concurrent token fetches
-        async with self.token_refresh_lock:
-            # Double-check after acquiring lock
-            if (
-                self.client_token
-                and self.token_expires_at
-                and self.token_expires_at > now + timedelta(seconds=60)
-            ):
-                assert self.client_token is not None
-                return self.client_token
-
-            # Fetch new token
-            await self._fetch_client_token()
-            assert self.client_token is not None
-            return self.client_token
-
-    def _extract_correlation_id(self, response: Optional[httpx.Response] = None) -> Optional[str]:
-        """
-        Extract correlation ID from response headers.
-
-        Checks common correlation ID header names.
-
-        Args:
-            response: HTTP response object (optional)
-
-        Returns:
-            Correlation ID string if found, None otherwise
-        """
-        if not response:
-            return None
-
-        # Check common correlation ID header names (case-insensitive)
-        correlation_headers = [
-            "x-correlation-id",
-            "x-request-id",
-            "correlation-id",
-            "correlationId",
-            "x-correlationid",
-            "request-id",
-        ]
-
-        for header_name in correlation_headers:
-            correlation_id = response.headers.get(header_name) or response.headers.get(
-                header_name.lower()
-            )
-            if correlation_id:
-                return str(correlation_id)
-
-        return None
-
-    async def _fetch_client_token(self) -> None:
-        """
-        Fetch client token from controller.
-
-        Raises:
-            AuthenticationError: If token fetch fails
-        """
-        await self._initialize_client()
-
-        client_id = self.config.client_id
-        response: Optional[httpx.Response] = None
-        correlation_id: Optional[str] = None
-
-        try:
-            # Use resolved URL for temporary client
-            resolved_url = resolve_controller_url(self.config)
-            # Use a temporary client to avoid interceptor recursion
-            temp_client = httpx.AsyncClient(
-                base_url=resolved_url,
-                timeout=30.0,
-                headers={
-                    "Content-Type": "application/json",
-                    "x-client-id": client_id,
-                    "x-client-secret": self.config.client_secret,
-                },
-            )
-
-            # Use configurable client token URI or default
-            token_uri = self.config.clientTokenUri or "/api/v1/auth/token"
-            response = await temp_client.post(token_uri)
-            await temp_client.aclose()
-
-            # Extract correlation ID from response
-            correlation_id = self._extract_correlation_id(response)
-
-            if response.status_code != 200:
-                error_msg = f"Failed to get client token: HTTP {response.status_code}"
-                if client_id:
-                    error_msg += f" (clientId: {client_id})"
-                if correlation_id:
-                    error_msg += f" (correlationId: {correlation_id})"
-                raise AuthenticationError(error_msg, status_code=response.status_code)
-
-            data = response.json()
-
-            # Handle nested response structure (data field)
-            # If response has {'success': True, 'data': {...}}, extract data and preserve success
-            if isinstance(data, dict) and "data" in data and isinstance(data["data"], dict):
-                nested_data = data["data"]
-                # Merge success from top level if present
-                if "success" in data:
-                    nested_data["success"] = data["success"]
-                data = nested_data
-
-            token_response = ClientTokenResponse(**data)
-
-            if not token_response.success or not token_response.token:
-                error_msg = "Failed to get client token: Invalid response"
-                if client_id:
-                    error_msg += f" (clientId: {client_id})"
-                if correlation_id:
-                    error_msg += f" (correlationId: {correlation_id})"
-                raise AuthenticationError(error_msg)
-
-            self.client_token = token_response.token
-
-            # Calculate expiration: use expiresIn if available, otherwise decode JWT to get exp claim
-            expires_in = token_response.expiresIn
-            if not expires_in or expires_in <= 0:
-                # Try to extract expiration from JWT token
-                try:
-                    decoded = decode_token(token_response.token)
-                    if decoded and "exp" in decoded and isinstance(decoded["exp"], (int, float)):
-                        # Calculate expires_in from JWT exp claim
-                        token_exp = datetime.fromtimestamp(decoded["exp"])
-                        now = datetime.now()
-                        expires_in = max(0, int((token_exp - now).total_seconds()))
-                    else:
-                        # No expiration found, use default (30 minutes)
-                        expires_in = 1800
-                except Exception:
-                    # JWT decode failed, use default (30 minutes)
-                    expires_in = 1800
-
-            # Set expiration with 30 second buffer before actual expiration
-            expires_in = max(0, expires_in - 30)
-            self.token_expires_at = datetime.now() + timedelta(seconds=expires_in)
-
-        except httpx.HTTPError as e:
-            error_msg = f"Failed to get client token: {str(e)}"
-            if client_id:
-                error_msg += f" (clientId: {client_id})"
-            if correlation_id:
-                error_msg += f" (correlationId: {correlation_id})"
-            raise ConnectionError(error_msg)
-        except Exception as e:
-            if isinstance(e, (AuthenticationError, ConnectionError)):
-                raise
-            error_msg = f"Failed to get client token: {str(e)}"
-            if client_id:
-                error_msg += f" (clientId: {client_id})"
-            if correlation_id:
-                error_msg += f" (correlationId: {correlation_id})"
-            raise AuthenticationError(error_msg)
-
     async def _ensure_client_token(self):
         """Ensure client token is set in headers."""
-        token = await self._get_client_token()
+        await self._initialize_client()
+        token = await self.token_manager.get_client_token()
         if self.client:
             self.client.headers["x-client-token"] = token
-
-    def _parse_error_response(self, response: httpx.Response, url: str) -> Optional[ErrorResponse]:
-        """
-        Parse structured error response from HTTP response.
-
-        Extracts correlation ID from response headers if not present in response body.
-
-        Args:
-            response: HTTP response object
-            url: Request URL (used for instance URI if not in response)
-
-        Returns:
-            ErrorResponse if response matches structure, None otherwise
-        """
-        if not response.headers.get("content-type", "").startswith("application/json"):
-            return None
-
-        try:
-            response_data = response.json()
-            # Check if response matches ErrorResponse structure
-            if (
-                isinstance(response_data, dict)
-                and "errors" in response_data
-                and "type" in response_data
-                and "title" in response_data
-                and "statusCode" in response_data
-            ):
-                # Set instance from URL if not provided
-                if "instance" not in response_data or not response_data["instance"]:
-                    response_data["instance"] = url
-
-                # Extract correlation ID from headers if not present in response body
-                if "correlationId" not in response_data or not response_data["correlationId"]:
-                    correlation_id = self._extract_correlation_id(response)
-                    if correlation_id:
-                        response_data["correlationId"] = correlation_id
-
-                return ErrorResponse(**response_data)
-        except (ValueError, TypeError, KeyError):
-            # JSON parsing failed or structure doesn't match
-            pass
-
-        return None
 
     async def close(self):
         """Close the HTTP client."""
@@ -319,14 +93,13 @@ class InternalHttpClient:
 
             # Handle 401 - clear token to force refresh
             if response.status_code == 401:
-                self.client_token = None
-                self.token_expires_at = None
+                self.token_manager.clear_token()
 
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
             # Try to parse structured error response
-            error_response = self._parse_error_response(e.response, url)
+            error_response = parse_error_response(e.response, url)
             error_body = {}
             if (
                 e.response.headers.get("content-type", "").startswith("application/json")
@@ -368,14 +141,13 @@ class InternalHttpClient:
             response = await self.client.post(url, json=data, **kwargs)
 
             if response.status_code == 401:
-                self.client_token = None
-                self.token_expires_at = None
+                self.token_manager.clear_token()
 
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
             # Try to parse structured error response
-            error_response = self._parse_error_response(e.response, url)
+            error_response = parse_error_response(e.response, url)
             error_body = {}
             if (
                 e.response.headers.get("content-type", "").startswith("application/json")
@@ -417,14 +189,13 @@ class InternalHttpClient:
             response = await self.client.put(url, json=data, **kwargs)
 
             if response.status_code == 401:
-                self.client_token = None
-                self.token_expires_at = None
+                self.token_manager.clear_token()
 
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
             # Try to parse structured error response
-            error_response = self._parse_error_response(e.response, url)
+            error_response = parse_error_response(e.response, url)
             error_body = {}
             if (
                 e.response.headers.get("content-type", "").startswith("application/json")
@@ -465,14 +236,13 @@ class InternalHttpClient:
             response = await self.client.delete(url, **kwargs)
 
             if response.status_code == 401:
-                self.client_token = None
-                self.token_expires_at = None
+                self.token_manager.clear_token()
 
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
             # Try to parse structured error response
-            error_response = self._parse_error_response(e.response, url)
+            error_response = parse_error_response(e.response, url)
             error_body = {}
             if (
                 e.response.headers.get("content-type", "").startswith("application/json")
@@ -598,7 +368,7 @@ class InternalHttpClient:
         # Client token is always sent (identifies the application)
         client_token: Optional[str] = None
         if "client-token" in auth_strategy.methods or "client-credentials" in auth_strategy.methods:
-            client_token = await self._get_client_token()
+            client_token = await self.token_manager.get_client_token()
 
         # Try each method in priority order
         last_error: Optional[Exception] = None
@@ -623,8 +393,7 @@ class InternalHttpClient:
                     if e.response.status_code == 401:
                         # Clear client token to force refresh on next attempt
                         if auth_method in ["client-token", "client-credentials"]:
-                            self.client_token = None
-                            self.token_expires_at = None
+                            self.token_manager.clear_token()
                         last_error = e
                         continue
                     # For other HTTP errors, re-raise (don't try next method)
@@ -663,4 +432,4 @@ class InternalHttpClient:
         Returns:
             Client token string
         """
-        return await self._get_client_token()
+        return await self.token_manager.get_client_token()

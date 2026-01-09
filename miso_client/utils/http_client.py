@@ -9,14 +9,24 @@ data is automatically masked using DataMasker before logging to comply with ISO 
 import asyncio
 import time
 from typing import Any, Dict, Literal, Optional, Union
-from urllib.parse import parse_qs
 
 import httpx
 
 from ..models.config import AuthStrategy, MisoClientConfig
 from ..services.logger import LoggerService
 from ..utils.jwt_tools import JwtTokenCache, extract_user_id
-from .http_client_logging import log_http_request_audit, log_http_request_debug
+from .http_client_logging_helpers import (
+    handle_logging_task_error,
+    log_http_request,
+    wait_for_logging_tasks,
+)
+from .http_client_query_helpers import (
+    add_pagination_params,
+    merge_filter_params,
+    parse_filter_query_string,
+    parse_paginated_response,
+    prepare_json_filter_body,
+)
 from .internal_http_client import InternalHttpClient
 from .user_token_refresh import UserTokenRefreshManager
 
@@ -80,14 +90,7 @@ class HttpClient:
         Args:
             task: The completed logging task
         """
-        try:
-            exception = task.exception()
-            if exception:
-                # Silently swallow logging errors - never break HTTP requests
-                pass
-        except Exception:
-            # Task might not be done yet or other error - ignore
-            pass
+        handle_logging_task_error(task)
 
     async def _wait_for_logging_tasks(self, timeout: float = 0.5) -> None:
         """
@@ -99,137 +102,7 @@ class HttpClient:
             timeout: Maximum time to wait in seconds
         """
         if hasattr(self, "_logging_tasks") and self._logging_tasks:
-            try:
-                await asyncio.wait_for(
-                    asyncio.gather(*self._logging_tasks, return_exceptions=True),
-                    timeout=timeout,
-                )
-            except asyncio.TimeoutError:
-                # Some tasks might still be running, that's okay
-                pass
-
-    def _calculate_status_code(
-        self, response: Optional[Any], error: Optional[Exception]
-    ) -> Optional[int]:
-        """
-        Calculate HTTP status code from response or error.
-
-        Args:
-            response: Response data (if successful)
-            error: Exception (if request failed)
-
-        Returns:
-            HTTP status code, or None if cannot determine
-        """
-        if response is not None:
-            return 200
-        if error is not None:
-            if hasattr(error, "status_code"):
-                status_code = getattr(error, "status_code", None)
-                if isinstance(status_code, int):
-                    return status_code
-            return 500
-        return None
-
-    def _extract_user_id_from_headers(
-        self, request_headers: Optional[Dict[str, Any]]
-    ) -> Optional[str]:
-        """
-        Extract user ID from request headers.
-
-        Args:
-            request_headers: Request headers dictionary
-
-        Returns:
-            User ID if found, None otherwise
-        """
-        if request_headers:
-            return self._jwt_cache.extract_user_id_from_headers(request_headers)
-        return None
-
-    async def _log_debug_if_enabled(
-        self,
-        method: str,
-        url: str,
-        response: Optional[Any],
-        error: Optional[Exception],
-        start_time: float,
-        user_id: Optional[str],
-        request_data: Optional[Dict[str, Any]],
-        request_headers: Optional[Dict[str, Any]],
-    ) -> None:
-        """
-        Log debug details if debug logging is enabled.
-
-        Args:
-            method: HTTP method
-            url: Request URL
-            response: Response data (if successful)
-            error: Exception (if request failed)
-            start_time: Request start time
-            user_id: User ID if available
-            request_data: Request body data
-            request_headers: Request headers
-        """
-        if self.config.log_level != "debug":
-            return
-
-        duration_ms = int((time.perf_counter() - start_time) * 1000)
-        status_code = self._calculate_status_code(response, error)
-        await log_http_request_debug(
-            logger=self.logger,
-            method=method,
-            url=url,
-            response=response,
-            duration_ms=duration_ms,
-            status_code=status_code,
-            user_id=user_id,
-            request_data=request_data,
-            request_headers=request_headers,
-            base_url=self.config.controller_url,
-            config=self.config,
-        )
-
-    async def _log_http_request(
-        self,
-        method: str,
-        url: str,
-        response: Optional[Any],
-        error: Optional[Exception],
-        start_time: float,
-        request_data: Optional[Dict[str, Any]],
-        request_headers: Optional[Dict[str, Any]],
-    ) -> None:
-        """
-        Log HTTP request with audit and optional debug logging.
-
-        Args:
-            method: HTTP method
-            url: Request URL
-            response: Response data (if successful)
-            error: Exception (if request failed)
-            start_time: Request start time
-            request_data: Request body data
-            request_headers: Request headers
-        """
-        user_id = self._extract_user_id_from_headers(request_headers)
-
-        await log_http_request_audit(
-            logger=self.logger,
-            method=method,
-            url=url,
-            response=response,
-            error=error,
-            start_time=start_time,
-            request_data=request_data,
-            user_id=user_id,
-            log_level=self.config.log_level,
-            config=self.config,
-        )
-
-        await self._log_debug_if_enabled(
-            method, url, response, error, start_time, user_id, request_data, request_headers
-        )
+            await wait_for_logging_tasks(self._logging_tasks, timeout)
 
     async def _execute_with_logging(
         self,
@@ -262,8 +135,17 @@ class HttpClient:
             # Create logging task but don't await it (non-blocking)
             # Store task reference to allow tests to await if needed
             logging_task = asyncio.create_task(
-                self._log_http_request(
-                    method, url, response, None, start_time, request_data, request_headers
+                log_http_request(
+                    self.logger,
+                    self.config,
+                    self._jwt_cache,
+                    method,
+                    url,
+                    response,
+                    None,
+                    start_time,
+                    request_data,
+                    request_headers,
                 )
             )
             logging_task.add_done_callback(self._handle_logging_task_error)
@@ -276,8 +158,17 @@ class HttpClient:
         except Exception as e:
             # Create logging task for error case
             logging_task = asyncio.create_task(
-                self._log_http_request(
-                    method, url, None, e, start_time, request_data, request_headers
+                log_http_request(
+                    self.logger,
+                    self.config,
+                    self._jwt_cache,
+                    method,
+                    url,
+                    None,
+                    e,
+                    start_time,
+                    request_data,
+                    request_headers,
                 )
             )
             logging_task.add_done_callback(self._handle_logging_task_error)
@@ -432,6 +323,84 @@ class HttpClient:
         """
         self._user_token_refresh.set_auth_service(auth_service)
 
+    async def _prepare_authenticated_request(self, token: str, auto_refresh: bool, **kwargs) -> str:
+        """
+        Prepare authenticated request by getting valid token and setting headers.
+
+        Args:
+            token: User authentication token
+            auto_refresh: Whether to refresh token if expired
+            **kwargs: Request kwargs (headers will be modified)
+
+        Returns:
+            Valid token to use for request
+        """
+        # Get valid token (refresh if expired)
+        valid_token = await self._user_token_refresh.get_valid_token(
+            token, refresh_if_needed=auto_refresh
+        )
+        if not valid_token:
+            valid_token = token  # Fallback to original token
+
+        # Add Bearer token to headers for logging context
+        headers = kwargs.get("headers", {})
+        headers["Authorization"] = f"Bearer {valid_token}"
+        kwargs["headers"] = headers
+
+        return valid_token
+
+    async def _handle_401_refresh(
+        self,
+        method: Literal["GET", "POST", "PUT", "DELETE"],
+        url: str,
+        token: str,
+        data: Optional[Dict[str, Any]],
+        auth_strategy: Optional[AuthStrategy],
+        error: httpx.HTTPStatusError,
+        auto_refresh: bool,
+        **kwargs,
+    ) -> Any:
+        """
+        Handle 401 error by refreshing token and retrying request.
+
+        Args:
+            method: HTTP method
+            url: Request URL
+            token: Current token
+            data: Request data
+            auth_strategy: Authentication strategy
+            error: HTTPStatusError with 401 status
+            auto_refresh: Whether to refresh token
+            **kwargs: Request kwargs
+
+        Returns:
+            Response data from retried request
+
+        Raises:
+            httpx.HTTPStatusError: If refresh fails or retry fails
+        """
+        if not auto_refresh:
+            raise error
+
+        user_id = extract_user_id(token)
+        refreshed_token = await self._user_token_refresh._refresh_token(token, user_id)
+
+        if not refreshed_token:
+            raise error
+
+        # Retry request with refreshed token
+        headers = kwargs.get("headers", {})
+        headers["Authorization"] = f"Bearer {refreshed_token}"
+        kwargs["headers"] = headers
+
+        try:
+            return await self._internal_client.authenticated_request(
+                method, url, refreshed_token, data, auth_strategy, **kwargs
+            )
+        except httpx.HTTPStatusError:
+            # Retry failed, raise original error
+            raise error
+
     async def authenticated_request(
         self,
         method: Literal["GET", "POST", "PUT", "DELETE"],
@@ -464,45 +433,20 @@ class HttpClient:
         Raises:
             MisoClientError: If request fails
         """
-        # Get valid token (refresh if expired)
-        valid_token = await self._user_token_refresh.get_valid_token(
-            token, refresh_if_needed=auto_refresh
-        )
-        if not valid_token:
-            valid_token = token  # Fallback to original token
+        # Prepare token and headers
+        valid_token = await self._prepare_authenticated_request(token, auto_refresh, **kwargs)
 
-        # Add Bearer token to headers for logging context
-        headers = kwargs.get("headers", {})
-        headers["Authorization"] = f"Bearer {valid_token}"
-        kwargs["headers"] = headers
-
-        # Use internal client's authenticated_request which handles auth strategy
+        # Execute request with 401 handling
         async def _authenticated_request():
             try:
                 return await self._internal_client.authenticated_request(
                     method, url, valid_token, data, auth_strategy, **kwargs
                 )
             except httpx.HTTPStatusError as e:
-                # Handle 401 with automatic refresh
-                if e.response.status_code == 401 and auto_refresh:
-                    user_id = extract_user_id(valid_token)
-                    refreshed_token = await self._user_token_refresh._refresh_token(
-                        valid_token, user_id
+                if e.response.status_code == 401:
+                    return await self._handle_401_refresh(
+                        method, url, valid_token, data, auth_strategy, e, auto_refresh, **kwargs
                     )
-
-                    if refreshed_token:
-                        # Retry request with refreshed token
-                        try:
-                            headers["Authorization"] = f"Bearer {refreshed_token}"
-                            kwargs["headers"] = headers
-                            return await self._internal_client.authenticated_request(
-                                method, url, refreshed_token, data, auth_strategy, **kwargs
-                            )
-                        except httpx.HTTPStatusError:
-                            # Retry failed, raise original error
-                            raise e
-
-                # Re-raise if not 401 or refresh failed
                 raise
 
         return await self._execute_with_logging(method, url, _authenticated_request, data, **kwargs)
@@ -544,34 +488,6 @@ class HttpClient:
             method, url, _request_with_auth_strategy, data, **kwargs
         )
 
-    def _parse_filter_query_string(self, query_string: str) -> Dict[str, Any]:
-        """
-        Parse filter query string into params dictionary.
-
-        Args:
-            query_string: Query string from FilterQuery
-
-        Returns:
-            Params dictionary with filters
-        """
-        query_params = parse_qs(query_string)
-        return {k: v[0] if len(v) == 1 else v for k, v in query_params.items()}
-
-    def _merge_filter_params(self, kwargs: Dict[str, Any], filter_params: Dict[str, Any]) -> None:
-        """
-        Merge filter params with existing params.
-
-        Args:
-            kwargs: Request kwargs dictionary
-            filter_params: Filter params from FilterBuilder
-        """
-        existing_params = kwargs.get("params", {})
-        if existing_params:
-            merged_params = {**existing_params, **filter_params}
-        else:
-            merged_params = filter_params
-        kwargs["params"] = merged_params
-
     async def get_with_filters(
         self,
         url: str,
@@ -605,49 +521,10 @@ class HttpClient:
             query_string = build_query_string(filter_query)
 
             if query_string:
-                filter_params = self._parse_filter_query_string(query_string)
-                self._merge_filter_params(kwargs, filter_params)
+                filter_params = parse_filter_query_string(query_string)
+                merge_filter_params(kwargs, filter_params)
 
         return await self.get(url, **kwargs)
-
-    def _add_pagination_params(
-        self, kwargs: Dict[str, Any], page: Optional[int], page_size: Optional[int]
-    ) -> None:
-        """
-        Add pagination params to kwargs.
-
-        Args:
-            kwargs: Request kwargs dictionary
-            page: Optional page number (1-based)
-            page_size: Optional number of items per page
-        """
-        params = kwargs.get("params", {})
-        if page is not None:
-            params["page"] = page
-        if page_size is not None:
-            params["pageSize"] = page_size
-
-        if params:
-            kwargs["params"] = params
-
-    def _parse_paginated_response(self, response_data: Any) -> Any:
-        """
-        Parse response as PaginatedListResponse if possible.
-
-        Args:
-            response_data: Response data from API
-
-        Returns:
-            PaginatedListResponse if format matches, otherwise raw response
-        """
-        from ..models.pagination import PaginatedListResponse
-
-        try:
-            return PaginatedListResponse(**response_data)
-        except Exception:
-            # If response doesn't match PaginatedListResponse format, return as-is
-            # This allows flexibility for different response formats
-            return response_data
 
     async def get_paginated(
         self,
@@ -680,9 +557,9 @@ class HttpClient:
             >>> len(response.data)
             25
         """
-        self._add_pagination_params(kwargs, page, page_size)
+        add_pagination_params(kwargs, page, page_size)
         response_data = await self.get(url, **kwargs)
-        return self._parse_paginated_response(response_data)
+        return parse_paginated_response(response_data)
 
     def clear_user_token(self, token: str) -> None:
         """
@@ -725,27 +602,8 @@ class HttpClient:
             ...     json_filter=json_filter
             ... )
         """
-        from ..models.filter import FilterQuery, JsonFilter
-
-        # Prepare JSON body
-        request_body: Dict[str, Any] = {}
-        if json_body:
-            request_body.update(json_body)
-
-        # Convert filter to JSON dict if provided
-        if json_filter:
-            if isinstance(json_filter, JsonFilter):
-                # Convert JsonFilter to dict
-                filter_dict = json_filter.model_dump(exclude_none=True)
-            elif isinstance(json_filter, FilterQuery):
-                # Convert FilterQuery to dict
-                filter_dict = json_filter.to_json()
-            else:
-                # Assume it's already a dict
-                filter_dict = json_filter
-
-            # Merge filter data into request body
-            request_body.update(filter_dict)
+        # Prepare JSON body with filter data
+        request_body = prepare_json_filter_body(json_filter, json_body)
 
         # Use post method with merged body
         return await self.post(url, data=request_body if request_body else None, **kwargs)

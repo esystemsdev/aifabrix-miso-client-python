@@ -20,6 +20,7 @@ from miso_client.services.auth import AuthService
 from miso_client.services.logger import LoggerChain, LoggerService
 from miso_client.services.permission import PermissionService
 from miso_client.services.role import RoleService
+from miso_client.utils.logger_helpers import extract_jwt_context, extract_metadata
 
 
 class TestMisoClient:
@@ -1425,7 +1426,7 @@ class TestLoggerService:
 
     def test_extract_jwt_context_with_roles_list(self, logger_service):
         """Test JWT context extraction with roles as list."""
-        with patch("miso_client.services.logger.decode_token") as mock_decode:
+        with patch("miso_client.utils.logger_helpers.decode_token") as mock_decode:
             mock_decode.return_value = {
                 "sub": "user-123",
                 "roles": ["admin", "user"],
@@ -1433,7 +1434,7 @@ class TestLoggerService:
                 "sessionId": "session-789",
             }
 
-            context = logger_service._extract_jwt_context("test-token")
+            context = extract_jwt_context("test-token")
 
             assert context["userId"] == "user-123"
             assert context["roles"] == ["admin", "user"]
@@ -1442,134 +1443,134 @@ class TestLoggerService:
 
     def test_extract_jwt_context_with_realm_access(self, logger_service):
         """Test JWT context extraction with realm_access.roles format."""
-        with patch("miso_client.services.logger.decode_token") as mock_decode:
+        with patch("miso_client.utils.logger_helpers.decode_token") as mock_decode:
             mock_decode.return_value = {
                 "sub": "user-123",
                 "realm_access": {"roles": ["admin", "user"]},
             }
 
-            context = logger_service._extract_jwt_context("test-token")
+            context = extract_jwt_context("test-token")
 
             assert context["userId"] == "user-123"
             assert context["roles"] == ["admin", "user"]
 
     def test_extract_jwt_context_with_scope_string(self, logger_service):
         """Test JWT context extraction with scope as string."""
-        with patch("miso_client.services.logger.decode_token") as mock_decode:
+        with patch("miso_client.utils.logger_helpers.decode_token") as mock_decode:
             mock_decode.return_value = {
                 "sub": "user-123",
                 "scope": "read write delete",
             }
 
-            context = logger_service._extract_jwt_context("test-token")
+            context = extract_jwt_context("test-token")
 
             assert context["userId"] == "user-123"
             assert context["permissions"] == ["read", "write", "delete"]
 
     def test_extract_jwt_context_with_permissions_list(self, logger_service):
         """Test JWT context extraction with permissions as list."""
-        with patch("miso_client.services.logger.decode_token") as mock_decode:
+        with patch("miso_client.utils.logger_helpers.decode_token") as mock_decode:
             mock_decode.return_value = {
                 "sub": "user-123",
                 "permissions": ["read", "write"],
             }
 
-            context = logger_service._extract_jwt_context("test-token")
+            context = extract_jwt_context("test-token")
 
             assert context["userId"] == "user-123"
             assert context["permissions"] == ["read", "write"]
 
     def test_extract_jwt_context_with_multiple_user_id_fields(self, logger_service):
         """Test JWT context extraction with different user ID field names."""
-        with patch("miso_client.services.logger.decode_token") as mock_decode:
+        with patch("miso_client.utils.logger_helpers.decode_token") as mock_decode:
             # Test with userId field
             mock_decode.return_value = {"userId": "user-456"}
 
-            context = logger_service._extract_jwt_context("test-token")
+            context = extract_jwt_context("test-token")
 
             assert context["userId"] == "user-456"
 
             # Test with user_id field
             mock_decode.return_value = {"user_id": "user-789"}
 
-            context = logger_service._extract_jwt_context("test-token")
+            context = extract_jwt_context("test-token")
 
             assert context["userId"] == "user-789"
 
     def test_extract_jwt_context_with_application_id_fields(self, logger_service):
         """Test JWT context extraction with different application ID field names."""
-        with patch("miso_client.services.logger.decode_token") as mock_decode:
+        with patch("miso_client.utils.logger_helpers.decode_token") as mock_decode:
             mock_decode.return_value = {"app_id": "app-123"}
 
-            context = logger_service._extract_jwt_context("test-token")
+            context = extract_jwt_context("test-token")
 
             assert context["applicationId"] == "app-123"
 
     def test_extract_jwt_context_with_session_id_fields(self, logger_service):
         """Test JWT context extraction with different session ID field names."""
-        with patch("miso_client.services.logger.decode_token") as mock_decode:
+        with patch("miso_client.utils.logger_helpers.decode_token") as mock_decode:
             mock_decode.return_value = {"sid": "session-123"}
 
-            context = logger_service._extract_jwt_context("test-token")
+            context = extract_jwt_context("test-token")
 
             assert context["sessionId"] == "session-123"
 
     def test_extract_jwt_context_with_none_token(self, logger_service):
         """Test JWT context extraction with None token."""
-        context = logger_service._extract_jwt_context(None)
+        context = extract_jwt_context(None)
 
         assert context == {}
 
     def test_extract_jwt_context_decode_fails(self, logger_service):
         """Test JWT context extraction when decode fails."""
-        with patch("miso_client.services.logger.decode_token") as mock_decode:
+        with patch("miso_client.utils.logger_helpers.decode_token") as mock_decode:
             mock_decode.return_value = None
 
-            context = logger_service._extract_jwt_context("invalid-token")
+            context = extract_jwt_context("invalid-token")
 
             assert context == {}
 
     def test_extract_jwt_context_decode_exception(self, logger_service):
         """Test JWT context extraction when decode raises exception."""
-        with patch("miso_client.services.logger.decode_token") as mock_decode:
+        with patch("miso_client.utils.logger_helpers.decode_token") as mock_decode:
             mock_decode.side_effect = Exception("Decode failed")
 
-            context = logger_service._extract_jwt_context("invalid-token")
+            context = extract_jwt_context("invalid-token")
 
             assert context == {}
 
     def test_extract_jwt_context_with_non_list_roles(self, logger_service):
         """Test JWT context extraction when roles is not a list."""
-        with patch("miso_client.services.logger.decode_token") as mock_decode:
+        with patch("miso_client.utils.logger_helpers.decode_token") as mock_decode:
             mock_decode.return_value = {
                 "sub": "user-123",
                 "roles": "admin",
             }  # String instead of list
 
-            context = logger_service._extract_jwt_context("test-token")
+            context = extract_jwt_context("test-token")
 
             assert context["userId"] == "user-123"
             assert context["roles"] == []  # Should default to empty list
 
     def test_extract_jwt_context_with_non_dict_realm_access(self, logger_service):
         """Test JWT context extraction when realm_access is not a dict."""
-        with patch("miso_client.services.logger.decode_token") as mock_decode:
+        with patch("miso_client.utils.logger_helpers.decode_token") as mock_decode:
             mock_decode.return_value = {"sub": "user-123", "realm_access": "invalid"}
 
-            context = logger_service._extract_jwt_context("test-token")
+            context = extract_jwt_context("test-token")
 
             assert context["userId"] == "user-123"
             assert context["roles"] == []  # Should default to empty list
 
     def test_extract_jwt_context_with_non_list_permissions(self, logger_service):
         """Test JWT context extraction when permissions is not a list."""
-        with patch("miso_client.services.logger.decode_token") as mock_decode:
+        with patch("miso_client.utils.logger_helpers.decode_token") as mock_decode:
             mock_decode.return_value = {
                 "sub": "user-123",
                 "permissions": "read",
             }  # String instead of list
 
-            context = logger_service._extract_jwt_context("test-token")
+            context = extract_jwt_context("test-token")
 
             assert context["userId"] == "user-123"
             assert context["permissions"] == []  # Should default to empty list
@@ -1577,7 +1578,7 @@ class TestLoggerService:
     def test_extract_metadata(self, logger_service):
         """Test metadata extraction from environment."""
         with patch.dict("os.environ", {"HOSTNAME": "test-host"}):
-            metadata = logger_service._extract_metadata()
+            metadata = extract_metadata()
 
             assert "hostname" in metadata
             assert metadata["hostname"] == "test-host"
@@ -1587,7 +1588,7 @@ class TestLoggerService:
     def test_extract_metadata_without_hostname(self, logger_service):
         """Test metadata extraction when HOSTNAME is not set."""
         with patch.dict("os.environ", {}, clear=True):
-            metadata = logger_service._extract_metadata()
+            metadata = extract_metadata()
 
             assert metadata["hostname"] == "unknown"
             assert "platform" in metadata
@@ -1655,7 +1656,7 @@ class TestLoggerService:
 
         from miso_client.models.config import ClientLoggingOptions
 
-        with patch("miso_client.services.logger.decode_token") as mock_decode:
+        with patch("miso_client.utils.logger_helpers.decode_token") as mock_decode:
             mock_decode.return_value = {
                 "sub": "user-123",
                 "roles": ["admin"],

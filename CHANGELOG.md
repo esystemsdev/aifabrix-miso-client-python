@@ -5,6 +5,121 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.0] - 2026-01-09
+
+### Added
+
+- **Enhanced Error Logging with Correlation IDs** - Automatic correlation ID extraction and propagation
+  - New `extract_correlation_id_from_error()` utility function to extract correlation IDs from exceptions
+  - Correlation IDs automatically extracted from HTTP response headers and included in error responses
+  - Service methods now automatically extract and include correlation IDs in error logs
+  - HTTP client audit logging includes correlation IDs from error responses
+  - Improved traceability from API errors to log entries for easier debugging
+  - Public logger methods return `LogEntry` objects with auto-extracted context for custom logger tables
+
+- **Unified JSON Filter Model** - Consistent filtering API for both query strings and JSON bodies
+  - New `JsonFilter` model for unified filter representation in JSON format
+  - New `FilterGroup` model supporting complex AND/OR logic in filters
+  - Support for null check operators (`isNull`, `isNotNull`) for checking null/not-null field values
+  - Conversion utilities between query string format and JSON format
+  - `FilterQuery` now supports JSON serialization/deserialization
+  - New `post_with_filters()` method in HttpClient for JSON body filtering
+  - Filter validation when deserializing from JSON
+  - Support for nested filter groups with AND/OR operators
+
+- **Redis-Backed Caching for Token Validation** - Improved performance for token validation
+  - Token validation results are now cached in Redis with configurable TTL
+  - Reduces redundant API calls to controller for token validation
+  - Automatic cache invalidation on token expiration
+  - Graceful fallback to controller when Redis is unavailable
+
+- **HTTP Client Query Helpers** - Extracted helper utilities for better code organization
+  - New `http_client_query_helpers.py` module with filter and pagination utilities
+  - Improved code organization and maintainability
+  - Better separation of concerns in HTTP client
+
+- **Filter Conversion Utilities** - Enhanced filter manipulation capabilities
+  - New utilities for converting between `FilterQuery`, `JsonFilter`, and query strings
+  - `filter_query_to_json()` and `json_to_filter_query()` conversion functions
+  - `json_filter_to_query_string()` and `query_string_to_json_filter()` utilities
+  - Support for bidirectional conversion between formats
+
+### Changed
+
+- **HTTP Client Architecture** - Improved code organization and maintainability
+  - Extracted logging helpers to `http_client_logging_helpers.py` module
+  - Extracted query helpers to `http_client_query_helpers.py` module
+  - Reduced `http_client.py` file size to comply with code size guidelines
+  - Better separation of concerns and improved testability
+
+- **Authorization Services** - Code quality improvements and reduced duplication
+  - Extracted shared `validate_token_request()` utility to `auth_utils.py`
+  - Eliminated code duplication between `RoleService` and `PermissionService`
+  - Improved error handling with correlation ID extraction
+  - Better code reuse and maintainability
+
+- **Authentication Service** - Enhanced error handling and logging
+  - Improved error logging with correlation ID extraction
+  - Better integration with error utilities
+  - Enhanced token validation error handling
+
+- **Logger Service** - Enhanced logging capabilities
+  - Improved error logging with correlation ID extraction
+  - Public methods return `LogEntry` objects with auto-extracted context
+  - Better support for projects using custom logger tables
+  - Enhanced structured logging with correlation IDs
+
+- **Filter Utilities** - Enhanced filter model and validation
+  - `FilterQuery` now supports JSON serialization/deserialization
+  - Added filter validation utilities
+  - Improved filter group support with AND/OR operators
+  - Better error messages for invalid filter structures
+
+- **Internal HTTP Client** - Improved error handling
+  - Enhanced error response parsing with correlation ID extraction
+  - Better integration with error utilities
+  - Improved error message generation
+
+- **HTTP Client Logging** - Enhanced audit logging
+  - Correlation IDs automatically extracted from error responses
+  - Improved error context in audit logs
+  - Better traceability for debugging
+
+### Fixed
+
+- **Code Quality** - Fixed linting issues
+  - Removed unused imports across multiple files
+  - Fixed code style violations
+  - Improved code consistency
+
+- **Filter Validation** - Enhanced validation and error handling
+  - Better validation for filter structure when deserializing from JSON
+  - Improved error messages for invalid filters
+  - Better handling of edge cases in filter parsing
+
+### Technical
+
+- **New utility files**:
+  - `miso_client/utils/http_client_query_helpers.py` - Filter and pagination query helpers
+  - `miso_client/utils/http_client_logging_helpers.py` - HTTP client logging helpers
+  - `miso_client/utils/filter_applier.py` - Filter application utilities
+  - `miso_client/utils/filter_parser.py` - Filter parsing utilities
+
+- **Enhanced models**:
+  - `FilterQuery` - Added JSON serialization/deserialization support
+  - `JsonFilter` - New unified JSON filter model
+  - `FilterGroup` - New filter group model for complex AND/OR logic
+
+- **Code organization improvements**:
+  - Reduced file sizes to comply with code size guidelines
+  - Better separation of concerns
+  - Improved maintainability and testability
+
+- **Test coverage improvements**:
+  - Enhanced test coverage for filter utilities
+  - Improved test coverage for logger service
+  - Better test organization and structure
+
 ## [3.3.0] - 2025-12-23
 
 ### Added

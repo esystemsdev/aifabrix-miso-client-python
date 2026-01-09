@@ -107,6 +107,123 @@ class AuthService:
         """
         return await self.http_client.get_environment_token()
 
+    async def _check_cache_for_token(self, token: str) -> Optional[Dict[str, Any]]:
+        """
+        Check cache for token validation result.
+
+        Args:
+            token: JWT token to check
+
+        Returns:
+            Cached validation result if found, None otherwise
+        """
+        if not self.cache:
+            return None
+
+        cache_key = self._get_token_cache_key(token)
+        cached_result = await self.cache.get(cache_key)
+        if cached_result and isinstance(cached_result, dict):
+            logger.debug("Token validation cache hit")
+            return cast(Dict[str, Any], cached_result)
+
+        return None
+
+    async def _fetch_validation_from_api_client(
+        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> Dict[str, Any]:
+        """
+        Fetch token validation using ApiClient.
+
+        Args:
+            token: JWT token to validate
+            auth_strategy: Optional authentication strategy
+
+        Returns:
+            Validation result dictionary
+        """
+        if not self.api_client:
+            raise ValueError("ApiClient is required for this method")
+        response = await self.api_client.auth.validate_token(token, auth_strategy=auth_strategy)
+        # Extract data from typed response
+        return {
+            "success": response.success,
+            "data": {
+                "authenticated": response.data.authenticated,
+                "user": response.data.user.model_dump() if response.data.user else None,
+                "expiresAt": response.data.expiresAt,
+            },
+            "timestamp": response.timestamp,
+        }
+
+    async def _fetch_validation_from_http_client(
+        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> Dict[str, Any]:
+        """
+        Fetch token validation using HttpClient (backward compatibility).
+
+        Args:
+            token: JWT token to validate
+            auth_strategy: Optional authentication strategy
+
+        Returns:
+            Validation result dictionary
+        """
+        if auth_strategy is not None:
+            result = await self.http_client.authenticated_request(
+                "POST",
+                "/api/v1/auth/validate",
+                token,
+                {"token": token},
+                auth_strategy=auth_strategy,
+            )
+            return result  # type: ignore[no-any-return]
+
+        result = await self.http_client.authenticated_request(
+            "POST", "/api/v1/auth/validate", token, {"token": token}
+        )
+        return result  # type: ignore[no-any-return]
+
+    async def _fetch_validation_from_api(
+        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> Dict[str, Any]:
+        """
+        Fetch token validation from API (ApiClient or HttpClient).
+
+        Args:
+            token: JWT token to validate
+            auth_strategy: Optional authentication strategy
+
+        Returns:
+            Validation result dictionary
+        """
+        if self.api_client:
+            return await self._fetch_validation_from_api_client(token, auth_strategy)
+        else:
+            return await self._fetch_validation_from_http_client(token, auth_strategy)
+
+    async def _cache_validation_result(self, token: str, result: Dict[str, Any]) -> None:
+        """
+        Cache successful validation results.
+
+        Args:
+            token: JWT token that was validated
+            result: Validation result dictionary
+        """
+        if not self.cache:
+            return
+
+        result_dict: Dict[str, Any] = result
+        if result_dict.get("data", {}).get("authenticated") is not True:
+            return
+
+        cache_key = self._get_token_cache_key(token)
+        ttl = self._get_cache_ttl_from_token(token)
+        try:
+            await self.cache.set(cache_key, result_dict, ttl)
+            logger.debug(f"Token validation cached with TTL: {ttl}s")
+        except Exception as error:
+            logger.warning("Failed to cache validation result", exc_info=error)
+
     async def _validate_token_request(
         self, token: str, auth_strategy: Optional[AuthStrategy] = None
     ) -> Dict[str, Any]:
@@ -122,58 +239,18 @@ class AuthService:
         Returns:
             Validation result dictionary
         """
-        # Check cache first if cache service is available
-        if self.cache:
-            cache_key = self._get_token_cache_key(token)
-            cached_result = await self.cache.get(cache_key)
-            if cached_result and isinstance(cached_result, dict):
-                logger.debug("Token validation cache hit")
-                return cast(Dict[str, Any], cached_result)
+        # Check cache first
+        cached_result = await self._check_cache_for_token(token)
+        if cached_result:
+            return cached_result
 
-        # Cache miss - make HTTP request
-        if self.api_client:
-            # Use ApiClient for typed API calls
-            response = await self.api_client.auth.validate_token(token, auth_strategy=auth_strategy)
-            # Extract data from typed response
-            result = {
-                "success": response.success,
-                "data": {
-                    "authenticated": response.data.authenticated,
-                    "user": response.data.user.model_dump() if response.data.user else None,
-                    "expiresAt": response.data.expiresAt,
-                },
-                "timestamp": response.timestamp,
-            }
-        else:
-            # Fallback to HttpClient for backward compatibility
-            if auth_strategy is not None:
-                result = await self.http_client.authenticated_request(
-                    "POST",
-                    "/api/v1/auth/validate",
-                    token,
-                    {"token": token},
-                    auth_strategy=auth_strategy,
-                )
-                result = result  # type: ignore[assignment]
-            else:
-                result = await self.http_client.authenticated_request(
-                    "POST", "/api/v1/auth/validate", token, {"token": token}
-                )
-                result = result  # type: ignore[assignment]
+        # Cache miss - fetch from API
+        result = await self._fetch_validation_from_api(token, auth_strategy)
 
-        # Cache successful validation results only (if authenticated: true)
-        if self.cache and isinstance(result, dict):
-            result_dict: Dict[str, Any] = result
-            if result_dict.get("data", {}).get("authenticated") is True:
-                cache_key = self._get_token_cache_key(token)
-                ttl = self._get_cache_ttl_from_token(token)
-                try:
-                    await self.cache.set(cache_key, result_dict, ttl)
-                    logger.debug(f"Token validation cached with TTL: {ttl}s")
-                except Exception as error:
-                    logger.warning("Failed to cache validation result", exc_info=error)
+        # Cache successful validation results
+        await self._cache_validation_result(token, result)
 
-        return result  # type: ignore[no-any-return]
+        return result
 
     async def login(self, redirect: str, state: Optional[str] = None) -> Dict[str, Any]:
         """
