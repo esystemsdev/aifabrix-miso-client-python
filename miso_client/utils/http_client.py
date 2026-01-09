@@ -8,7 +8,7 @@ data is automatically masked using DataMasker before logging to comply with ISO 
 
 import asyncio
 import time
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, Literal, Optional, Union
 from urllib.parse import parse_qs
 
 import httpx
@@ -692,3 +692,60 @@ class HttpClient:
             token: JWT token string to remove from cache
         """
         self._jwt_cache.clear_token(token)
+
+    async def post_with_filters(
+        self,
+        url: str,
+        json_filter: Optional[Union[Any, Dict[str, Any]]] = None,
+        json_body: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ) -> Any:
+        """
+        Make POST request with JSON filter support.
+
+        Args:
+            url: Request URL
+            json_filter: Optional JsonFilter or FilterQuery instance
+            json_body: Optional JSON body (filters will be merged into this)
+            **kwargs: Additional httpx request parameters
+
+        Returns:
+            Response data (JSON parsed)
+
+        Raises:
+            MisoClientError: If request fails
+
+        Examples:
+            >>> from miso_client.models.filter import JsonFilter, FilterOption
+            >>> json_filter = JsonFilter(
+            ...     filters=[FilterOption(field='status', op='eq', value='active')]
+            ... )
+            >>> response = await client.http_client.post_with_filters(
+            ...     '/api/items/search',
+            ...     json_filter=json_filter
+            ... )
+        """
+        from ..models.filter import FilterQuery, JsonFilter
+
+        # Prepare JSON body
+        request_body: Dict[str, Any] = {}
+        if json_body:
+            request_body.update(json_body)
+
+        # Convert filter to JSON dict if provided
+        if json_filter:
+            if isinstance(json_filter, JsonFilter):
+                # Convert JsonFilter to dict
+                filter_dict = json_filter.model_dump(exclude_none=True)
+            elif isinstance(json_filter, FilterQuery):
+                # Convert FilterQuery to dict
+                filter_dict = json_filter.to_json()
+            else:
+                # Assume it's already a dict
+                filter_dict = json_filter
+
+            # Merge filter data into request body
+            request_body.update(filter_dict)
+
+        # Use post method with merged body
+        return await self.post(url, data=request_body if request_body else None, **kwargs)

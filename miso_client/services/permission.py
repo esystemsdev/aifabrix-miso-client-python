@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 from ..models.config import AuthStrategy, PermissionResult
 from ..services.cache import CacheService
+from ..utils.error_utils import extract_correlation_id_from_error
 from ..utils.http_client import HttpClient
 from ..utils.jwt_tools import extract_user_id
 
@@ -151,7 +152,12 @@ class PermissionService:
             return permissions
 
         except Exception as error:
-            logger.error("Failed to get permissions", exc_info=error)
+            correlation_id = extract_correlation_id_from_error(error)
+            logger.error(
+                "Failed to get permissions",
+                exc_info=error,
+                extra={"correlationId": correlation_id} if correlation_id else None,
+            )
             return []
 
     async def has_permission(
@@ -261,7 +267,12 @@ class PermissionService:
             return permissions
 
         except Exception as error:
-            logger.error("Failed to refresh permissions", exc_info=error)
+            correlation_id = extract_correlation_id_from_error(error)
+            logger.error(
+                "Failed to refresh permissions",
+                exc_info=error,
+                extra={"correlationId": correlation_id} if correlation_id else None,
+            )
             return []
 
     async def clear_permissions_cache(
@@ -287,5 +298,10 @@ class PermissionService:
             await self.cache.delete(cache_key)
 
         except Exception as error:
-            logger.error("Failed to clear permissions cache", exc_info=error)
+            correlation_id = extract_correlation_id_from_error(error)
+            logger.error(
+                "Failed to clear permissions cache",
+                exc_info=error,
+                extra={"correlationId": correlation_id} if correlation_id else None,
+            )
             # Silently continue per service method pattern

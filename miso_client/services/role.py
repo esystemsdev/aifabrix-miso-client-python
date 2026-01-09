@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 from ..models.config import AuthStrategy, RoleResult
 from ..services.cache import CacheService
+from ..utils.error_utils import extract_correlation_id_from_error
 from ..utils.http_client import HttpClient
 from ..utils.jwt_tools import extract_user_id
 
@@ -147,7 +148,12 @@ class RoleService:
             return roles
 
         except Exception as error:
-            logger.error("Failed to get roles", exc_info=error)
+            correlation_id = extract_correlation_id_from_error(error)
+            logger.error(
+                "Failed to get roles",
+                exc_info=error,
+                extra={"correlationId": correlation_id} if correlation_id else None,
+            )
             return []
 
     async def has_role(
@@ -252,7 +258,12 @@ class RoleService:
             return roles
 
         except Exception as error:
-            logger.error("Failed to refresh roles", exc_info=error)
+            correlation_id = extract_correlation_id_from_error(error)
+            logger.error(
+                "Failed to refresh roles",
+                exc_info=error,
+                extra={"correlationId": correlation_id} if correlation_id else None,
+            )
             return []
 
     async def clear_roles_cache(
@@ -279,5 +290,10 @@ class RoleService:
             await self.cache.delete(cache_key)
 
         except Exception as error:
-            logger.error("Failed to clear roles cache", exc_info=error)
+            correlation_id = extract_correlation_id_from_error(error)
+            logger.error(
+                "Failed to clear roles cache",
+                exc_info=error,
+                extra={"correlationId": correlation_id} if correlation_id else None,
+            )
             # Silently continue per service method pattern

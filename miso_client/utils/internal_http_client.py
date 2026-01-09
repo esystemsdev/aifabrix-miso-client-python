@@ -244,6 +244,8 @@ class InternalHttpClient:
         """
         Parse structured error response from HTTP response.
 
+        Extracts correlation ID from response headers if not present in response body.
+
         Args:
             response: HTTP response object
             url: Request URL (used for instance URI if not in response)
@@ -267,6 +269,13 @@ class InternalHttpClient:
                 # Set instance from URL if not provided
                 if "instance" not in response_data or not response_data["instance"]:
                     response_data["instance"] = url
+
+                # Extract correlation ID from headers if not present in response body
+                if "correlationId" not in response_data or not response_data["correlationId"]:
+                    correlation_id = self._extract_correlation_id(response)
+                    if correlation_id:
+                        response_data["correlationId"] = correlation_id
+
                 return ErrorResponse(**response_data)
         except (ValueError, TypeError, KeyError):
             # JSON parsing failed or structure doesn't match

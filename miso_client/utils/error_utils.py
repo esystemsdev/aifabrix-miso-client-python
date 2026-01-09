@@ -179,3 +179,38 @@ def handle_api_error_snake_case(
         status_code=status_code,
         error_response=error_response,
     )
+
+
+def extract_correlation_id_from_error(error: Exception) -> Optional[str]:
+    """
+    Extract correlation ID from exception if available.
+
+    Checks MisoClientError.error_response.correlationId and ApiErrorException.correlationId.
+
+    Args:
+        error: Exception object
+
+    Returns:
+        Correlation ID string if found, None otherwise
+
+    Examples:
+        >>> error = MisoClientError("Error", error_response=ErrorResponse(
+        ...     errors=["Error"], type="/Errors/Test", statusCode=400,
+        ...     correlationId="req-123"
+        ... ))
+        >>> extract_correlation_id_from_error(error)
+        'req-123'
+    """
+    # Check MisoClientError with error_response
+    if isinstance(error, MisoClientError) and error.error_response:
+        correlation_id = error.error_response.correlationId
+        if correlation_id is not None:
+            return str(correlation_id)
+
+    # Check ApiErrorException with correlationId property
+    if isinstance(error, ApiErrorException):
+        correlation_id = error.correlationId
+        if correlation_id is not None:
+            return str(correlation_id)
+
+    return None

@@ -32,7 +32,14 @@ from .models.config import (
     UserInfo,
 )
 from .models.error_response import ErrorResponse
-from .models.filter import FilterBuilder, FilterOperator, FilterOption, FilterQuery
+from .models.filter import (
+    FilterBuilder,
+    FilterGroup,
+    FilterOperator,
+    FilterOption,
+    FilterQuery,
+    JsonFilter,
+)
 from .models.pagination import Meta, PaginatedListResponse
 from .models.sort import SortOption
 from .services.auth import AuthService
@@ -55,7 +62,17 @@ from .utils.error_utils import (
     transformError,
 )
 from .utils.fastapi_endpoints import create_fastapi_client_token_endpoint
-from .utils.filter import apply_filters, build_query_string, parse_filter_params
+from .utils.filter import (
+    apply_filters,
+    build_query_string,
+    filter_query_to_json,
+    json_filter_to_query_string,
+    json_to_filter_query,
+    parse_filter_params,
+    query_string_to_json_filter,
+    validate_filter_option,
+    validate_json_filter,
+)
 from .utils.flask_endpoints import create_flask_client_token_endpoint
 from .utils.http_client import HttpClient
 from .utils.internal_http_client import InternalHttpClient
@@ -797,6 +814,8 @@ __all__ = [
     "FilterOption",
     "FilterQuery",
     "FilterBuilder",
+    "JsonFilter",
+    "FilterGroup",
     # Sort models
     "SortOption",
     # Pagination utilities (camelCase)
@@ -813,6 +832,12 @@ __all__ = [
     "parse_filter_params",
     "build_query_string",
     "apply_filters",
+    "filter_query_to_json",
+    "json_to_filter_query",
+    "json_filter_to_query_string",
+    "query_string_to_json_filter",
+    "validate_filter_option",
+    "validate_json_filter",
     # Sort utilities
     "parse_sort_params",
     "build_sort_string",

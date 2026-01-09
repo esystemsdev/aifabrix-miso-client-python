@@ -161,6 +161,7 @@ def build_audit_context(
     request_size: Optional[int],
     response_size: Optional[int],
     error_message: Optional[str],
+    correlation_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Build audit context dictionary for logging.
@@ -174,6 +175,7 @@ def build_audit_context(
         request_size: Request size in bytes (optional)
         response_size: Response size in bytes (optional)
         error_message: Error message if request failed (optional)
+        correlation_id: Correlation ID if available (optional)
 
     Returns:
         Audit context dictionary
@@ -190,6 +192,7 @@ def build_audit_context(
         requestSize=request_size,
         responseSize=response_size,
         error=error_message,
+        correlationId=correlation_id,
     )
     return audit_context
 
@@ -204,6 +207,7 @@ def _prepare_audit_context(
     user_id: Optional[str],
     log_level: str,
     audit_config: Optional[Dict[str, Any]] = None,
+    correlation_id: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     Prepare audit context for logging.
@@ -231,6 +235,7 @@ def _prepare_audit_context(
         request_size=request_size,
         response_size=response_size,
         error_message=error_message,
+        correlation_id=correlation_id,
     )
 
 
@@ -268,6 +273,13 @@ async def log_http_request_audit(
         if should_skip_logging(url, config):
             return
 
+        # Extract correlation ID from error if available
+        correlation_id: Optional[str] = None
+        if error:
+            from ..utils.error_utils import extract_correlation_id_from_error
+
+            correlation_id = extract_correlation_id_from_error(error)
+
         if config and config.audit:
             audit_config = config.audit
             audit_level = audit_config.level or "detailed"
@@ -288,6 +300,8 @@ async def log_http_request_audit(
                 audit_context["userId"] = user_id
             if error:
                 audit_context["error"] = str(error)
+            if correlation_id:
+                audit_context["correlationId"] = correlation_id
             action = f"http.request.{method.upper()}"
             await logger.audit(action, url, audit_context)
             return
@@ -310,6 +324,7 @@ async def log_http_request_audit(
             user_id,
             log_level,
             audit_config_dict,
+            correlation_id=correlation_id,
         )
         if prepared_context is None:
             return

@@ -1799,6 +1799,119 @@ class TestLoggerService:
             # Should not fall back to HTTP when listeners exist (even if one fails)
             mock_request.assert_not_called()
 
+    def test_get_log_with_request(self, logger_service):
+        """Test get_log_with_request extracts request context."""
+        from unittest.mock import MagicMock
+
+        import jwt
+
+        payload = {"sub": "user-123", "sessionId": "session-456"}
+        token = jwt.encode(payload, "secret", algorithm="HS256")
+
+        request = MagicMock()
+        request.method = "POST"
+        request.url = MagicMock()
+        request.url.path = "/api/test"
+        request.client = MagicMock()
+        request.client.host = "192.168.1.1"
+        request.headers = MagicMock()
+        request.headers.get = MagicMock(
+            side_effect=lambda k, d=None: {
+                "authorization": f"Bearer {token}",
+                "user-agent": "Mozilla/5.0",
+                "x-correlation-id": "corr-123",
+                "referer": "https://example.com",
+                "content-length": "1024",
+            }.get(k, d)
+        )
+
+        log_entry = logger_service.get_log_with_request(request, "Processing request", "info")
+
+        assert log_entry.message == "Processing request"
+        assert log_entry.level == "info"
+        assert log_entry.userId == "user-123"
+        assert log_entry.sessionId == "session-456"
+        assert log_entry.correlationId == "corr-123"
+        assert log_entry.ipAddress == "192.168.1.1"
+        assert log_entry.userAgent == "Mozilla/5.0"
+        assert log_entry.context["method"] == "POST"
+        assert log_entry.context["path"] == "/api/test"
+        assert log_entry.context["referer"] == "https://example.com"
+        assert log_entry.context["requestSize"] == 1024
+
+    def test_get_with_context(self, logger_service):
+        """Test get_with_context adds custom context."""
+        context = {"customField": "value", "anotherField": 123}
+        log_entry = logger_service.get_with_context(context, "Custom log", "info")
+
+        assert log_entry.message == "Custom log"
+        assert log_entry.level == "info"
+        assert log_entry.context["customField"] == "value"
+        assert log_entry.context["anotherField"] == 123
+
+    def test_get_with_token(self, logger_service):
+        """Test get_with_token extracts user context from JWT."""
+        import jwt
+
+        payload = {"sub": "user-789", "sessionId": "session-abc"}
+        token = jwt.encode(payload, "secret", algorithm="HS256")
+
+        log_entry = logger_service.get_with_token(token, "User action", "audit")
+
+        assert log_entry.message == "User action"
+        assert log_entry.level == "audit"
+        assert log_entry.userId == "user-789"
+        assert log_entry.sessionId == "session-abc"
+
+    def test_get_for_request(self, logger_service):
+        """Test get_for_request alias for get_log_with_request."""
+        from unittest.mock import MagicMock
+
+        request = MagicMock()
+        request.method = "GET"
+        request.url = MagicMock()
+        request.url.path = "/api/users"
+        request.headers = MagicMock()
+        request.headers.get = MagicMock(return_value=None)
+
+        log_entry = logger_service.get_for_request(request, "Request processed", "info")
+
+        assert log_entry.message == "Request processed"
+        assert log_entry.level == "info"
+        assert log_entry.context["method"] == "GET"
+        assert log_entry.context["path"] == "/api/users"
+
+    def test_get_log_with_request_minimal(self, logger_service):
+        """Test get_log_with_request with minimal request data."""
+        from unittest.mock import MagicMock
+
+        request = MagicMock()
+        request.method = "GET"
+        request.headers = MagicMock()
+        request.headers.get = MagicMock(return_value=None)
+
+        log_entry = logger_service.get_log_with_request(request, "Minimal request", "info")
+
+        assert log_entry.message == "Minimal request"
+        assert log_entry.context["method"] == "GET"
+        assert log_entry.userId is None
+
+    def test_get_log_with_request_with_stack_trace(self, logger_service):
+        """Test get_log_with_request with stack trace."""
+        from unittest.mock import MagicMock
+
+        request = MagicMock()
+        request.method = "POST"
+        request.headers = MagicMock()
+        request.headers.get = MagicMock(return_value=None)
+
+        log_entry = logger_service.get_log_with_request(
+            request, "Error occurred", "error", stack_trace="Traceback..."
+        )
+
+        assert log_entry.level == "error"
+        assert log_entry.stackTrace == "Traceback..."
+
 
 class TestLoggerChain:
     """Test cases for LoggerChain."""

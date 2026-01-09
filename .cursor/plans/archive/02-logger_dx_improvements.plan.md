@@ -83,9 +83,9 @@ class HttpRequest(Protocol):
     Protocol for HTTP request objects.
 
     Supports:
-    - FastAPI/Starlette Request
-    - Flask Request
-    - Generic dict-like request objects
+  - FastAPI/Starlette Request
+  - Flask Request
+  - Generic dict-like request objects
     """
 
     method: str
@@ -132,9 +132,9 @@ def extract_request_context(request: Any) -> RequestContext:
     Extract logging context from HTTP request object.
 
     Supports multiple Python web frameworks:
-    - FastAPI/Starlette Request
-    - Flask Request
-    - Generic dict-like request objects
+  - FastAPI/Starlette Request
+  - Flask Request
+  - Generic dict-like request objects
 
     Args:
         request: HTTP request object
@@ -298,8 +298,6 @@ def _extract_user_from_auth_header(request: Any) -> tuple[Optional[str], Optiona
         return None, None
 ```
 
-
-
 ### Phase 2: Update ClientLoggingOptions
 
 Update [`miso_client/models/config.py`](miso_client/models/config.py):Add `ipAddress` and `userAgent` to `ClientLoggingOptions` since they are top-level `LogEntry` fields:
@@ -322,8 +320,6 @@ class ClientLoggingOptions(BaseModel):
     ipAddress: Optional[str] = Field(default=None, description="Client IP address")
     userAgent: Optional[str] = Field(default=None, description="User agent string")
 ```
-
-
 
 ### Phase 3: LoggerChain Enhancement
 
@@ -351,9 +347,9 @@ class LoggerChain:
         Extracts: IP, method, path, user-agent, correlation ID, user from JWT.
 
         Supports:
-        - FastAPI/Starlette Request
-        - Flask Request
-        - Generic dict-like request objects
+    - FastAPI/Starlette Request
+    - Flask Request
+    - Generic dict-like request objects
 
         Args:
             request: HTTP request object
@@ -396,8 +392,6 @@ class LoggerChain:
         return self
 ```
 
-
-
 ### Phase 4: Update _log() Method
 
 Update the internal `_log()` method in `LoggerService` to use the new options:
@@ -410,8 +404,6 @@ log_entry_data = {
     # ... rest of fields ...
 }
 ```
-
-
 
 ### Phase 5: LoggerService Shortcut
 
@@ -440,8 +432,6 @@ class LoggerService:
         """
         return LoggerChain(self, {}, ClientLoggingOptions()).with_request(request)
 ```
-
-
 
 ### Phase 6: Export Updates
 
@@ -484,8 +474,6 @@ await miso.log \
     .info("Processing request")
 ```
 
-
-
 ### After (New)
 
 ```python
@@ -494,8 +482,6 @@ await miso.log \
     .with_request(request) \
     .info("Processing request")
 ```
-
-
 
 ### Combined with Indexed Context
 
@@ -525,16 +511,19 @@ await miso.log \
 The `extract_request_context()` function uses Protocol-based typing to support multiple frameworks without hard dependencies:| Framework | Supported | Notes ||-----------|-----------|-------|| FastAPI | Yes | Full support via Starlette Request || Starlette | Yes | Native support || Flask | Yes | Supports Flask Request object || Django | Partial | Works with WSGIRequest || Generic dict | Yes | Fallback for custom implementations |---
 
 ## Dependencies
+
 ---
 
 ## Validation
 
 **Date**: 2025-01-27
+
 **Status**: ✅ COMPLETE
 
 ### Executive Summary
 
 All implementation tasks have been completed successfully. The Logger Developer Experience Improvements plan has been fully implemented with:
+
 - ✅ All 6 phases completed
 - ✅ All files created/modified as specified
 - ✅ Comprehensive test coverage (29 tests passing)
@@ -560,25 +549,30 @@ All implementation tasks have been completed successfully. The Logger Developer 
 - ✅ Test coverage: 88% for `request_context.py` (97 statements, 12 missing)
 
 **Test Results**:
+
 - `test_request_context.py`: 27 tests passing
 - `test_logger_chain.py`: `test_with_request`, `test_with_request_minimal`, `test_with_request_composable`, `test_for_request_shortcut` all passing
 
 ### Code Quality Validation
 
 **STEP 1 - FORMAT**: ✅ PASSED
+
 - All files formatted with `black` and `isort`
 - No formatting changes required
 
 **STEP 2 - LINT**: ✅ PASSED (0 errors, 0 warnings)
+
 - `ruff check` passed with zero errors/warnings
 - All code follows Python style guidelines
 
 **STEP 3 - TYPE CHECK**: ✅ PASSED
+
 - `mypy` type checking passed (Success: no issues found in 40 source files)
 - All type hints properly implemented
 - Python 3.8+ compatibility maintained (using `Tuple` instead of `tuple`)
 
 **STEP 4 - TEST**: ✅ PASSED (all tests pass)
+
 - All 29 tests pass successfully
 - Test execution time: ~0.41s (fast with proper mocking)
 - No real network calls (all dependencies mocked)
@@ -626,31 +620,37 @@ All implementation tasks have been completed successfully. The Logger Developer 
 ### Implementation Details Verified
 
 **Phase 1 - Request Context Extractor**: ✅
+
 - `RequestContext` class with all fields
 - `extract_request_context()` function implemented
 - Protocol-based typing (`RequestHeaders`, `RequestClient`, `RequestURL`, `HttpRequest`)
 - All helper functions implemented
 
 **Phase 2 - ClientLoggingOptions Update**: ✅
+
 - `ipAddress: Optional[str]` field added
 - `userAgent: Optional[str]` field added
 
 **Phase 3 - LoggerChain Enhancement**: ✅
+
 - `with_request()` method implemented
 - Extracts and sets top-level LogEntry fields (userId, sessionId, correlationId, requestId, ipAddress, userAgent)
 - Adds request metadata to context (method, path, referer, requestSize)
 - Returns self for method chaining
 
 **Phase 4 - _log() Method Update**: ✅
+
 - Uses `options.ipAddress` if available
 - Uses `options.userAgent` if available
 - Properly integrated into log entry creation
 
 **Phase 5 - LoggerService Shortcut**: ✅
+
 - `for_request()` method implemented
 - Returns LoggerChain with request context pre-populated
 
 **Phase 6 - Export Updates**: ✅
+
 - `extract_request_context` exported
 - `RequestContext` exported
 
@@ -659,6 +659,7 @@ All implementation tasks have been completed successfully. The Logger Developer 
 **Issues Found**: None
 
 **Recommendations**:
+
 1. ✅ All type checking issues resolved (MagicMock handling improved)
 2. ✅ All test failures resolved (proper isinstance() checks for string values)
 3. ✅ Code follows all cursor rules and conventions

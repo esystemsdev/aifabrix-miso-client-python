@@ -11,6 +11,7 @@ from miso_client.errors import MisoClientError
 from miso_client.models.error_response import ErrorResponse
 from miso_client.utils.error_utils import (
     ApiErrorException,
+    extract_correlation_id_from_error,
     handle_api_error_snake_case,
     handleApiError,
     transform_error_to_snake_case,
@@ -451,3 +452,81 @@ class TestTransformError:
         assert error_response.statusCode == 400
         assert error_response.instance is None
         assert error_response.correlationId is None
+
+
+class TestExtractCorrelationIdFromError:
+    """Test cases for extract_correlation_id_from_error function."""
+
+    def test_extract_from_miso_client_error_with_correlation_id(self):
+        """Test extracting correlation ID from MisoClientError with error_response."""
+        error_response = ErrorResponse(
+            errors=["Error message"],
+            type="/Errors/Test",
+            title="Test Error",
+            statusCode=400,
+            correlationId="req-123",
+        )
+        error = MisoClientError("Error", error_response=error_response)
+
+        correlation_id = extract_correlation_id_from_error(error)
+
+        assert correlation_id == "req-123"
+
+    def test_extract_from_miso_client_error_without_correlation_id(self):
+        """Test extracting correlation ID from MisoClientError without correlation ID."""
+        error_response = ErrorResponse(
+            errors=["Error message"],
+            type="/Errors/Test",
+            title="Test Error",
+            statusCode=400,
+        )
+        error = MisoClientError("Error", error_response=error_response)
+
+        correlation_id = extract_correlation_id_from_error(error)
+
+        assert correlation_id is None
+
+    def test_extract_from_miso_client_error_without_error_response(self):
+        """Test extracting correlation ID from MisoClientError without error_response."""
+        error = MisoClientError("Error")
+
+        correlation_id = extract_correlation_id_from_error(error)
+
+        assert correlation_id is None
+
+    def test_extract_from_api_error_exception_with_correlation_id(self):
+        """Test extracting correlation ID from ApiErrorException."""
+        error_response = ErrorResponse(
+            errors=["Error message"],
+            type="/Errors/Test",
+            title="Test Error",
+            statusCode=400,
+            correlationId="req-456",
+        )
+        error = ApiErrorException(error_response)
+
+        correlation_id = extract_correlation_id_from_error(error)
+
+        assert correlation_id == "req-456"
+
+    def test_extract_from_api_error_exception_without_correlation_id(self):
+        """Test extracting correlation ID from ApiErrorException without correlation ID."""
+        error_response = ErrorResponse(
+            errors=["Error message"],
+            type="/Errors/Test",
+            title="Test Error",
+            statusCode=400,
+        )
+        error = ApiErrorException(error_response)
+
+        correlation_id = extract_correlation_id_from_error(error)
+
+        assert correlation_id is None
+
+    def test_extract_from_generic_exception(self):
+        """Test extracting correlation ID from generic exception."""
+        error = ValueError("Generic error")
+
+        correlation_id = extract_correlation_id_from_error(error)
+
+        assert correlation_id is None

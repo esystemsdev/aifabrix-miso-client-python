@@ -168,8 +168,6 @@ class LogEntry(BaseModel):
     )
 ```
 
-
-
 ### 2.2 Update `ClientLoggingOptions`
 
 ```python
@@ -256,8 +254,6 @@ def with_indexed_context(
     return self
 ```
 
-
-
 ### 3.2 Add `with_credential_context()` to LoggerChain
 
 ```python
@@ -284,8 +280,6 @@ def with_credential_context(
         self.options.credentialType = credential_type
     return self
 ```
-
-
 
 ### 3.3 Add `with_request_metrics()` to LoggerChain
 
@@ -330,8 +324,6 @@ def with_request_metrics(
     return self
 ```
 
-
-
 ### 3.4 Add `with_error_context()` to LoggerChain
 
 ```python
@@ -359,8 +351,6 @@ def with_error_context(
     return self
 ```
 
-
-
 ### 3.5 Add `add_session()` to LoggerChain
 
 ```python
@@ -380,8 +370,6 @@ def add_session(self, session_id: str) -> "LoggerChain":
     return self
 ```
 
-
-
 ### 3.6 Add `debug()` to LoggerChain
 
 ```python
@@ -396,8 +384,6 @@ async def debug(self, message: str) -> None:
     """
     await self.logger.debug(message, self.context, self.options)
 ```
-
-
 
 ### 3.7 Update `_log()` Method
 
@@ -477,8 +463,6 @@ logger.info("Sync operation started", sourceId=source.id)
 logger.error("Failed to process record", recordId=record.id, error=str(e))
 ```
 
-
-
 ### After (Enhanced)
 
 ```python
@@ -534,8 +518,6 @@ await logger.audit(
     }
 )
 ```
-
-
 
 ### Performance Logging with Full Metrics
 
@@ -599,8 +581,6 @@ WHERE userId = 'user123' AND externalSystemKey = 'hubspot-main'
 -- Denied access attempts for a source
 WHERE action = 'abac.authorization.deny' AND sourceKey = 'hubspot-deals'
 ```
-
-
 
 ### Human-Readable Analysis
 

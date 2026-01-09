@@ -814,6 +814,50 @@ class TestInternalHttpClient:
             assert error.error_body == {"code": "ERR500", "message": "Internal error"}
 
     @pytest.mark.asyncio
+    async def test_parse_error_response_extracts_correlation_id_from_headers(self, http_client):
+        """Test _parse_error_response extracts correlation ID from headers when not in body."""
+        mock_response = MagicMock()
+        mock_response.headers.get.return_value = "application/json"
+        mock_response.json.return_value = {
+            "errors": ["Error message"],
+            "type": "/Errors/Test",
+            "title": "Test Error",
+            "statusCode": 400,
+            # No correlationId in body
+        }
+        # Correlation ID in headers
+        mock_response.headers.get.side_effect = lambda k, d=None: (
+            "application/json"
+            if k == "content-type"
+            else ("corr-header-123" if k == "x-correlation-id" else d)
+        )
+
+        error_response = http_client._parse_error_response(mock_response, "/api/test")
+
+        assert error_response is not None
+        assert error_response.correlationId == "corr-header-123"
+        assert error_response.statusCode == 400
+
+    @pytest.mark.asyncio
+    async def test_parse_error_response_preserves_correlation_id_from_body(self, http_client):
+        """Test _parse_error_response preserves correlation ID from body if present."""
+        mock_response = MagicMock()
+        mock_response.headers.get.return_value = "application/json"
+        mock_response.json.return_value = {
+            "errors": ["Error message"],
+            "type": "/Errors/Test",
+            "title": "Test Error",
+            "statusCode": 400,
+            "correlationId": "corr-body-456",  # Correlation ID in body
+        }
+
+        error_response = http_client._parse_error_response(mock_response, "/api/test")
+
+        assert error_response is not None
+        # Body correlation ID should take precedence
+        assert error_response.correlationId == "corr-body-456"
+
+    @pytest.mark.asyncio
     async def test_post_request_error_body_parsing(self, http_client):
         """Test POST request error body parsing when structured error not available."""
         await http_client._initialize_client()

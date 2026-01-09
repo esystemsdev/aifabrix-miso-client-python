@@ -472,3 +472,248 @@ class LoggerService:
             >>> await logger.for_request(request).info("Processing")
         """
         return LoggerChain(self, {}, ClientLoggingOptions()).with_request(request)
+
+    def get_log_with_request(
+        self,
+        request: Any,
+        message: str,
+        level: Literal["error", "audit", "info", "debug"] = "info",
+        context: Optional[Dict[str, Any]] = None,
+        stack_trace: Optional[str] = None,
+    ) -> LogEntry:
+        """
+        Get LogEntry object with auto-extracted request context.
+
+        Extracts IP, method, path, userAgent, correlationId, userId from request.
+        Returns LogEntry object ready for use in other projects' logger tables.
+
+        Args:
+            request: HTTP request object (FastAPI, Flask, Starlette)
+            message: Log message
+            level: Log level (default: "info")
+            context: Additional context data (optional)
+            stack_trace: Stack trace for errors (optional)
+
+        Returns:
+            LogEntry object with request context extracted
+
+        Example:
+            >>> log_entry = logger.get_log_with_request(request, "Processing request")
+            >>> # Use log_entry in your own logger table
+        """
+        from ..utils.request_context import extract_request_context
+
+        # Extract request context
+        ctx = extract_request_context(request)
+
+        # Build options from extracted context
+        options = ClientLoggingOptions()
+        if ctx.user_id:
+            options.userId = ctx.user_id
+        if ctx.session_id:
+            options.sessionId = ctx.session_id
+        if ctx.correlation_id:
+            options.correlationId = ctx.correlation_id
+        if ctx.request_id:
+            options.requestId = ctx.request_id
+        if ctx.ip_address:
+            options.ipAddress = ctx.ip_address
+        if ctx.user_agent:
+            options.userAgent = ctx.user_agent
+
+        # Merge request info into context
+        request_context = context or {}
+        if ctx.method:
+            request_context["method"] = ctx.method
+        if ctx.path:
+            request_context["path"] = ctx.path
+        if ctx.referer:
+            request_context["referer"] = ctx.referer
+        if ctx.request_size:
+            request_context["requestSize"] = ctx.request_size
+
+        # Create log entry using internal _log method logic
+        return self._build_log_entry(level, message, request_context, stack_trace, options)
+
+    def get_with_context(
+        self,
+        context: Dict[str, Any],
+        message: str,
+        level: Literal["error", "audit", "info", "debug"] = "info",
+        stack_trace: Optional[str] = None,
+        options: Optional[ClientLoggingOptions] = None,
+    ) -> LogEntry:
+        """
+        Get LogEntry object with custom context.
+
+        Adds custom context and returns LogEntry object.
+        Allows projects to add their own context while leveraging MisoClient defaults.
+
+        Args:
+            context: Custom context data
+            message: Log message
+            level: Log level (default: "info")
+            stack_trace: Stack trace for errors (optional)
+            options: Optional logging options (optional)
+
+        Returns:
+            LogEntry object with custom context
+
+        Example:
+            >>> log_entry = logger.get_with_context(
+            ...     {"customField": "value"},
+            ...     "Custom log",
+            ...     level="info"
+            ... )
+        """
+        return self._build_log_entry(
+            level, message, context, stack_trace, options or ClientLoggingOptions()
+        )
+
+    def get_with_token(
+        self,
+        token: str,
+        message: str,
+        level: Literal["error", "audit", "info", "debug"] = "info",
+        context: Optional[Dict[str, Any]] = None,
+        stack_trace: Optional[str] = None,
+    ) -> LogEntry:
+        """
+        Get LogEntry object with JWT token context extracted.
+
+        Extracts userId, sessionId from JWT token.
+        Returns LogEntry with user context extracted.
+
+        Args:
+            token: JWT token string
+            message: Log message
+            level: Log level (default: "info")
+            context: Additional context data (optional)
+            stack_trace: Stack trace for errors (optional)
+
+        Returns:
+            LogEntry object with user context extracted
+
+        Example:
+            >>> log_entry = logger.get_with_token(
+            ...     "jwt-token",
+            ...     "User action",
+            ...     level="audit"
+            ... )
+        """
+        options = ClientLoggingOptions(token=token)
+        return self._build_log_entry(level, message, context, stack_trace, options)
+
+    def get_for_request(
+        self,
+        request: Any,
+        message: str,
+        level: Literal["error", "audit", "info", "debug"] = "info",
+        context: Optional[Dict[str, Any]] = None,
+        stack_trace: Optional[str] = None,
+    ) -> LogEntry:
+        """
+        Get LogEntry object with request context (alias for get_log_with_request).
+
+        Same functionality as get_log_with_request() for convenience.
+
+        Args:
+            request: HTTP request object (FastAPI, Flask, Starlette)
+            message: Log message
+            level: Log level (default: "info")
+            context: Additional context data (optional)
+            stack_trace: Stack trace for errors (optional)
+
+        Returns:
+            LogEntry object with request context extracted
+
+        Example:
+            >>> log_entry = logger.get_for_request(request, "Request processed")
+        """
+        return self.get_log_with_request(request, message, level, context, stack_trace)
+
+    def _build_log_entry(
+        self,
+        level: Literal["error", "audit", "info", "debug"],
+        message: str,
+        context: Optional[Dict[str, Any]],
+        stack_trace: Optional[str],
+        options: ClientLoggingOptions,
+    ) -> LogEntry:
+        """
+        Build LogEntry object from parameters.
+
+        Internal helper method that extracts context and builds LogEntry.
+        Used by public get_* methods.
+
+        Args:
+            level: Log level
+            message: Log message
+            context: Additional context data
+            stack_trace: Stack trace for errors
+            options: Logging options
+
+        Returns:
+            LogEntry object
+        """
+        # Extract JWT context if token provided
+        jwt_context = self._extract_jwt_context(options.token if options else None)
+
+        # Extract environment metadata
+        metadata = self._extract_metadata()
+
+        # Generate correlation ID if not provided
+        correlation_id = (
+            options.correlationId if options else None
+        ) or self._generate_correlation_id()
+
+        # Mask sensitive data in context if enabled
+        mask_sensitive = (
+            options.maskSensitiveData if options else None
+        ) is not False and self.mask_sensitive_data
+        masked_context = (
+            DataMasker.mask_sensitive_data(context) if mask_sensitive and context else context
+        )
+
+        log_entry_data = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "level": level,
+            "environment": "unknown",  # Backend extracts from client credentials
+            "application": self.config.client_id,  # Use clientId as application identifier
+            "applicationId": options.applicationId if options else None,
+            "message": message,
+            "context": masked_context,
+            "stackTrace": stack_trace,
+            "correlationId": correlation_id,
+            "userId": (options.userId if options else None) or jwt_context.get("userId"),
+            "sessionId": (options.sessionId if options else None) or jwt_context.get("sessionId"),
+            "requestId": options.requestId if options else None,
+            "ipAddress": options.ipAddress if options else None,
+            "userAgent": options.userAgent if options else None,
+            **metadata,
+            # Indexed context fields from options
+            "sourceKey": options.sourceKey if options else None,
+            "sourceDisplayName": options.sourceDisplayName if options else None,
+            "externalSystemKey": options.externalSystemKey if options else None,
+            "externalSystemDisplayName": options.externalSystemDisplayName if options else None,
+            "recordKey": options.recordKey if options else None,
+            "recordDisplayName": options.recordDisplayName if options else None,
+            # Credential context
+            "credentialId": options.credentialId if options else None,
+            "credentialType": options.credentialType if options else None,
+            # Request metrics
+            "requestSize": options.requestSize if options else None,
+            "responseSize": options.responseSize if options else None,
+            "durationMs": options.durationMs if options else None,
+            "durationSeconds": options.durationSeconds if options else None,
+            "timeout": options.timeout if options else None,
+            "retryCount": options.retryCount if options else None,
+            # Error classification
+            "errorCategory": options.errorCategory if options else None,
+            "httpStatusCategory": options.httpStatusCategory if options else None,
+        }
+
+        # Remove None values
+        log_entry_data = {k: v for k, v in log_entry_data.items() if v is not None}
+
+        return LogEntry(**log_entry_data)

@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from miso_client.models.config import MisoClientConfig
-from miso_client.models.filter import FilterBuilder
+from miso_client.models.filter import FilterBuilder, FilterOption, FilterQuery, JsonFilter
 from miso_client.models.pagination import PaginatedListResponse
 from miso_client.services.logger import LoggerService
 from miso_client.services.redis import RedisService
@@ -286,3 +286,157 @@ class TestHttpClientGetPaginated:
         assert params["page"] == 1
         assert params["pageSize"] == 25
         assert params["other"] == "value"
+
+
+class TestHttpClientPostWithFilters:
+    """Test cases for HttpClient.post_with_filters method."""
+
+    @pytest.fixture
+    def config(self):
+        return MisoClientConfig(
+            controller_url="https://controller.aifabrix.ai",
+            client_id="test-client",
+            client_secret="test-secret",
+            log_level="info",
+        )
+
+    @pytest.fixture
+    def redis_service(self, config):
+        return RedisService(config.redis)
+
+    @pytest.fixture
+    def internal_http_client(self, config):
+        return InternalHttpClient(config)
+
+    @pytest.fixture
+    def logger_service(self, internal_http_client, redis_service):
+        return LoggerService(internal_http_client, redis_service)
+
+    @pytest.fixture
+    def http_client(self, config, logger_service):
+        return HttpClient(config, logger_service)
+
+    @pytest.mark.asyncio
+    async def test_post_with_filters_json_filter(self, http_client):
+        """Test post_with_filters with JsonFilter."""
+        # Mock InternalHttpClient
+        mock_internal_client = AsyncMock()
+        mock_internal_client.post = AsyncMock(return_value={"data": "test"})
+        http_client._internal_client = mock_internal_client
+
+        json_filter = JsonFilter(
+            filters=[FilterOption(field="status", op="eq", value="active")],
+            page=1,
+            pageSize=25,
+        )
+
+        result = await http_client.post_with_filters("/api/items/search", json_filter=json_filter)
+
+        assert result == {"data": "test"}
+        mock_internal_client.post.assert_called_once()
+        call_args = mock_internal_client.post.call_args
+        assert call_args[0][0] == "/api/items/search"
+        body = call_args[0][1]
+        assert body is not None
+        assert "filters" in body
+        assert body["page"] == 1
+        assert body["pageSize"] == 25
+
+    @pytest.mark.asyncio
+    async def test_post_with_filters_filter_query(self, http_client):
+        """Test post_with_filters with FilterQuery."""
+        # Mock InternalHttpClient
+        mock_internal_client = AsyncMock()
+        mock_internal_client.post = AsyncMock(return_value={"data": "test"})
+        http_client._internal_client = mock_internal_client
+
+        filter_query = FilterQuery(
+            filters=[FilterOption(field="status", op="eq", value="active")],
+            page=1,
+            pageSize=25,
+        )
+
+        result = await http_client.post_with_filters("/api/items/search", json_filter=filter_query)
+
+        assert result == {"data": "test"}
+        mock_internal_client.post.assert_called_once()
+        call_args = mock_internal_client.post.call_args
+        body = call_args[0][1]
+        assert "filters" in body
+        assert body["page"] == 1
+        assert body["pageSize"] == 25
+
+    @pytest.mark.asyncio
+    async def test_post_with_filters_with_json_body(self, http_client):
+        """Test post_with_filters with additional JSON body."""
+        # Mock InternalHttpClient
+        mock_internal_client = AsyncMock()
+        mock_internal_client.post = AsyncMock(return_value={"data": "test"})
+        http_client._internal_client = mock_internal_client
+
+        json_filter = JsonFilter(filters=[FilterOption(field="status", op="eq", value="active")])
+        json_body = {"includeMetadata": True, "otherField": "value"}
+
+        result = await http_client.post_with_filters(
+            "/api/items/search", json_filter=json_filter, json_body=json_body
+        )
+
+        assert result == {"data": "test"}
+        mock_internal_client.post.assert_called_once()
+        call_args = mock_internal_client.post.call_args
+        body = call_args[0][1]
+        assert "filters" in body
+        assert body["includeMetadata"] is True
+        assert body["otherField"] == "value"
+
+    @pytest.mark.asyncio
+    async def test_post_with_filters_dict_filter(self, http_client):
+        """Test post_with_filters with dict filter."""
+        # Mock InternalHttpClient
+        mock_internal_client = AsyncMock()
+        mock_internal_client.post = AsyncMock(return_value={"data": "test"})
+        http_client._internal_client = mock_internal_client
+
+        filter_dict = {"filters": [{"field": "status", "op": "eq", "value": "active"}]}
+
+        result = await http_client.post_with_filters("/api/items/search", json_filter=filter_dict)
+
+        assert result == {"data": "test"}
+        mock_internal_client.post.assert_called_once()
+        call_args = mock_internal_client.post.call_args
+        body = call_args[0][1]
+        assert "filters" in body
+
+    @pytest.mark.asyncio
+    async def test_post_with_filters_no_filter(self, http_client):
+        """Test post_with_filters without filter."""
+        # Mock InternalHttpClient
+        mock_internal_client = AsyncMock()
+        mock_internal_client.post = AsyncMock(return_value={"data": "test"})
+        http_client._internal_client = mock_internal_client
+
+        result = await http_client.post_with_filters("/api/items/search")
+
+        assert result == {"data": "test"}
+        mock_internal_client.post.assert_called_once()
+        call_args = mock_internal_client.post.call_args
+        # Should pass None for data when no filter/body
+        assert call_args[0][1] is None or call_args[0][1] == {}
+
+    @pytest.mark.asyncio
+    async def test_post_with_filters_only_json_body(self, http_client):
+        """Test post_with_filters with only JSON body (no filter)."""
+        # Mock InternalHttpClient
+        mock_internal_client = AsyncMock()
+        mock_internal_client.post = AsyncMock(return_value={"data": "test"})
+        http_client._internal_client = mock_internal_client
+
+        json_body = {"includeMetadata": True}
+
+        result = await http_client.post_with_filters("/api/items/search", json_body=json_body)
+
+        assert result == {"data": "test"}
+        mock_internal_client.post.assert_called_once()
+        call_args = mock_internal_client.post.call_args
+        body = call_args[0][1]
+        assert body["includeMetadata"] is True

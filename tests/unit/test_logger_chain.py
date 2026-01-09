@@ -420,3 +420,160 @@ class TestLoggerChain:
             context = call_args[0][1]  # Second argument is context
             assert context["method"] == "GET"
             assert context["path"] == "/api/users"
+
+    def test_add_user_with_none_options(self, logger_service):
+        """Test add_user when options is None."""
+        chain = LoggerChain(logger_service, {}, None)
+        result = chain.add_user("user-123")
+
+        assert result is chain
+        assert chain.options is not None
+        assert chain.options.userId == "user-123"
+
+    def test_add_application_with_none_options(self, logger_service):
+        """Test add_application when options is None."""
+        chain = LoggerChain(logger_service, {}, None)
+        result = chain.add_application("app-456")
+
+        assert result is chain
+        assert chain.options is not None
+        assert chain.options.applicationId == "app-456"
+
+    def test_add_correlation_with_none_options(self, logger_service):
+        """Test add_correlation when options is None."""
+        chain = LoggerChain(logger_service, {}, None)
+        result = chain.add_correlation("corr-789")
+
+        assert result is chain
+        assert chain.options is not None
+        assert chain.options.correlationId == "corr-789"
+
+    def test_with_token_with_none_options(self, logger_service):
+        """Test with_token when options is None."""
+        chain = LoggerChain(logger_service, {}, None)
+        result = chain.with_token("jwt-token-123")
+
+        assert result is chain
+        assert chain.options is not None
+        assert chain.options.token == "jwt-token-123"
+
+    def test_without_masking_with_none_options(self, logger_service):
+        """Test without_masking when options is None."""
+        chain = LoggerChain(logger_service, {}, None)
+        result = chain.without_masking()
+
+        assert result is chain
+        assert chain.options is not None
+        assert chain.options.maskSensitiveData is False
+
+    def test_with_request_with_none_options(self, logger_service):
+        """Test with_request when options is None."""
+        chain = LoggerChain(logger_service, {}, None)
+        request = MagicMock()
+        request.method = "GET"
+        request.url = MagicMock()
+        request.url.path = "/api/test"
+        request.client = MagicMock()
+        request.client.host = "10.0.0.1"
+        request.headers = MagicMock()
+        request.headers.get = MagicMock(return_value=None)
+
+        result = chain.with_request(request)
+
+        assert result is chain
+        assert chain.options is not None
+        assert chain.context["method"] == "GET"
+
+    def test_with_indexed_context_with_none_options(self, logger_service):
+        """Test with_indexed_context when options is None."""
+        chain = LoggerChain(logger_service, {}, None)
+        result = chain.with_indexed_context(
+            source_key="source-key", external_system_key="system-key"
+        )
+
+        assert result is chain
+        assert chain.options is not None
+        assert chain.options.sourceKey == "source-key"
+        assert chain.options.externalSystemKey == "system-key"
+
+    def test_with_credential_context_with_none_options(self, logger_service):
+        """Test with_credential_context when options is None."""
+        chain = LoggerChain(logger_service, {}, None)
+        result = chain.with_credential_context(credential_id="cred-123", credential_type="oauth2")
+
+        assert result is chain
+        assert chain.options is not None
+        assert chain.options.credentialId == "cred-123"
+        assert chain.options.credentialType == "oauth2"
+
+    def test_with_request_metrics_with_none_options(self, logger_service):
+        """Test with_request_metrics when options is None."""
+        chain = LoggerChain(logger_service, {}, None)
+        result = chain.with_request_metrics(request_size=1024, response_size=2048, duration_ms=150)
+
+        assert result is chain
+        assert chain.options is not None
+        assert chain.options.requestSize == 1024
+        assert chain.options.responseSize == 2048
+        assert chain.options.durationMs == 150
+
+    def test_with_error_context_with_none_options(self, logger_service):
+        """Test with_error_context when options is None."""
+        chain = LoggerChain(logger_service, {}, None)
+        result = chain.with_error_context(error_category="network", http_status_category="5xx")
+
+        assert result is chain
+        assert chain.options is not None
+        assert chain.options.errorCategory == "network"
+        assert chain.options.httpStatusCategory == "5xx"
+
+    def test_add_session_with_none_options(self, logger_service):
+        """Test add_session when options is None."""
+        chain = LoggerChain(logger_service, {}, None)
+        result = chain.add_session("session-123")
+
+        assert result is chain
+        assert chain.options is not None
+        assert chain.options.sessionId == "session-123"
+
+    def test_chain_methods_with_empty_strings(self, logger_chain):
+        """Test chain methods handle empty strings gracefully."""
+        result = (
+            logger_chain.add_user("")
+            .add_application("")
+            .add_correlation("")
+            .add_session("")
+            .with_token("")
+        )
+
+        assert result is logger_chain
+        assert logger_chain.options.userId == ""
+        assert logger_chain.options.applicationId == ""
+        assert logger_chain.options.correlationId == ""
+        assert logger_chain.options.sessionId == ""
+        assert logger_chain.options.token == ""
+
+    def test_add_context_with_none_value(self, logger_chain):
+        """Test add_context with None value."""
+        result = logger_chain.add_context("key", None)
+
+        assert result is logger_chain
+        assert logger_chain.context["key"] is None
+
+    def test_method_chaining_returns_self(self, logger_chain):
+        """Test that all chain methods return self for chaining."""
+        result = (
+            logger_chain.add_context("key", "value")
+            .add_user("user-1")
+            .add_application("app-1")
+            .add_correlation("corr-1")
+            .with_token("token-1")
+            .without_masking()
+            .with_indexed_context(source_key="source-1")
+            .with_credential_context(credential_id="cred-1")
+            .with_request_metrics(request_size=1024)
+            .with_error_context(error_category="network")
+            .add_session("session-1")
+        )
+
+        assert result is logger_chain

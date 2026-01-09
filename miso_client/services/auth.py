@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional, cast
 from ..models.config import AuthResult, AuthStrategy, UserInfo
 from ..services.cache import CacheService
 from ..services.redis import RedisService
+from ..utils.error_utils import extract_correlation_id_from_error
 from ..utils.http_client import HttpClient
 from ..utils.jwt_tools import decode_token
 
@@ -221,7 +222,12 @@ class AuthService:
                 response = await self.http_client.get("/api/v1/auth/login", params=params)
                 return response  # type: ignore[no-any-return]
         except Exception as error:
-            logger.error("Login failed", exc_info=error)
+            correlation_id = extract_correlation_id_from_error(error)
+            logger.error(
+                "Login failed",
+                exc_info=error,
+                extra={"correlationId": correlation_id} if correlation_id else None,
+            )
             # Return empty dict on error per service method pattern
             return {}
 
@@ -251,7 +257,12 @@ class AuthService:
             return auth_result.authenticated
 
         except Exception as error:
-            logger.error("Token validation failed", exc_info=error)
+            correlation_id = extract_correlation_id_from_error(error)
+            logger.error(
+                "Token validation failed",
+                exc_info=error,
+                extra={"correlationId": correlation_id} if correlation_id else None,
+            )
             return False
 
     async def get_user(
@@ -287,7 +298,12 @@ class AuthService:
             return None
 
         except Exception as error:
-            logger.error("Failed to get user info", exc_info=error)
+            correlation_id = extract_correlation_id_from_error(error)
+            logger.error(
+                "Failed to get user info",
+                exc_info=error,
+                extra={"correlationId": correlation_id} if correlation_id else None,
+            )
             return None
 
     async def get_user_info(
@@ -331,7 +347,12 @@ class AuthService:
                 return UserInfo(**user_data)
 
         except Exception as error:
-            logger.error("Failed to get user info", exc_info=error)
+            correlation_id = extract_correlation_id_from_error(error)
+            logger.error(
+                "Failed to get user info",
+                exc_info=error,
+                extra={"correlationId": correlation_id} if correlation_id else None,
+            )
             return None
 
     async def logout(self, token: str) -> Dict[str, Any]:
@@ -390,7 +411,12 @@ class AuthService:
 
             return result  # type: ignore[no-any-return]
         except Exception as error:
-            logger.error("Logout failed", exc_info=error)
+            correlation_id = extract_correlation_id_from_error(error)
+            logger.error(
+                "Logout failed",
+                exc_info=error,
+                extra={"correlationId": correlation_id} if correlation_id else None,
+            )
             # Return empty dict on error per service method pattern
             return {}
 
@@ -439,7 +465,12 @@ class AuthService:
 
                 return response  # type: ignore[no-any-return]
         except Exception as error:
-            logger.error("Failed to refresh user token", exc_info=error)
+            correlation_id = extract_correlation_id_from_error(error)
+            logger.error(
+                "Failed to refresh user token",
+                exc_info=error,
+                extra={"correlationId": correlation_id} if correlation_id else None,
+            )
             return None
 
     async def is_authenticated(
