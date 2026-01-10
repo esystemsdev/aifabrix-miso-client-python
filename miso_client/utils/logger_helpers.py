@@ -6,7 +6,7 @@ Extracted from logger.py to reduce file size and improve maintainability.
 
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Literal, Optional, Union
 
 from ..models.config import ClientLoggingOptions, ForeignKeyReference, LogEntry
@@ -163,7 +163,7 @@ def build_log_entry(
     user_id_ref = _convert_to_foreign_key_reference(user_id_value, "User")
 
     log_entry_data = {
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "level": level,
         "environment": "unknown",  # Backend extracts from client credentials
         "application": config_client_id,  # Use clientId as application identifier

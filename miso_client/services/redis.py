@@ -47,7 +47,6 @@ class RedisService:
                 password=self.config.password,
                 db=self.config.db,
                 decode_responses=True,
-                retry_on_timeout=True,
                 socket_connect_timeout=5,
                 socket_timeout=5,
             )
