@@ -5,7 +5,7 @@ This module contains Pydantic models that define the configuration structure
 and data types used throughout the MisoClient SDK.
 """
 
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -151,6 +151,23 @@ class MisoClientConfig(BaseModel):
         return self.cache.get("validationTTL", 120) if self.cache else 120  # 2 minutes default
 
 
+class ForeignKeyReference(BaseModel):
+    """Foreign key reference object for API responses.
+
+    Provides essential context about referenced entities without requiring additional lookups.
+    Used consistently across all foreign keys in API response models.
+    """
+
+    id: str = Field(..., description="Entity ID (environment-specific identifier)")
+    key: str = Field(..., description="Entity key (environment-agnostic identifier)")
+    name: str = Field(
+        ..., description="Entity name (displayName, name, or firstName/lastName for User)"
+    )
+    type: str = Field(
+        ..., description="Entity type (e.g., 'Environment', 'User', 'Application', 'Controller')"
+    )
+
+
 class UserInfo(BaseModel):
     """User information from token validation."""
 
@@ -177,8 +194,12 @@ class LogEntry(BaseModel):
     level: Literal["error", "audit", "info", "debug"] = Field(..., description="Log level")
     environment: str = Field(..., description="Environment name (extracted by backend)")
     application: str = Field(..., description="Application identifier (clientId)")
-    applicationId: Optional[str] = Field(default=None, description="Application ID")
-    userId: Optional[str] = Field(default=None, description="User ID if available")
+    applicationId: Optional["ForeignKeyReference"] = Field(
+        default=None, description="Application reference (foreign key object)"
+    )
+    userId: Optional["ForeignKeyReference"] = Field(
+        default=None, description="User reference (foreign key object)"
+    )
     message: str = Field(..., description="Log message")
     context: Optional[Dict[str, Any]] = Field(default=None, description="Additional context")
     correlationId: Optional[str] = Field(default=None, description="Correlation ID for tracing")
@@ -252,10 +273,19 @@ class ClientTokenResponse(BaseModel):
 
 
 class ClientLoggingOptions(BaseModel):
-    """Options for client logging."""
+    """Options for client logging.
 
-    applicationId: Optional[str] = Field(default=None, description="Application ID")
-    userId: Optional[str] = Field(default=None, description="User ID")
+    Supports both string IDs (for backward compatibility) and ForeignKeyReference objects.
+    When string IDs are provided, they will be converted to ForeignKeyReference objects
+    in LogEntry if needed (requires additional context from API responses).
+    """
+
+    applicationId: Optional[Union[str, "ForeignKeyReference"]] = Field(
+        default=None, description="Application ID (string) or Application reference (object)"
+    )
+    userId: Optional[Union[str, "ForeignKeyReference"]] = Field(
+        default=None, description="User ID (string) or User reference (object)"
+    )
     correlationId: Optional[str] = Field(default=None, description="Correlation ID")
     requestId: Optional[str] = Field(default=None, description="Request ID")
     sessionId: Optional[str] = Field(default=None, description="Session ID")

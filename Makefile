@@ -25,13 +25,16 @@ install: venv ## Install the package
 install-dev: venv ## Install the package with development dependencies
 	$(VENV_PIP) install -e ".[dev]"
 
-test: venv ## Run tests
-	$(VENV_PYTHON) -m pytest tests/ -v
+test: venv ## Run tests (excludes integration tests)
+	$(VENV_PYTHON) -m pytest tests/ -v --ignore=tests/integration/
 
-test-cov: venv ## Run tests with coverage
-	$(VENV_PYTHON) -m pytest tests/ -v --cov=miso_client --cov-report=html --cov-report=xml
+test-cov: venv ## Run tests with coverage (excludes integration tests)
+	$(VENV_PYTHON) -m pytest tests/ -v --ignore=tests/integration/ --cov=miso_client --cov-report=html --cov-report=xml
 
-test-integration: venv ## Run integration tests against real controller
+test-integration: venv ## Run integration tests against real controller (pytest)
+	$(VENV_PYTHON) -m pytest tests/integration/test_api_endpoints.py -v --no-cov
+
+test-integration-legacy: venv ## Run legacy integration test script
 	$(VENV_PYTHON) test_integration.py
 
 lint: venv ## Run linting
@@ -62,11 +65,16 @@ clean: ## Clean build artifacts
 clean-venv: ## Remove virtual environment
 	rm -rf $(VENV)
 
-validate: venv ## Run lint + format + test
+validate: venv ## Run lint + format + test (excludes integration tests)
 	$(VENV_PYTHON) -m ruff check miso_client/ tests/
 	$(VENV_PYTHON) -m black miso_client/ tests/
 	$(VENV_PYTHON) -m isort miso_client/ tests/
-	$(VENV_PYTHON) -m pytest tests/ -v
+	$(VENV_PYTHON) -m pytest tests/ -v --ignore=tests/integration/
+
+validate-api: venv ## Validate API endpoints via integration tests
+	@echo "Running API endpoint integration tests..."
+	@echo "Note: Tests require MISO_CLIENTID, MISO_CLIENTSECRET, and MISO_CONTROLLER_URL in .env"
+	$(VENV_PYTHON) -m pytest tests/integration/test_api_endpoints.py -v --no-cov
 
 publish: venv ## Publish to PyPI
 	$(VENV_PYTHON) -m twine upload dist/*

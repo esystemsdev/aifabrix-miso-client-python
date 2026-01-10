@@ -1673,7 +1673,14 @@ class TestLoggerService:
                 call_args = mock_request.call_args
                 log_data = call_args[1]["data"] if "data" in call_args[1] else call_args[0][2]
 
-                assert log_data["userId"] == "user-123"
+                # userId is now a ForeignKeyReference object (serialized as dict when sent via HTTP)
+                assert log_data["userId"] is not None
+                user_id_ref = log_data["userId"]
+                # When serialized via model_dump(), ForeignKeyReference becomes a dict
+                if isinstance(user_id_ref, dict):
+                    assert user_id_ref["id"] == "user-123"
+                else:
+                    assert user_id_ref.id == "user-123"
 
     @pytest.mark.asyncio
     async def test_event_emission_mode_with_listeners(self, logger_service):
@@ -1830,7 +1837,9 @@ class TestLoggerService:
 
         assert log_entry.message == "Processing request"
         assert log_entry.level == "info"
-        assert log_entry.userId == "user-123"
+        # userId is now a ForeignKeyReference object
+        assert log_entry.userId is not None
+        assert log_entry.userId.id == "user-123"
         assert log_entry.sessionId == "session-456"
         assert log_entry.correlationId == "corr-123"
         assert log_entry.ipAddress == "192.168.1.1"
@@ -1861,7 +1870,9 @@ class TestLoggerService:
 
         assert log_entry.message == "User action"
         assert log_entry.level == "audit"
-        assert log_entry.userId == "user-789"
+        # userId is now a ForeignKeyReference object
+        assert log_entry.userId is not None
+        assert log_entry.userId.id == "user-789"
         assert log_entry.sessionId == "session-abc"
 
     def test_get_for_request(self, logger_service):

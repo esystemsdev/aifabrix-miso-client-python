@@ -7,9 +7,9 @@ Extracted from logger.py to reduce file size and improve maintainability.
 import os
 import sys
 from datetime import datetime
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, Literal, Optional, Union
 
-from ..models.config import ClientLoggingOptions, LogEntry
+from ..models.config import ClientLoggingOptions, ForeignKeyReference, LogEntry
 from ..utils.data_masker import DataMasker
 from ..utils.jwt_tools import decode_token
 
@@ -79,6 +79,39 @@ def extract_metadata() -> Dict[str, Any]:
     return metadata
 
 
+def _convert_to_foreign_key_reference(
+    value: Optional[Union[str, ForeignKeyReference]], entity_type: str
+) -> Optional[ForeignKeyReference]:
+    """
+    Convert string ID or ForeignKeyReference to ForeignKeyReference object.
+
+    Args:
+        value: String ID or ForeignKeyReference object
+        entity_type: Entity type (e.g., 'User', 'Application')
+
+    Returns:
+        ForeignKeyReference object or None
+    """
+    if value is None:
+        return None
+
+    # If already a ForeignKeyReference, return as-is
+    if isinstance(value, ForeignKeyReference):
+        return value
+
+    # If string, create minimal ForeignKeyReference
+    # Note: This is a minimal conversion - full ForeignKeyReference should come from API responses
+    if isinstance(value, str):
+        return ForeignKeyReference(
+            id=value,
+            key=value,  # Use id as key when key is not available
+            name=value,  # Use id as name when name is not available
+            type=entity_type,
+        )
+
+    return None
+
+
 def build_log_entry(
     level: Literal["error", "audit", "info", "debug"],
     message: str,
@@ -122,17 +155,24 @@ def build_log_entry(
     should_mask = (options.maskSensitiveData if options else None) is not False and mask_sensitive
     masked_context = DataMasker.mask_sensitive_data(context) if should_mask and context else context
 
+    # Convert applicationId and userId to ForeignKeyReference if needed
+    application_id_value = options.applicationId if options else None
+    user_id_value = (options.userId if options else None) or jwt_context.get("userId")
+
+    application_id_ref = _convert_to_foreign_key_reference(application_id_value, "Application")
+    user_id_ref = _convert_to_foreign_key_reference(user_id_value, "User")
+
     log_entry_data = {
         "timestamp": datetime.utcnow().isoformat(),
         "level": level,
         "environment": "unknown",  # Backend extracts from client credentials
         "application": config_client_id,  # Use clientId as application identifier
-        "applicationId": options.applicationId if options else None,
+        "applicationId": application_id_ref,
         "message": message,
         "context": masked_context,
         "stackTrace": stack_trace,
         "correlationId": final_correlation_id,
-        "userId": (options.userId if options else None) or jwt_context.get("userId"),
+        "userId": user_id_ref,
         "sessionId": (options.sessionId if options else None) or jwt_context.get("sessionId"),
         "requestId": options.requestId if options else None,
         "ipAddress": options.ipAddress if options else None,

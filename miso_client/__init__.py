@@ -94,7 +94,7 @@ from .utils.sort import build_sort_string, parse_sort_params
 from .utils.token_utils import extract_client_token_info
 from .utils.url_validator import validate_url
 
-__version__ = "3.7.0"
+__version__ = "3.7.2"
 __author__ = "AI Fabrix Team"
 __license__ = "MIT"
 

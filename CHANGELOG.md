@@ -5,6 +5,26 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.2] - 2026-01-10
+
+### Added
+
+- **Comprehensive Integration Tests** - Integration test suite for all Auth and Logs API endpoints
+  - New `tests/integration/test_api_endpoints.py` with comprehensive endpoint testing
+  - Tests all Auth API endpoints: client token generation, user info, token validation, login, logout, roles, permissions
+  - Tests all Logs API endpoints: error logs, general logs, audit logs, batch logs
+  - Tests against real controller using credentials from `.env` file
+  - Fast failure with 500ms timeout when controller is unavailable
+  - Graceful skipping when required environment variables are not set
+  - Ensures API validation catches real issues before release
+
+### Fixed
+
+- **Client Token Status Code** - Updated to accept both 200 and 201 status codes
+  - `/api/v1/auth/token` endpoint returns 201 (Created) per OpenAPI spec
+  - Client token manager now accepts both 200 and 201 for backward compatibility
+  - Prevents authentication failures when controller returns 201 instead of 200
+
 ## [3.7.0] - 2026-01-09
 
 ### Added

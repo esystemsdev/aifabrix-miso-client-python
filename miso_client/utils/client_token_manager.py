@@ -142,7 +142,8 @@ class ClientTokenManager:
             # Extract correlation ID from response
             correlation_id = self.extract_correlation_id(response)
 
-            if response.status_code != 200:
+            # OpenAPI spec returns 201 (Created) on success, but accept both 200 and 201 for compatibility
+            if response.status_code not in [200, 201]:
                 error_msg = f"Failed to get client token: HTTP {response.status_code}"
                 if client_id:
                     error_msg += f" (clientId: {client_id})"
@@ -160,6 +161,27 @@ class ClientTokenManager:
                 if "success" in data:
                     nested_data["success"] = data["success"]
                 data = nested_data
+
+            # Handle controller response format that may not include all fields
+            # Controller may return {'token': '...', 'expiresAt': '...'} without success/expiresIn
+            if "token" in data:
+                # Default success to True if token is present
+                if "success" not in data:
+                    data["success"] = True
+                # Calculate expiresIn from expiresAt if missing
+                if "expiresIn" not in data and "expiresAt" in data:
+                    try:
+                        expires_at = datetime.fromisoformat(
+                            data["expiresAt"].replace("Z", "+00:00")
+                        )
+                        now = (
+                            datetime.now(expires_at.tzinfo) if expires_at.tzinfo else datetime.now()
+                        )
+                        expires_in = max(0, int((expires_at - now).total_seconds()))
+                        data["expiresIn"] = expires_in
+                    except Exception:
+                        # If parsing fails, default to 1800 seconds (30 minutes)
+                        data["expiresIn"] = 1800
 
             token_response = ClientTokenResponse(**data)
 

@@ -325,7 +325,8 @@ class TestLoggerServiceGetMethods:
         assert isinstance(log_entry, LogEntry)
         assert log_entry.message == "Test message"
         assert log_entry.level == "info"
-        assert log_entry.userId == "user-123"
+        assert log_entry.userId is not None
+        assert log_entry.userId.id == "user-123"
         assert log_entry.sessionId == "session-456"
         assert log_entry.correlationId == "corr-123"
         assert log_entry.ipAddress == "192.168.1.1"
@@ -392,7 +393,8 @@ class TestLoggerServiceGetMethods:
 
         log_entry = logger_service.get_with_context(context, "Custom log", "info", options=options)
 
-        assert log_entry.userId == "user-123"
+        assert log_entry.userId is not None
+        assert log_entry.userId.id == "user-123"
         assert log_entry.correlationId == "corr-456"
 
     def test_get_with_token(self, logger_service):
@@ -405,7 +407,8 @@ class TestLoggerServiceGetMethods:
         assert isinstance(log_entry, LogEntry)
         assert log_entry.message == "User action"
         assert log_entry.level == "audit"
-        assert log_entry.userId == "user-123"
+        assert log_entry.userId is not None
+        assert log_entry.userId.id == "user-123"
         assert log_entry.sessionId == "session-456"
 
     def test_get_for_request(self, logger_service):

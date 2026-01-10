@@ -139,6 +139,9 @@ def load_config() -> MisoClientConfig:
     if redis_host:
         redis_port = int(os.environ.get("REDIS_PORT", "6379"))
         redis_password = os.environ.get("REDIS_PASSWORD")
+        # Convert empty string to None
+        if redis_password == "":
+            redis_password = None
         redis_db = int(os.environ.get("REDIS_DB", "0")) if os.environ.get("REDIS_DB") else 0
         redis_key_prefix = os.environ.get("REDIS_KEY_PREFIX", "miso:")
 

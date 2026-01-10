@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "miso-client"
-version = "3.7.0"
+version = "3.7.2"
 description = "Python client SDK for AI Fabrix authentication, authorization, and logging"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -75,7 +75,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "--strict-markers --strict-config --cov=miso_client --cov-report=term-missing --cov-report=html --cov-report=xml"
+addopts = "--strict-markers --strict-config --cov=miso_client --cov-report=term-missing --cov-report=html --cov-report=xml --ignore=tests/integration/"
 markers = [
     "unit: Unit tests",
     "integration: Integration tests",
