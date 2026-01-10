@@ -273,6 +273,129 @@ result = await client.http_client.get('/api/users')
 → [Complete logging example](examples/step-5-logging.py)  
 → [Logging Reference](docs/api-reference.md#logger-service)
 
+### Unified Logging Interface (Recommended)
+
+**What happens:** The SDK provides a unified logging interface with minimal API (1-3 parameters maximum) and automatic context extraction. This eliminates the need to manually pass Request objects or context dictionaries.
+
+**Benefits:**
+- **Minimal API**: Maximum 1-3 parameters per logging call
+- **Automatic Context**: Context extracted automatically via contextvars
+- **Simple Usage**: `logger.info(message)`, `logger.error(message, error?)`, `logger.audit(action, resource, entity_id?, old_values?, new_values?)`
+- **Framework Agnostic**: Works in FastAPI routes, Flask routes, service layers, background jobs
+- **Zero Configuration**: Context automatically available when middleware is used
+
+**Quick Start:**
+
+#### FastAPI Setup
+
+```python
+from fastapi import FastAPI
+from miso_client import get_logger
+from miso_client.utils.fastapi_logger_middleware import logger_context_middleware
+
+app = FastAPI()
+
+# Add middleware early in middleware chain (after auth middleware)
+app.middleware("http")(logger_context_middleware)
+
+@app.get("/api/users")
+async def get_users():
+    logger = get_logger()  # Auto-detects context from contextvars
+    
+    await logger.info("Users list accessed")  # Auto-extracts request context
+    
+    users = await fetch_users()
+    return users
+```
+
+#### Flask Setup
+
+```python
+from flask import Flask
+from miso_client import get_logger
+from miso_client.utils.flask_logger_middleware import register_logger_context_middleware
+
+app = Flask(__name__)
+
+# Register middleware
+register_logger_context_middleware(app)
+
+@app.route("/api/users")
+async def get_users():
+    logger = get_logger()  # Auto-detects context from contextvars
+    
+    await logger.info("Users list accessed")  # Auto-extracts request context
+    
+    users = await fetch_users()
+    return users
+```
+
+#### Service Layer Usage
+
+```python
+from miso_client import get_logger
+
+class UserService:
+    async def get_user(self, user_id: str):
+        logger = get_logger()  # Uses contextvars context if available
+        
+        await logger.info("Fetching user")  # Auto-extracts context if available
+        
+        try:
+            user = await db.user.find_unique({"id": user_id})
+            await logger.audit("ACCESS", "User", user_id)  # Read access audit
+            return user
+        except Exception as error:
+            await logger.error("Failed to fetch user", error)  # Auto-extracts error details
+            raise
+```
+
+#### Background Job Usage
+
+```python
+from miso_client import get_logger, set_logger_context
+
+async def background_job():
+    # Set context for this async execution context
+    set_logger_context({
+        "userId": "system",
+        "correlationId": "job-123",
+        "ipAddress": "127.0.0.1",
+    })
+    
+    logger = get_logger()
+    await logger.info("Background job started")
+    
+    # All logs in this async context will use the set context
+    await process_data()
+```
+
+**UnifiedLogger Methods:**
+
+- `info(message: str) -> None` - Log info message
+- `warn(message: str) -> None` - Log warning message
+- `debug(message: str) -> None` - Log debug message
+- `error(message: str, error: Optional[Exception] = None) -> None` - Log error message with optional exception
+- `audit(action: str, resource: str, entity_id?: str, old_values?: Dict, new_values?: Dict) -> None` - Log audit event
+
+**Context Management:**
+
+- `get_logger() -> UnifiedLogger` - Get logger instance with automatic context detection
+- `set_logger_context(context: Dict[str, Any]) -> None` - Set context manually for background jobs
+- `clear_logger_context() -> None` - Clear context
+
+**Context Fields Automatically Extracted:**
+
+- `ipAddress` - Client IP address
+- `userAgent` - User agent string
+- `correlationId` - Request correlation ID
+- `userId` - Authenticated user ID (from JWT token)
+- `sessionId` - Session ID (from JWT token)
+- `method` - HTTP method
+- `path` - Request path
+- `hostname` - Request hostname
+- `applicationId` - Application identifier (from JWT token)
+
 ---
 
 ### Step 6: Activate Audit

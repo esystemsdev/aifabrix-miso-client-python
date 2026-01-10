@@ -5,6 +5,25 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.0] - 2026-01-10
+
+### Added
+- **Unified Logging Interface**: New minimal API with automatic context extraction
+  - `get_logger()` factory function for automatic context detection from contextvars
+  - `set_logger_context()` and `clear_logger_context()` for manual context management
+  - `logger_context_middleware` FastAPI/Flask middleware helpers for automatic context extraction
+  - contextvars-based context propagation across async boundaries
+  - Simplified API: `logger.info(message)`, `logger.error(message, error?)`, `logger.audit(action, resource, entity_id?, old_values?, new_values?)`
+  - Automatic context extraction from contextvars (no need to pass Request objects)
+  - `UnifiedLogger` service class wrapping `LoggerService` with minimal interface
+  - `LoggerContextStorage` utility for contextvars-based context management
+
+### Documentation
+- Added unified logging examples and guides to README.md
+- Updated FastAPI/Flask middleware examples with unified logging pattern
+- Added background job logging examples with unified interface
+- Comprehensive API reference for UnifiedLogger interface
+
 ## [3.7.2] - 2026-01-10
 
 ### Added

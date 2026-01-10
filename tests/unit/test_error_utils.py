@@ -262,8 +262,6 @@ class TestHandleApiError:
         assert exception.errors == ["Error 1", "Error 2", "Error 3"]
 
 
-
-
 class TestExtractCorrelationIdFromError:
     """Test cases for extract_correlation_id_from_error function."""
 

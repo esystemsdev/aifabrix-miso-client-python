@@ -5,7 +5,7 @@ This module provides reusable pagination utilities for parsing pagination parame
 creating meta objects, and working with paginated responses.
 """
 
-from typing import Dict, List, Tuple, TypeVar
+from typing import Dict, List, TypeVar
 
 from ..models.pagination import Meta, PaginatedListResponse
 

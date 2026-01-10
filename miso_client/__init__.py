@@ -50,6 +50,7 @@ from .services.logger_chain import LoggerChain
 from .services.permission import PermissionService
 from .services.redis import RedisService
 from .services.role import RoleService
+from .services.unified_logger import UnifiedLogger
 from .utils.audit_log_queue import AuditLogQueue
 from .utils.config_loader import load_config
 from .utils.controller_url_resolver import is_browser, resolve_controller_url
@@ -60,6 +61,9 @@ from .utils.error_utils import (
     transformError,
 )
 from .utils.fastapi_endpoints import create_fastapi_client_token_endpoint
+from .utils.fastapi_logger_middleware import (
+    logger_context_middleware as fastapi_logger_context_middleware,
+)
 from .utils.filter import (
     apply_filters,
     build_query_string,
@@ -72,6 +76,12 @@ from .utils.filter import (
     validate_json_filter,
 )
 from .utils.flask_endpoints import create_flask_client_token_endpoint
+from .utils.flask_logger_middleware import (
+    logger_context_middleware as flask_logger_context_middleware,
+)
+from .utils.flask_logger_middleware import (
+    register_logger_context_middleware,
+)
 from .utils.http_client import HttpClient
 from .utils.internal_http_client import InternalHttpClient
 from .utils.jwt_tools import extract_user_id
@@ -86,9 +96,14 @@ from .utils.pagination import (
 from .utils.request_context import RequestContext, extract_request_context
 from .utils.sort import build_sort_string, parse_sort_params
 from .utils.token_utils import extract_client_token_info
+from .utils.unified_logger_factory import (
+    clear_logger_context,
+    get_logger,
+    set_logger_context,
+)
 from .utils.url_validator import validate_url
 
-__version__ = "3.7.2"
+__version__ = "3.8.0"
 __author__ = "AI Fabrix Team"
 __license__ = "MIT"
 
@@ -143,6 +158,11 @@ class MisoClient:
         # Note: LoggerService primarily uses InternalHttpClient to avoid circular dependency
         # ApiClient is provided as optional fallback
         self.logger.api_client = self.api_client
+
+        # Set default logger service for unified logging factory
+        from .utils.unified_logger_factory import set_default_logger_service
+
+        set_default_logger_service(self.logger)
 
         # Cache service (uses Redis if available, falls back to in-memory)
         self.cache = CacheService(self.redis)
@@ -840,6 +860,7 @@ __all__ = [
     "PermissionService",
     "LoggerService",
     "LoggerChain",
+    "UnifiedLogger",
     "RedisService",
     "EncryptionService",
     "CacheService",
@@ -865,4 +886,11 @@ __all__ = [
     "RequestContext",
     # Logging utilities
     "extract_logging_context",
+    # Unified logging utilities
+    "get_logger",
+    "set_logger_context",
+    "clear_logger_context",
+    "fastapi_logger_context_middleware",
+    "flask_logger_context_middleware",
+    "register_logger_context_middleware",
 ]

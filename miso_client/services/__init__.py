@@ -8,6 +8,7 @@ from .logger_chain import LoggerChain
 from .permission import PermissionService
 from .redis import RedisService
 from .role import RoleService
+from .unified_logger import UnifiedLogger
 
 __all__ = [
     "AuthService",
@@ -15,6 +16,7 @@ __all__ = [
     "PermissionService",
     "LoggerService",
     "LoggerChain",
+    "UnifiedLogger",
     "RedisService",
     "EncryptionService",
     "CacheService",
