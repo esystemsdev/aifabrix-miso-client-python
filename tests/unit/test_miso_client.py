@@ -1807,7 +1807,8 @@ class TestLoggerService:
             # Should not fall back to HTTP when listeners exist (even if one fails)
             mock_request.assert_not_called()
 
-    def test_get_log_with_request(self, logger_service):
+    @pytest.mark.asyncio
+    async def test_get_log_with_request(self, logger_service):
         """Test get_log_with_request extracts request context."""
         from unittest.mock import MagicMock
 
@@ -1833,7 +1834,7 @@ class TestLoggerService:
             }.get(k, d)
         )
 
-        log_entry = logger_service.get_log_with_request(request, "Processing request", "info")
+        log_entry = await logger_service.get_log_with_request(request, "Processing request", "info")
 
         assert log_entry.message == "Processing request"
         assert log_entry.level == "info"
@@ -1849,24 +1850,26 @@ class TestLoggerService:
         assert log_entry.context["referer"] == "https://example.com"
         assert log_entry.context["requestSize"] == 1024
 
-    def test_get_with_context(self, logger_service):
+    @pytest.mark.asyncio
+    async def test_get_with_context(self, logger_service):
         """Test get_with_context adds custom context."""
         context = {"customField": "value", "anotherField": 123}
-        log_entry = logger_service.get_with_context(context, "Custom log", "info")
+        log_entry = await logger_service.get_with_context(context, "Custom log", "info")
 
         assert log_entry.message == "Custom log"
         assert log_entry.level == "info"
         assert log_entry.context["customField"] == "value"
         assert log_entry.context["anotherField"] == 123
 
-    def test_get_with_token(self, logger_service):
+    @pytest.mark.asyncio
+    async def test_get_with_token(self, logger_service):
         """Test get_with_token extracts user context from JWT."""
         import jwt
 
         payload = {"sub": "user-789", "sessionId": "session-abc"}
         token = jwt.encode(payload, "secret", algorithm="HS256")
 
-        log_entry = logger_service.get_with_token(token, "User action", "audit")
+        log_entry = await logger_service.get_with_token(token, "User action", "audit")
 
         assert log_entry.message == "User action"
         assert log_entry.level == "audit"
@@ -1875,7 +1878,8 @@ class TestLoggerService:
         assert log_entry.userId.id == "user-789"
         assert log_entry.sessionId == "session-abc"
 
-    def test_get_for_request(self, logger_service):
+    @pytest.mark.asyncio
+    async def test_get_for_request(self, logger_service):
         """Test get_for_request alias for get_log_with_request."""
         from unittest.mock import MagicMock
 
@@ -1886,14 +1890,15 @@ class TestLoggerService:
         request.headers = MagicMock()
         request.headers.get = MagicMock(return_value=None)
 
-        log_entry = logger_service.get_for_request(request, "Request processed", "info")
+        log_entry = await logger_service.get_for_request(request, "Request processed", "info")
 
         assert log_entry.message == "Request processed"
         assert log_entry.level == "info"
         assert log_entry.context["method"] == "GET"
         assert log_entry.context["path"] == "/api/users"
 
-    def test_get_log_with_request_minimal(self, logger_service):
+    @pytest.mark.asyncio
+    async def test_get_log_with_request_minimal(self, logger_service):
         """Test get_log_with_request with minimal request data."""
         from unittest.mock import MagicMock
 
@@ -1902,13 +1907,14 @@ class TestLoggerService:
         request.headers = MagicMock()
         request.headers.get = MagicMock(return_value=None)
 
-        log_entry = logger_service.get_log_with_request(request, "Minimal request", "info")
+        log_entry = await logger_service.get_log_with_request(request, "Minimal request", "info")
 
         assert log_entry.message == "Minimal request"
         assert log_entry.context["method"] == "GET"
         assert log_entry.userId is None
 
-    def test_get_log_with_request_with_stack_trace(self, logger_service):
+    @pytest.mark.asyncio
+    async def test_get_log_with_request_with_stack_trace(self, logger_service):
         """Test get_log_with_request with stack trace."""
         from unittest.mock import MagicMock
 
@@ -1917,7 +1923,7 @@ class TestLoggerService:
         request.headers = MagicMock()
         request.headers.get = MagicMock(return_value=None)
 
-        log_entry = logger_service.get_log_with_request(
+        log_entry = await logger_service.get_log_with_request(
             request, "Error occurred", "error", stack_trace="Traceback..."
         )
 

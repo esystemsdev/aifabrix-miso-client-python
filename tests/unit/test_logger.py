@@ -12,6 +12,7 @@ import jwt
 import pytest
 
 from miso_client.models.config import ClientLoggingOptions, LogEntry
+from miso_client.services.application_context import ApplicationContext
 from miso_client.services.logger import LoggerService
 from miso_client.utils.audit_log_queue import AuditLogQueue
 
@@ -31,7 +32,17 @@ class TestLoggerServiceEventEmission:
         from miso_client.utils.internal_http_client import InternalHttpClient
 
         internal_client = InternalHttpClient(config_with_emit_events)
-        return LoggerService(internal_client, mock_redis)
+        logger = LoggerService(internal_client, mock_redis)
+        # Mock application_context_service to avoid slow calls
+        mock_app_context = ApplicationContext(
+            application=config_with_emit_events.client_id,
+            application_id=None,
+            environment="unknown",
+        )
+        logger.application_context_service.get_application_context = AsyncMock(
+            return_value=mock_app_context
+        )
+        return logger
 
     @pytest.mark.asyncio
     async def test_event_emission_with_async_callback(self, logger_service):
@@ -165,7 +176,17 @@ class TestLoggerServiceTransformLogEntry:
         from miso_client.utils.internal_http_client import InternalHttpClient
 
         internal_client = InternalHttpClient(config)
-        return LoggerService(internal_client, mock_redis)
+        logger = LoggerService(internal_client, mock_redis)
+        # Mock application_context_service to avoid slow calls
+        mock_app_context = ApplicationContext(
+            application=config.client_id,
+            application_id=None,
+            environment="unknown",
+        )
+        logger.application_context_service.get_application_context = AsyncMock(
+            return_value=mock_app_context
+        )
+        return logger
 
     def test_transform_audit_log_entry(self, logger_service, config):
         """Test transforming audit log entry to AuditLogData."""
@@ -296,9 +317,20 @@ class TestLoggerServiceGetMethods:
         from miso_client.utils.internal_http_client import InternalHttpClient
 
         internal_client = InternalHttpClient(config)
-        return LoggerService(internal_client, mock_redis)
+        logger = LoggerService(internal_client, mock_redis)
+        # Mock application_context_service to avoid slow calls
+        mock_app_context = ApplicationContext(
+            application=config.client_id,
+            application_id=None,
+            environment="unknown",
+        )
+        logger.application_context_service.get_application_context = AsyncMock(
+            return_value=mock_app_context
+        )
+        return logger
 
-    def test_get_log_with_request_fastapi(self, logger_service):
+    @pytest.mark.asyncio
+    async def test_get_log_with_request_fastapi(self, logger_service):
         """Test get_log_with_request with FastAPI request."""
         payload = {"sub": "user-123", "sessionId": "session-456"}
         token = jwt.encode(payload, "secret", algorithm="HS256")
@@ -320,7 +352,7 @@ class TestLoggerServiceGetMethods:
             }.get(k, d)
         )
 
-        log_entry = logger_service.get_log_with_request(request, "Test message", "info")
+        log_entry = await logger_service.get_log_with_request(request, "Test message", "info")
 
         assert isinstance(log_entry, LogEntry)
         assert log_entry.message == "Test message"
@@ -336,7 +368,8 @@ class TestLoggerServiceGetMethods:
         assert log_entry.context["referer"] == "https://example.com"
         assert log_entry.context["requestSize"] == 1024
 
-    def test_get_log_with_request_minimal(self, logger_service):
+    @pytest.mark.asyncio
+    async def test_get_log_with_request_minimal(self, logger_service):
         """Test get_log_with_request with minimal request data."""
         request = MagicMock()
         request.method = "GET"
@@ -347,7 +380,7 @@ class TestLoggerServiceGetMethods:
         request.headers = MagicMock()
         request.headers.get = MagicMock(return_value=None)
 
-        log_entry = logger_service.get_log_with_request(request, "Test message")
+        log_entry = await logger_service.get_log_with_request(request, "Test message")
 
         assert isinstance(log_entry, LogEntry)
         assert log_entry.message == "Test message"
@@ -355,7 +388,8 @@ class TestLoggerServiceGetMethods:
         assert log_entry.context["path"] == "/api/test"
         assert log_entry.userId is None  # No token
 
-    def test_get_log_with_request_with_stack_trace(self, logger_service):
+    @pytest.mark.asyncio
+    async def test_get_log_with_request_with_stack_trace(self, logger_service):
         """Test get_log_with_request with stack trace."""
         request = MagicMock()
         request.method = "GET"
@@ -366,43 +400,48 @@ class TestLoggerServiceGetMethods:
         request.headers = MagicMock()
         request.headers.get = MagicMock(return_value=None)
 
-        log_entry = logger_service.get_log_with_request(
+        log_entry = await logger_service.get_log_with_request(
             request, "Error message", "error", stack_trace="Traceback..."
         )
 
         assert log_entry.level == "error"
         assert log_entry.stackTrace == "Traceback..."
 
-    def test_get_with_context(self, logger_service):
+    @pytest.mark.asyncio
+    async def test_get_with_context(self, logger_service):
         """Test get_with_context method."""
         context = {"customField": "value", "anotherField": 123}
 
-        log_entry = logger_service.get_with_context(context, "Custom log", "info")
+        log_entry = await logger_service.get_with_context(context, "Custom log", "info")
 
         assert isinstance(log_entry, LogEntry)
         assert log_entry.message == "Custom log"
         assert log_entry.level == "info"
         assert log_entry.context == context
 
-    def test_get_with_context_with_options(self, logger_service):
+    @pytest.mark.asyncio
+    async def test_get_with_context_with_options(self, logger_service):
         """Test get_with_context with custom options."""
         context = {"customField": "value"}
         options = ClientLoggingOptions()
         options.userId = "user-123"
         options.correlationId = "corr-456"
 
-        log_entry = logger_service.get_with_context(context, "Custom log", "info", options=options)
+        log_entry = await logger_service.get_with_context(
+            context, "Custom log", "info", options=options
+        )
 
         assert log_entry.userId is not None
         assert log_entry.userId.id == "user-123"
         assert log_entry.correlationId == "corr-456"
 
-    def test_get_with_token(self, logger_service):
+    @pytest.mark.asyncio
+    async def test_get_with_token(self, logger_service):
         """Test get_with_token method."""
         payload = {"sub": "user-123", "sessionId": "session-456"}
         token = jwt.encode(payload, "secret", algorithm="HS256")
 
-        log_entry = logger_service.get_with_token(token, "User action", "audit")
+        log_entry = await logger_service.get_with_token(token, "User action", "audit")
 
         assert isinstance(log_entry, LogEntry)
         assert log_entry.message == "User action"
@@ -411,7 +450,8 @@ class TestLoggerServiceGetMethods:
         assert log_entry.userId.id == "user-123"
         assert log_entry.sessionId == "session-456"
 
-    def test_get_for_request(self, logger_service):
+    @pytest.mark.asyncio
+    async def test_get_for_request(self, logger_service):
         """Test get_for_request method (alias for get_log_with_request)."""
         request = MagicMock()
         request.method = "POST"
@@ -422,7 +462,7 @@ class TestLoggerServiceGetMethods:
         request.headers = MagicMock()
         request.headers.get = MagicMock(return_value=None)
 
-        log_entry = logger_service.get_for_request(request, "Request processed")
+        log_entry = await logger_service.get_for_request(request, "Request processed")
 
         assert isinstance(log_entry, LogEntry)
         assert log_entry.message == "Request processed"
@@ -439,7 +479,17 @@ class TestLoggerServiceEdgeCases:
         from miso_client.utils.internal_http_client import InternalHttpClient
 
         internal_client = InternalHttpClient(config)
-        return LoggerService(internal_client, mock_redis)
+        logger = LoggerService(internal_client, mock_redis)
+        # Mock application_context_service to avoid slow calls
+        mock_app_context = ApplicationContext(
+            application=config.client_id,
+            application_id=None,
+            environment="unknown",
+        )
+        logger.application_context_service.get_application_context = AsyncMock(
+            return_value=mock_app_context
+        )
+        return logger
 
     @pytest.mark.asyncio
     async def test_audit_log_queue_path(self, logger_service):

@@ -14,7 +14,8 @@ if TYPE_CHECKING:
     # Avoid import at runtime for frameworks not installed
     pass
 
-from ..models.config import ClientLoggingOptions, LogEntry
+from ..models.config import ClientLoggingOptions, ForeignKeyReference, LogEntry
+from ..services.application_context import ApplicationContextService
 from ..services.redis import RedisService
 from ..utils.audit_log_queue import AuditLogQueue
 from ..utils.circuit_breaker import CircuitBreaker
@@ -55,6 +56,9 @@ class LoggerService:
         self.mask_sensitive_data = True  # Default: mask sensitive data
         self.correlation_counter = 0
         self.audit_log_queue: Optional[AuditLogQueue] = None
+
+        # Initialize application context service
+        self.application_context_service = ApplicationContextService(internal_http_client)
 
         # Initialize circuit breaker for HTTP logging
         circuit_breaker_config = self.config.audit.circuitBreaker if self.config.audit else None
@@ -297,6 +301,19 @@ class LoggerService:
             options.correlationId if options else None
         ) or self._generate_correlation_id()
 
+        # Get application context (with overwrites from options)
+        application_id_str: Optional[str] = None
+        if options and options.applicationId:
+            if isinstance(options.applicationId, ForeignKeyReference):
+                application_id_str = options.applicationId.id
+            else:
+                application_id_str = options.applicationId
+        app_context = await self.application_context_service.get_application_context(
+            overwrite_application=options.application if options else None,
+            overwrite_application_id=application_id_str,
+            overwrite_environment=options.environment if options else None,
+        )
+
         log_entry = build_log_entry(
             level=level,
             message=message,
@@ -308,6 +325,7 @@ class LoggerService:
             options=options,
             metadata=extract_metadata(),
             mask_sensitive=self.mask_sensitive_data,
+            application_context=app_context.to_dict(),
         )
 
         # Event emission mode: emit events instead of sending via HTTP/Redis
@@ -395,7 +413,7 @@ class LoggerService:
         """
         return LoggerChain(self, {}, ClientLoggingOptions()).with_request(request)
 
-    def get_log_with_request(
+    async def get_log_with_request(
         self,
         request: Any,
         message: str,
@@ -458,6 +476,20 @@ class LoggerService:
         correlation_id = (
             options.correlationId if options else None
         ) or self._generate_correlation_id()
+
+        # Get application context (with overwrites from options)
+        application_id_str: Optional[str] = None
+        if options and options.applicationId:
+            if isinstance(options.applicationId, ForeignKeyReference):
+                application_id_str = options.applicationId.id
+            else:
+                application_id_str = options.applicationId
+        app_context = await self.application_context_service.get_application_context(
+            overwrite_application=options.application if options else None,
+            overwrite_application_id=application_id_str,
+            overwrite_environment=options.environment if options else None,
+        )
+
         return build_log_entry(
             level=level,
             message=message,
@@ -469,9 +501,10 @@ class LoggerService:
             options=options,
             metadata=extract_metadata(),
             mask_sensitive=self.mask_sensitive_data,
+            application_context=app_context.to_dict(),
         )
 
-    def get_with_context(
+    async def get_with_context(
         self,
         context: Dict[str, Any],
         message: str,
@@ -506,6 +539,20 @@ class LoggerService:
         correlation_id = (
             final_options.correlationId if final_options else None
         ) or self._generate_correlation_id()
+
+        # Get application context (with overwrites from options)
+        application_id_str: Optional[str] = None
+        if final_options and final_options.applicationId:
+            if isinstance(final_options.applicationId, ForeignKeyReference):
+                application_id_str = final_options.applicationId.id
+            else:
+                application_id_str = final_options.applicationId
+        app_context = await self.application_context_service.get_application_context(
+            overwrite_application=final_options.application if final_options else None,
+            overwrite_application_id=application_id_str,
+            overwrite_environment=final_options.environment if final_options else None,
+        )
+
         return build_log_entry(
             level=level,
             message=message,
@@ -517,9 +564,10 @@ class LoggerService:
             options=final_options,
             metadata=extract_metadata(),
             mask_sensitive=self.mask_sensitive_data,
+            application_context=app_context.to_dict(),
         )
 
-    def get_with_token(
+    async def get_with_token(
         self,
         token: str,
         message: str,
@@ -554,6 +602,20 @@ class LoggerService:
         correlation_id = (
             options.correlationId if options else None
         ) or self._generate_correlation_id()
+
+        # Get application context (with overwrites from options)
+        application_id_str: Optional[str] = None
+        if options and options.applicationId:
+            if isinstance(options.applicationId, ForeignKeyReference):
+                application_id_str = options.applicationId.id
+            else:
+                application_id_str = options.applicationId
+        app_context = await self.application_context_service.get_application_context(
+            overwrite_application=options.application if options else None,
+            overwrite_application_id=application_id_str,
+            overwrite_environment=options.environment if options else None,
+        )
+
         return build_log_entry(
             level=level,
             message=message,
@@ -565,9 +627,10 @@ class LoggerService:
             options=options,
             metadata=extract_metadata(),
             mask_sensitive=self.mask_sensitive_data,
+            application_context=app_context.to_dict(),
         )
 
-    def get_for_request(
+    async def get_for_request(
         self,
         request: Any,
         message: str,
@@ -591,6 +654,6 @@ class LoggerService:
             LogEntry object with request context extracted
 
         Example:
-            >>> log_entry = logger.get_for_request(request, "Request processed")
+            >>> log_entry = await logger.get_for_request(request, "Request processed")
         """
-        return self.get_log_with_request(request, message, level, context, stack_trace)
+        return await self.get_log_with_request(request, message, level, context, stack_trace)

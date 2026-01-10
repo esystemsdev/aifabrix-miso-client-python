@@ -278,6 +278,9 @@ class ClientLoggingOptions(BaseModel):
     Supports both string IDs (for backward compatibility) and ForeignKeyReference objects.
     When string IDs are provided, they will be converted to ForeignKeyReference objects
     in LogEntry if needed (requires additional context from API responses).
+
+    Supports overwriting application context for dataplane use cases where external
+    applications need logging on their behalf.
     """
 
     applicationId: Optional[Union[str, "ForeignKeyReference"]] = Field(
@@ -293,6 +296,13 @@ class ClientLoggingOptions(BaseModel):
     maskSensitiveData: Optional[bool] = Field(default=None, description="Enable data masking")
     ipAddress: Optional[str] = Field(default=None, description="Client IP address")
     userAgent: Optional[str] = Field(default=None, description="User agent string")
+    # Application context overwrites (for dataplane use cases)
+    application: Optional[str] = Field(
+        default=None, description="Override application name (for dataplane logging)"
+    )
+    environment: Optional[str] = Field(
+        default=None, description="Override environment name (for dataplane logging)"
+    )
 
     # Indexed context
     sourceKey: Optional[str] = Field(default=None, description="ExternalDataSource.key")

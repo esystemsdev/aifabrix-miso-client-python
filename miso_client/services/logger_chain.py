@@ -53,6 +53,27 @@ class LoggerChain:
         self.options.applicationId = application_id
         return self
 
+    def with_application(self, application: str) -> "LoggerChain":
+        """Override application name for this log entry."""
+        if self.options is None:
+            self.options = ClientLoggingOptions()
+        self.options.application = application
+        return self
+
+    def with_application_id(self, application_id: str) -> "LoggerChain":
+        """Override application ID for this log entry."""
+        if self.options is None:
+            self.options = ClientLoggingOptions()
+        self.options.applicationId = application_id
+        return self
+
+    def with_environment(self, environment: str) -> "LoggerChain":
+        """Override environment name for this log entry."""
+        if self.options is None:
+            self.options = ClientLoggingOptions()
+        self.options.environment = environment
+        return self
+
     def add_correlation(self, correlation_id: str) -> "LoggerChain":
         """Add correlation ID."""
         if self.options is None:

@@ -123,6 +123,7 @@ def build_log_entry(
     options: Optional[ClientLoggingOptions] = None,
     metadata: Optional[Dict[str, Any]] = None,
     mask_sensitive: bool = True,
+    application_context: Optional[Dict[str, Optional[str]]] = None,
 ) -> LogEntry:
     """
     Build LogEntry object from parameters.
@@ -138,6 +139,7 @@ def build_log_entry(
         options: Logging options
         metadata: Environment metadata
         mask_sensitive: Whether to mask sensitive data
+        application_context: Optional application context dict with application, applicationId, environment
 
     Returns:
         LogEntry object
@@ -155,8 +157,28 @@ def build_log_entry(
     should_mask = (options.maskSensitiveData if options else None) is not False and mask_sensitive
     masked_context = DataMasker.mask_sensitive_data(context) if should_mask and context else context
 
-    # Convert applicationId and userId to ForeignKeyReference if needed
-    application_id_value = options.applicationId if options else None
+    # Get application context (from parameter, options overwrites, or defaults)
+    app_context = application_context or {}
+
+    # Determine application name (priority: options > application_context > config_client_id)
+    application_name = (
+        (options.application if options else None)
+        or app_context.get("application")
+        or config_client_id
+    )
+
+    # Determine environment (priority: options > application_context > "unknown")
+    environment_name = (
+        (options.environment if options else None) or app_context.get("environment") or "unknown"
+    )
+
+    # Determine applicationId (priority: options > application_context > jwt_context)
+    application_id_value = (
+        (options.applicationId if options else None)
+        or app_context.get("applicationId")
+        or jwt_context.get("applicationId")
+    )
+
     user_id_value = (options.userId if options else None) or jwt_context.get("userId")
 
     application_id_ref = _convert_to_foreign_key_reference(application_id_value, "Application")
@@ -165,8 +187,8 @@ def build_log_entry(
     log_entry_data = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "level": level,
-        "environment": "unknown",  # Backend extracts from client credentials
-        "application": config_client_id,  # Use clientId as application identifier
+        "environment": environment_name,
+        "application": application_name,
         "applicationId": application_id_ref,
         "message": message,
         "context": masked_context,

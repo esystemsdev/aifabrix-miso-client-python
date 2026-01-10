@@ -103,7 +103,7 @@ from .utils.unified_logger_factory import (
 )
 from .utils.url_validator import validate_url
 
-__version__ = "3.8.0"
+__version__ = "3.8.1"
 __author__ = "AI Fabrix Team"
 __license__ = "MIT"
 

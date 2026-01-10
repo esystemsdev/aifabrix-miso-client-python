@@ -5,6 +5,45 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.1] - 2026-01-10
+
+### Added
+
+- **Unified Application Context Service**: New `ApplicationContextService` for consistent application context extraction
+  - Extracts `application`, `applicationId`, and `environment` with consistent fallback logic
+  - Extracts from client token first (if available), then falls back to parsing `MISO_CLIENTID` format: `miso-controller-{environment}-{application}`
+  - Supports overwriting application context for dataplane use cases where external applications need logging on their behalf
+  - Caches parsed results to avoid repeated extraction
+  - Integrated with `LoggerService` for automatic context extraction in log entries
+
+- **Application Context Overwrites**: Enhanced `ClientLoggingOptions` with overwrite support
+  - Added `application` field for overriding application name (for dataplane logging)
+  - Added `environment` field for overriding environment name (for dataplane logging)
+  - Existing `applicationId` field can be used to override application ID
+  - Overwrites take highest priority when provided, allowing dataplane services to log on behalf of external applications
+
+- **LoggerService Integration**: Enhanced logger service with application context extraction
+  - `LoggerService` now uses `ApplicationContextService` for consistent context extraction
+  - Automatic fallback logic: overwrites → application context service → JWT token context → defaults
+  - Improved consistency across all logging methods
+
+### Changed
+
+- **LoggerService**: Updated to use `ApplicationContextService` for application context extraction
+  - Consistent fallback logic across all logging methods
+  - Better support for dataplane logging scenarios
+  - Improved context extraction from client tokens and clientId format
+
+- **Logger Helpers**: Enhanced `build_log_entry()` to support application context parameter
+  - Accepts optional `application_context` parameter for explicit context
+  - Priority order: overwrites → application context → JWT context → defaults
+
+### Technical
+
+- **New service**: `miso_client/services/application_context.py` - ApplicationContextService implementation
+- **Enhanced models**: `ClientLoggingOptions` - Added `application` and `environment` fields for overwrites
+- **Code organization**: Improved separation of concerns with dedicated application context service
+
 ## [3.8.0] - 2026-01-10
 
 ### Added

@@ -159,6 +159,8 @@ class UnifiedLogger:
         option_fields = {
             "userId": "userId",
             "applicationId": "applicationId",
+            "application": "application",
+            "environment": "environment",
             "correlationId": "correlationId",
             "requestId": "requestId",
             "sessionId": "sessionId",
