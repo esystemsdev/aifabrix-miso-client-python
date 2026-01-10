@@ -540,15 +540,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **camelCase Utility Functions with Backward Compatibility**: New camelCase function names added alongside existing snake_case functions
-  - `parsePaginationParams()`: Returns dictionary with `currentPage` and `pageSize` keys (alias: `parse_pagination_params()`)
-  - `createMetaObject()`: Creates `Meta` objects with camelCase fields (alias: `create_meta_object()`)
-  - `applyPaginationToArray()`: Applies pagination to arrays (alias: `apply_pagination_to_array()`)
-  - `createPaginatedListResponse()`: Creates paginated list responses (alias: `create_paginated_list_response()`)
-  - `transformError()`: Transforms error dictionaries to `ErrorResponse` objects (alias: `transform_error_to_snake_case()`)
-  - `handleApiError()`: Creates `ApiErrorException` from API error responses (alias: `handle_api_error_snake_case()`)
+- **camelCase Utility Functions**: camelCase function names for consistency with TypeScript SDK
+  - `parsePaginationParams()`: Returns dictionary with `currentPage` and `pageSize` keys
+  - `createMetaObject()`: Creates `Meta` objects with camelCase fields
+  - `applyPaginationToArray()`: Applies pagination to arrays
+  - `createPaginatedListResponse()`: Creates paginated list responses
+  - `transformError()`: Transforms error dictionaries to `ErrorResponse` objects
+  - `handleApiError()`: Creates `ApiErrorException` from API error responses
   - `ApiErrorException`: New exception class for API errors (extends `MisoClientError`)
-  - All camelCase functions maintain backward compatibility with snake_case aliases
 
 - **Audit Logging Queue**: New `AuditLogQueue` class for batch logging of audit events
   - Queues audit logs and flushes them in batches to Redis or HTTP batch endpoint
@@ -578,12 +577,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Pagination Default**: Changed default `pageSize` from `25` to `20` to match TypeScript implementation
   - `parsePaginationParams()` now returns `{"currentPage": 1, "pageSize": 20}` by default
-  - `parse_pagination_params()` (legacy) still returns tuple `(1, 20)` for backward compatibility
 
 - **Error Handling**: Enhanced error handling with new `ApiErrorException` class
-  - `handleApiError()` now returns `ApiErrorException` instead of `MisoClientError`
+  - `handleApiError()` returns `ApiErrorException` with structured error response support
   - `ApiErrorException` extends `MisoClientError` with structured error response support
-  - Legacy `handle_api_error_snake_case()` still returns `MisoClientError` for backward compatibility
 
 - **HTTP Client Logging**: Improved async logging task management
   - Added `_wait_for_logging_tasks()` helper method for proper async task synchronization
@@ -610,8 +607,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Technical Improvements
 
-- **Type Safety**: Enhanced type hints for all new camelCase functions
-- **Backward Compatibility**: All new camelCase functions have snake_case aliases
+- **Type Safety**: Enhanced type hints for all camelCase functions
 - **Test Coverage**: All 409 tests passing with 86% code coverage
 - **Code Quality**: All linting checks passing
 
@@ -619,12 +615,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **For users upgrading from 1.8.1:**
 
-1. **Optional: Use camelCase Functions**: You can now use camelCase function names if preferred
-   - Old: `parse_pagination_params(params)` → New: `parsePaginationParams(params)`
-   - Old: `create_meta_object(...)` → New: `createMetaObject(...)`
-   - Old: `transform_error_to_snake_case(...)` → New: `transformError(...)`
-   - Old: `handle_api_error_snake_case(...)` → New: `handleApiError(...)`
-   - Note: All snake_case functions still work (backward compatible)
+1. **Use camelCase Functions**: Use camelCase function names for consistency with TypeScript SDK
+   - `parsePaginationParams(params)` - Returns dict with `currentPage` and `pageSize` keys
+   - `createMetaObject(...)` - Creates `Meta` objects with camelCase fields
+   - `transformError(...)` - Transforms error dictionaries to `ErrorResponse` objects
+   - `handleApiError(...)` - Creates `ApiErrorException` from API error responses
 
 2. **Configure Audit Logging** (optional): You can now configure audit logging behavior
 
@@ -645,10 +640,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    )
    ```
 
-3. **Handle New Exception Type** (optional): `handleApiError()` now returns `ApiErrorException`
-   - Old: `error = handle_api_error_snake_case(...)` → `MisoClientError`
-   - New: `error = handleApiError(...)` → `ApiErrorException` (extends `MisoClientError`)
-   - Both exception types are compatible, but `ApiErrorException` provides better structured error information
+3. **Handle Exception Type**: `handleApiError()` returns `ApiErrorException`
+   - `error = handleApiError(...)` → `ApiErrorException` (extends `MisoClientError`)
+   - `ApiErrorException` provides structured error information with camelCase fields
 
 ### Testing
 
@@ -684,15 +678,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `ClientLoggingOptions`: Removed all aliases (already camelCase): `applicationId`, `userId`, `correlationId`, `requestId`, `sessionId`, `maskSensitiveData`, `performanceMetrics`
 
 - **Query Parameter Updates**:
-  - `build_query_string()`: Now generates `pageSize` instead of `page_size` in query strings
-  - `_add_pagination_params()`: Now adds `pageSize` instead of `page_size` to request parameters
-  - `parse_pagination_params()`: Still accepts both `pageSize` and `page_size` for backward compatibility (can parse either format)
+  - `build_query_string()`: Generates `pageSize` in query strings (camelCase)
+  - `_add_pagination_params()`: Adds `pageSize` to request parameters (camelCase)
+  - `parsePaginationParams()`: Parses `page` and `pageSize` query parameters (camelCase)
 
 - **Utility Function Updates**:
-  - `create_meta_object()`: Now creates `Meta` objects with camelCase field names (`totalItems`, `currentPage`, `pageSize`)
-  - `error_utils.py`: Updated to handle only camelCase error responses (removed snake_case handling)
-  - `transform_error_to_snake_case()`: Function name retained for backward compatibility, but now expects camelCase data
-  - `handle_api_error_snake_case()`: Function name retained for backward compatibility, but now expects camelCase data
+  - `createMetaObject()`: Creates `Meta` objects with camelCase field names (`totalItems`, `currentPage`, `pageSize`)
+  - `error_utils.py`: Handles only camelCase error responses
+  - `transformError()`: Transforms error dictionaries to `ErrorResponse` objects (camelCase)
+  - `handleApiError()`: Creates `ApiErrorException` from API error responses (camelCase)
 
 - **Backward Compatibility Removed**:
   - Removed all `populate_by_name` configs from Pydantic models
@@ -742,11 +736,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Pagination Utilities**: Complete pagination support for list responses
   - `Meta` and `PaginatedListResponse` Pydantic models for standardized paginated responses
-  - `parse_pagination_params()` function to parse `page` and `page_size` query parameters
-  - `create_meta_object()` function to construct pagination metadata objects
-  - `apply_pagination_to_array()` function for local pagination in tests/mocks
-  - `create_paginated_list_response()` function to wrap data with pagination metadata
-  - Support for both snake_case (`total_items`, `current_page`, `page_size`) and camelCase (`totalItems`, `currentPage`, `pageSize`) attribute access
+  - `parsePaginationParams()` function to parse `page` and `pageSize` query parameters
+  - `createMetaObject()` function to construct pagination metadata objects
+  - `applyPaginationToArray()` function for local pagination in tests/mocks
+  - `createPaginatedListResponse()` function to wrap data with pagination metadata
+  - camelCase field names (`totalItems`, `currentPage`, `pageSize`) for consistency with TypeScript SDK
   - Full type safety with Pydantic models and generic type support
 
 - **Filtering Utilities**: Comprehensive filtering support for API queries
@@ -767,11 +761,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - URL encoding for field names with special characters
 
 - **Error Handling Utilities**: Enhanced error response transformation and handling
-  - `transform_error_to_snake_case()` function for converting error dictionaries to `ErrorResponse` objects
-  - `handle_api_error_snake_case()` function for creating `MisoClientError` from API error responses
-  - Support for both camelCase and snake_case field names in error responses
+  - `transformError()` function for converting error dictionaries to `ErrorResponse` objects
+  - `handleApiError()` function for creating `ApiErrorException` from API error responses
+  - camelCase field names for consistency with TypeScript SDK
   - Automatic parameter overriding (instance and status_code parameters override response data)
-  - Graceful handling of missing optional fields (title, instance, request_key)
+  - Graceful handling of missing optional fields (title, instance, correlationId)
 
 - **HTTP Client Enhancements**: New helper methods for filtered and paginated requests
   - `get_with_filters()` method for making GET requests with `FilterBuilder` support
@@ -785,12 +779,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added `status_code` property getter for snake_case access (complements `statusCode` camelCase field)
   - Full support for both snake_case and camelCase attribute access
 
-- **Model Exports**: All new models and utilities exported from main module
-  - Pagination: `Meta`, `PaginatedListResponse`, `parse_pagination_params`, `create_meta_object`, `apply_pagination_to_array`, `create_paginated_list_response`
+- **Model Exports**: All models and utilities exported from main module
+  - Pagination: `Meta`, `PaginatedListResponse`, `parsePaginationParams`, `createMetaObject`, `applyPaginationToArray`, `createPaginatedListResponse`
   - Filtering: `FilterOperator`, `FilterOption`, `FilterQuery`, `FilterBuilder`, `parse_filter_params`, `build_query_string`, `apply_filters`
   - Sorting: `SortOption`, `parse_sort_params`, `build_sort_string`
-  - Error: `transform_error_to_snake_case`, `handle_api_error_snake_case`
-  - All utilities follow snake_case naming convention matching Miso/Dataplane API conventions
+  - Error: `transformError`, `handleApiError`, `ApiErrorException`
+  - Pagination and error utilities use camelCase naming convention matching TypeScript SDK
 
 ### Changed
 
@@ -799,9 +793,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - New: `title: Optional[str] = Field(default=None, description="Human-readable error title")`
   - Backward compatible - existing code with required titles still works
 
-- **handle_api_error_snake_case Function**: Enhanced parameter override behavior
-  - `instance` parameter now overrides instance in response_data (was only set if missing)
-  - `status_code` parameter now always overrides status_code in response_data (was only set if missing)
+- **handleApiError Function**: Enhanced parameter override behavior
+  - `instance` parameter overrides instance in response_data
+  - `status_code` parameter always overrides statusCode in response_data
   - Better error message generation when title is missing
 
 ### Technical Improvements

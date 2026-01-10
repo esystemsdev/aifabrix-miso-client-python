@@ -599,10 +599,8 @@ The `ErrorResponse` model follows RFC 7807-style format:
 **Features:**
 
 - **Automatic Parsing**: Structured error responses are automatically parsed from HTTP responses
-- **ApiErrorException**: New exception class (extends `MisoClientError`) for better structured error handling
+- **ApiErrorException**: Exception class (extends `MisoClientError`) for better structured error handling
   - `handleApiError()` returns `ApiErrorException` with structured error response support
-  - Legacy `handle_api_error_snake_case()` still returns `MisoClientError` for backward compatibility
-- **Backward Compatible**: Falls back to traditional error handling when structured format is not available
 - **Type Safety**: Full type hints with Pydantic models for reliable error handling
 - **Generic Interface**: `ErrorResponse` model can be reused across different applications
 - **Instance URI**: Automatically extracted from request URL if not provided in response
@@ -645,37 +643,32 @@ print(error_response.instance)   # "/api/endpoint"
 
 ```python
 from miso_client import (
-    parse_pagination_params,
-    parsePaginationParams,  # camelCase alternative
-    create_paginated_list_response,
-    createPaginatedListResponse,  # camelCase alternative
+    parsePaginationParams,
+    createPaginatedListResponse,
     PaginatedListResponse,
 )
 
-# Parse pagination from query parameters (snake_case - returns tuple)
-params = {"page": "1", "page_size": "20"}
-current_page, page_size = parse_pagination_params(params)
-
-# Or use camelCase function (returns dict with currentPage/pageSize keys)
+# Parse pagination from query parameters (returns dict with currentPage/pageSize keys)
+params = {"page": "1", "pageSize": "20"}
 pagination = parsePaginationParams(params)
 # Returns: {"currentPage": 1, "pageSize": 20}
 
 # Create paginated response
 items = [{"id": 1}, {"id": 2}]
-response = create_paginated_list_response(
+response = createPaginatedListResponse(
     items,
-    total_items=120,
-    current_page=1,
-    page_size=20,
+    totalItems=120,
+    currentPage=1,
+    pageSize=20,
     type="item"
 )
 
 # Response structure:
 # {
 #   "meta": {
-#     "total_items": 120,
-#     "current_page": 1,
-#     "page_size": 20,
+#     "totalItems": 120,
+#     "currentPage": 1,
+#     "pageSize": 20,
 #     "type": "item"
 #   },
 #   "data": [{"id": 1}, {"id": 2}]
@@ -772,7 +765,7 @@ from miso_client import (
     FilterBuilder,
     FilterQuery,
     build_query_string,
-    parse_pagination_params,
+    parsePaginationParams,
 )
 
 # Build filters
@@ -781,15 +774,17 @@ filter_builder = FilterBuilder() \
     .add('region', 'in', ['eu', 'us'])
 
 # Parse pagination
-params = {'page': '1', 'page_size': '20'}
-current_page, page_size = parse_pagination_params(params)
+params = {'page': '1', 'pageSize': '20'}
+pagination = parsePaginationParams(params)
+current_page = pagination['currentPage']
+page_size = pagination['pageSize']
 
 # Create complete query
 filter_query = FilterQuery(
     filters=filter_builder.build(),
     sort=['-updated_at'],
     page=current_page,
-    page_size=page_size
+    pageSize=page_size
 )
 
 # Build query string
@@ -799,7 +794,7 @@ query_string = build_query_string(filter_query)
 response = await client.http_client.get_with_filters(
     '/api/items',
     filter_builder=filter_builder,
-    params={'page': current_page, 'page_size': page_size}
+    params={'page': current_page, 'pageSize': page_size}
 )
 ```
 
@@ -847,19 +842,17 @@ response = await client.http_client.get_with_filters(
 
 **Features:**
 
-- **Snake_case Convention**: All utilities use snake_case to match Miso/Dataplane API
-- **camelCase Alternatives**: camelCase function names are available for all utilities (backward compatible)
-  - `parsePaginationParams()` - Returns dict with `currentPage`/`pageSize` keys (alias: `parse_pagination_params()`)
-  - `createMetaObject()` - Creates `Meta` objects with camelCase fields (alias: `create_meta_object()`)
-  - `applyPaginationToArray()` - Applies pagination to arrays (alias: `apply_pagination_to_array()`)
-  - `createPaginatedListResponse()` - Creates paginated list responses (alias: `create_paginated_list_response()`)
-  - `transformError()` - Transforms error dictionaries to `ErrorResponse` objects (alias: `transform_error_to_snake_case()`)
-  - `handleApiError()` - Creates `ApiErrorException` from API error responses (alias: `handle_api_error_snake_case()`)
+- **camelCase Convention**: Pagination and error utilities use camelCase to match TypeScript SDK
+  - `parsePaginationParams()` - Returns dict with `currentPage`/`pageSize` keys
+  - `createMetaObject()` - Creates `Meta` objects with camelCase fields
+  - `applyPaginationToArray()` - Applies pagination to arrays
+  - `createPaginatedListResponse()` - Creates paginated list responses
+  - `transformError()` - Transforms error dictionaries to `ErrorResponse` objects
+  - `handleApiError()` - Creates `ApiErrorException` from API error responses
 - **Type Safety**: Full type hints with Pydantic models
 - **Dynamic Filtering**: FilterBuilder supports method chaining for complex filters
-- **Local Testing**: `apply_filters()` and `apply_pagination_to_array()` for local filtering/pagination in tests
+- **Local Testing**: `apply_filters()` and `applyPaginationToArray()` for local filtering/pagination in tests
 - **URL Encoding**: Automatic URL encoding for field names and values
-- **Backward Compatible**: Works alongside existing HTTP client methods
 
 ---
 
