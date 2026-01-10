@@ -169,8 +169,8 @@ All controller endpoints use `/api` prefix:
       return []  # or appropriate default (None for objects)
   ```
 
-- For HTTP client errors, use `handle_api_error_snake_case()` utility
-- Transform API errors to camelCase using `transform_error_to_snake_case()` (function name retained for backward compatibility, but expects camelCase data)
+- For HTTP client errors, use `handleApiError()` utility
+- Transform API errors to camelCase using `transformError()` function (expects camelCase data)
 - Raise custom exceptions (AuthenticationError, AuthorizationError, etc.) only from HTTP client layer
 - Services should catch and handle exceptions, returning defaults instead of propagating
 
@@ -433,19 +433,21 @@ filter_query = FilterQuery(
     ],
     sort=["-updated_at", "created_at"],
     page=1,
-    page_size=25,
+    pageSize=25,
     fields=["id", "name", "status"]  # Optional field selection
 )
 
 # Build query string from FilterQuery
 query_string = build_query_string(filter_query)
-# Returns: "?filter=status:eq:active&filter=region:in:eu,us&sort=-updated_at&sort=created_at&page=1&page_size=25"
+# Returns: "?filter=status:eq:active&filter=region:in:eu,us&sort=-updated_at&sort=created_at&page=1&pageSize=25"
 
 # Use with pagination utilities
-from miso_client import parse_pagination_params, create_paginated_list_response
+from miso_client import parsePaginationParams, createPaginatedListResponse
 
-params = {"page": "1", "page_size": "25"}
-current_page, page_size = parse_pagination_params(params)
+params = {"page": "1", "pageSize": "25"}
+pagination_result = parsePaginationParams(params)
+current_page = pagination_result["currentPage"]
+page_size = pagination_result["pageSize"]
 
 # Parse existing filter params
 from miso_client import parse_filter_params
@@ -460,30 +462,32 @@ sort_options = parse_sort_params({"sort": ["-updated_at", "created_at"]})
 
 ```python
 # Parse pagination from query parameters
-from miso_client import parse_pagination_params, create_paginated_list_response
+from miso_client import parsePaginationParams, createPaginatedListResponse
 
-params = {"page": "1", "page_size": "25"}
-current_page, page_size = parse_pagination_params(params)
+params = {"page": "1", "pageSize": "25"}
+pagination_result = parsePaginationParams(params)
+current_page = pagination_result["currentPage"]
+page_size = pagination_result["pageSize"]
 
 # Create paginated response (useful for testing/mocking)
 items = [{"id": 1}, {"id": 2}]
-response = create_paginated_list_response(
+response = createPaginatedListResponse(
     items,
-    total_items=120,
-    current_page=1,
-    page_size=25,
+    totalItems=120,
+    currentPage=1,
+    pageSize=25,
     type="item"
 )
 
 # Access response structure
-# response.meta.total_items  # 120
-# response.meta.current_page  # 1
-# response.meta.page_size  # 25
+# response.meta.totalItems  # 120
+# response.meta.currentPage  # 1
+# response.meta.pageSize  # 25
 # response.data  # [{"id": 1}, {"id": 2}]
 
 # Apply pagination to array locally (useful for testing)
-from miso_client import apply_pagination_to_array
-paginated_items = apply_pagination_to_array(all_items, page=1, page_size=25)
+from miso_client import applyPaginationToArray
+paginated_items = applyPaginationToArray(all_items, currentPage=1, pageSize=25)
 ```
 
 ## Security Guidelines
