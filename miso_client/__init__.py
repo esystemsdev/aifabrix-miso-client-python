@@ -56,9 +56,7 @@ from .utils.controller_url_resolver import is_browser, resolve_controller_url
 from .utils.environment_token import get_environment_token
 from .utils.error_utils import (
     ApiErrorException,
-    handle_api_error_snake_case,
     handleApiError,
-    transform_error_to_snake_case,
     transformError,
 )
 from .utils.fastapi_endpoints import create_fastapi_client_token_endpoint
@@ -80,13 +78,9 @@ from .utils.jwt_tools import extract_user_id
 from .utils.logging_helpers import extract_logging_context
 from .utils.origin_validator import validate_origin
 from .utils.pagination import (
-    apply_pagination_to_array,
     applyPaginationToArray,
-    create_meta_object,
-    create_paginated_list_response,
     createMetaObject,
     createPaginatedListResponse,
-    parse_pagination_params,
     parsePaginationParams,
 )
 from .utils.request_context import RequestContext, extract_request_context
@@ -823,11 +817,6 @@ __all__ = [
     "createMetaObject",
     "applyPaginationToArray",
     "createPaginatedListResponse",
-    # Pagination utilities (legacy snake_case aliases)
-    "parse_pagination_params",
-    "create_meta_object",
-    "apply_pagination_to_array",
-    "create_paginated_list_response",
     # Filter utilities
     "parse_filter_params",
     "build_query_string",
@@ -845,9 +834,6 @@ __all__ = [
     "transformError",
     "handleApiError",
     "ApiErrorException",
-    # Error utilities (legacy snake_case aliases)
-    "transform_error_to_snake_case",
-    "handle_api_error_snake_case",
     # Services
     "AuthService",
     "RoleService",
