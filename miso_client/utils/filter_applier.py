@@ -129,6 +129,16 @@ def apply_filters(items: List[Dict[str, Any]], filters: List[FilterOption]) -> L
                     and isinstance(item[field], str)
                     and value.lower() in item[field].lower()
                 ]
+        elif op == "ilike":
+            if isinstance(value, str):
+                # Case-insensitive like matching (same as like for in-memory filtering)
+                filtered_items = [
+                    item
+                    for item in filtered_items
+                    if field in item
+                    and isinstance(item[field], str)
+                    and value.lower() in item[field].lower()
+                ]
         elif op == "isNull":
             # Field is missing or value is None
             filtered_items = [

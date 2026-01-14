@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "miso-client"
-version = "3.8.1"
+version = "3.9.0"
 description = "Python client SDK for AI Fabrix authentication, authorization, and logging"
 readme = "README.md"
 requires-python = ">=3.8"

@@ -5,6 +5,54 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.0] - 2026-01-15
+
+### Added
+
+- **Enhanced Filter System with Schema Validation**: Comprehensive filter validation and SQL compilation utilities
+  - New `FilterSchema` and `FilterFieldDefinition` models for defining filterable fields with type constraints
+  - Schema-based validation with `validate_filter()` and `validate_filters()` functions
+  - Type coercion utilities supporting string, number, boolean, UUID, timestamp, and enum types
+  - PostgreSQL SQL compilation with `compile_filter()` and `compile_filters()` functions
+  - Support for `ilike` operator (case-insensitive LIKE) for string filtering
+  - `DEFAULT_OPERATORS_BY_TYPE` constant for default operators per field type
+  - `create_filter_schema()` helper function for creating schemas with default operators
+  - RFC 7807 compliant error responses for filter validation errors
+  - New `filter_schema.py` module with validation and compilation utilities
+  - New `filter_coercion.py` module with type coercion functions
+
+- **Code Organization Improvements**: Refactored large files to improve maintainability
+  - New `logger_request_helpers.py` module with request context extraction helpers
+  - New `http_client_auth_helpers.py` module with authentication and token refresh helpers
+  - New `auth_cache_helpers.py` module with token validation cache utilities
+  - Extracted helper functions to reduce file sizes and improve code organization
+
+### Changed
+
+- **Filter Schema**: Enhanced filter system with schema-based validation
+  - `filter_schema.py` reduced from 556 to 394 lines (under 500-line limit)
+  - Improved code organization with separated coercion functions
+  - Better error handling with RFC 7807 compliant error responses
+
+- **Code Organization**: Refactored large files to meet code size guidelines
+  - `logger.py` reduced from 659 to 544 lines (extracted request helpers)
+  - `http_client.py` reduced from 609 to 591 lines (extracted auth helpers)
+  - `auth.py` reduced from 569 to 552 lines (extracted cache helpers)
+  - Improved maintainability through better separation of concerns
+
+### Technical
+
+- **New modules**: 
+  - `miso_client/models/filter_schema.py` - Filter schema type definitions
+  - `miso_client/utils/filter_schema.py` - Schema validation and SQL compilation
+  - `miso_client/utils/filter_coercion.py` - Type coercion functions
+  - `miso_client/utils/logger_request_helpers.py` - Logger request helpers
+  - `miso_client/utils/http_client_auth_helpers.py` - HTTP client auth helpers
+  - `miso_client/utils/auth_cache_helpers.py` - Auth cache helpers
+- **Enhanced exports**: New filter schema utilities exported from `miso_client/__init__.py`
+- **Test coverage**: Comprehensive test suite for filter schema functionality (59 tests)
+- **Code quality**: All files pass linting and formatting checks
+
 ## [3.8.1] - 2026-01-10
 
 ### Added

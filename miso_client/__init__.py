@@ -40,6 +40,12 @@ from .models.filter import (
     FilterQuery,
     JsonFilter,
 )
+from .models.filter_schema import (
+    CompiledFilter,
+    FilterError,
+    FilterFieldDefinition,
+    FilterSchema,
+)
 from .models.pagination import Meta, PaginatedListResponse
 from .models.sort import SortOption
 from .services.auth import AuthService
@@ -67,13 +73,25 @@ from .utils.fastapi_logger_middleware import (
 from .utils.filter import (
     apply_filters,
     build_query_string,
+    coerce_filter_value,
     filter_query_to_json,
     json_filter_to_query_string,
     json_to_filter_query,
     parse_filter_params,
     query_string_to_json_filter,
     validate_filter_option,
+    validate_filter_with_schema,
     validate_json_filter,
+)
+from .utils.filter_schema import (
+    compile_filter,
+    compile_filters,
+    coerce_value,
+    create_filter_schema,
+    DEFAULT_OPERATORS_BY_TYPE,
+    parse_json_filter,
+    validate_filter,
+    validate_filters,
 )
 from .utils.flask_endpoints import create_flask_client_token_endpoint
 from .utils.flask_logger_middleware import (
@@ -103,7 +121,7 @@ from .utils.unified_logger_factory import (
 )
 from .utils.url_validator import validate_url
 
-__version__ = "3.8.1"
+__version__ = "3.9.0"
 __author__ = "AI Fabrix Team"
 __license__ = "MIT"
 
@@ -830,6 +848,11 @@ __all__ = [
     "FilterBuilder",
     "JsonFilter",
     "FilterGroup",
+    # Filter schema models
+    "FilterSchema",
+    "FilterFieldDefinition",
+    "FilterError",
+    "CompiledFilter",
     # Sort models
     "SortOption",
     # Pagination utilities (camelCase)
@@ -847,6 +870,17 @@ __all__ = [
     "query_string_to_json_filter",
     "validate_filter_option",
     "validate_json_filter",
+    "validate_filter_with_schema",
+    "coerce_filter_value",
+    # Filter schema utilities
+    "validate_filter",
+    "validate_filters",
+    "coerce_value",
+    "compile_filter",
+    "compile_filters",
+    "parse_json_filter",
+    "create_filter_schema",
+    "DEFAULT_OPERATORS_BY_TYPE",
     # Sort utilities
     "parse_sort_params",
     "build_sort_string",

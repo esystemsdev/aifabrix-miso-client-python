@@ -562,7 +562,7 @@ class TestAuthService:
         """Test smart TTL calculation from token expiration."""
         import time
 
-        with patch("miso_client.services.auth.decode_token") as mock_decode:
+        with patch("miso_client.utils.auth_cache_helpers.decode_token") as mock_decode:
             # Token expires in 300 seconds (5 minutes)
             future_exp = int(time.time()) + 300
             mock_decode.return_value = {"exp": future_exp}
@@ -576,7 +576,7 @@ class TestAuthService:
     @pytest.mark.asyncio
     async def test_get_cache_ttl_from_token_no_expiration(self, auth_service):
         """Test TTL calculation when token has no expiration claim."""
-        with patch("miso_client.services.auth.decode_token") as mock_decode:
+        with patch("miso_client.utils.auth_cache_helpers.decode_token") as mock_decode:
             mock_decode.return_value = {"sub": "123"}  # No exp claim
 
             ttl = auth_service._get_cache_ttl_from_token("token-no-exp")
@@ -587,7 +587,7 @@ class TestAuthService:
     @pytest.mark.asyncio
     async def test_get_cache_ttl_from_token_malformed(self, auth_service):
         """Test TTL calculation with malformed token."""
-        with patch("miso_client.services.auth.decode_token") as mock_decode:
+        with patch("miso_client.utils.auth_cache_helpers.decode_token") as mock_decode:
             mock_decode.return_value = None  # Decode failed
 
             ttl = auth_service._get_cache_ttl_from_token("malformed-token")

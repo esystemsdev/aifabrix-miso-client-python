@@ -20,6 +20,7 @@ FilterOperator = Literal[
     "lte",
     "contains",
     "like",
+    "ilike",
     "isNull",
     "isNotNull",
 ]
@@ -31,7 +32,7 @@ class FilterOption(BaseModel):
 
     Fields:
         field: Field name to filter on
-        op: Filter operator (eq, neq, in, nin, gt, lt, gte, lte, contains, like, isNull, isNotNull)
+        op: Filter operator (eq, neq, in, nin, gt, lt, gte, lte, contains, like, ilike, isNull, isNotNull)
         value: Filter value (supports single values or arrays for 'in'/'nin' operators)
     """
 

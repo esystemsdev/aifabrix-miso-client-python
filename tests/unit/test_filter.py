@@ -98,6 +98,16 @@ class TestParseFilterParams:
         assert len(filters) == 1
         assert filters[0].value is True
 
+    def test_parse_filter_with_ilike_operator(self):
+        """Test parsing filter with 'ilike' operator."""
+        params = {"filter": "name:ilike:test"}
+        filters = parse_filter_params(params)
+
+        assert len(filters) == 1
+        assert filters[0].field == "name"
+        assert filters[0].op == "ilike"
+        assert filters[0].value == "test"
+
     def test_parse_filter_empty_params(self):
         """Test parsing empty params."""
         params = {}
@@ -628,6 +638,21 @@ class TestApplyFilters:
         # Empty string should match all strings
         assert len(result) == 2
 
+    def test_apply_filters_ilike(self):
+        """Test applying ilike filter (case-insensitive like)."""
+        items = [
+            {"name": "John Doe", "id": 1},
+            {"name": "JANE SMITH", "id": 2},
+            {"name": "Bob", "id": 3},
+        ]
+        filters = [FilterOption(field="name", op="ilike", value="john")]
+
+        result = apply_filters(items, filters)
+
+        # ilike should match case-insensitively
+        assert len(result) >= 1
+        assert any("john" in item["name"].lower() for item in result)
+
     def test_apply_filters_gt_with_non_numeric_field(self):
         """Test applying gt filter with non-numeric field value."""
         items = [
@@ -1029,6 +1054,12 @@ class TestFilterValidation:
     def test_validate_filter_option_valid(self):
         """Test validating valid filter option."""
         option = {"field": "status", "op": "eq", "value": "active"}
+
+        assert validate_filter_option(option) is True
+
+    def test_validate_filter_option_ilike(self):
+        """Test validating filter option with ilike operator."""
+        option = {"field": "name", "op": "ilike", "value": "test"}
 
         assert validate_filter_option(option) is True
 

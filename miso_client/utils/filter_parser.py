@@ -72,6 +72,7 @@ def parse_filter_params(params: dict) -> List[FilterOption]:
             "lte",
             "contains",
             "like",
+            "ilike",
             "isNull",
             "isNotNull",
         ]

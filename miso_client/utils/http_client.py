@@ -14,7 +14,7 @@ import httpx
 
 from ..models.config import AuthStrategy, MisoClientConfig
 from ..services.logger import LoggerService
-from ..utils.jwt_tools import JwtTokenCache, extract_user_id
+from ..utils.jwt_tools import JwtTokenCache
 from .http_client_logging_helpers import (
     handle_logging_task_error,
     log_http_request,
@@ -27,6 +27,7 @@ from .http_client_query_helpers import (
     parse_paginated_response,
     prepare_json_filter_body,
 )
+from .http_client_auth_helpers import handle_401_refresh, prepare_authenticated_request
 from .internal_http_client import InternalHttpClient
 from .user_token_refresh import UserTokenRefreshManager
 
@@ -335,19 +336,9 @@ class HttpClient:
         Returns:
             Valid token to use for request
         """
-        # Get valid token (refresh if expired)
-        valid_token = await self._user_token_refresh.get_valid_token(
-            token, refresh_if_needed=auto_refresh
+        return await prepare_authenticated_request(
+            self._user_token_refresh, token, auto_refresh, **kwargs
         )
-        if not valid_token:
-            valid_token = token  # Fallback to original token
-
-        # Add Bearer token to headers for logging context
-        headers = kwargs.get("headers", {})
-        headers["Authorization"] = f"Bearer {valid_token}"
-        kwargs["headers"] = headers
-
-        return valid_token
 
     async def _handle_401_refresh(
         self,
@@ -379,27 +370,18 @@ class HttpClient:
         Raises:
             httpx.HTTPStatusError: If refresh fails or retry fails
         """
-        if not auto_refresh:
-            raise error
-
-        user_id = extract_user_id(token)
-        refreshed_token = await self._user_token_refresh._refresh_token(token, user_id)
-
-        if not refreshed_token:
-            raise error
-
-        # Retry request with refreshed token
-        headers = kwargs.get("headers", {})
-        headers["Authorization"] = f"Bearer {refreshed_token}"
-        kwargs["headers"] = headers
-
-        try:
-            return await self._internal_client.authenticated_request(
-                method, url, refreshed_token, data, auth_strategy, **kwargs
-            )
-        except httpx.HTTPStatusError:
-            # Retry failed, raise original error
-            raise error
+        return await handle_401_refresh(
+            self._internal_client,
+            self._user_token_refresh,
+            method,
+            url,
+            token,
+            data,
+            auth_strategy,
+            error,
+            auto_refresh,
+            **kwargs,
+        )
 
     async def authenticated_request(
         self,

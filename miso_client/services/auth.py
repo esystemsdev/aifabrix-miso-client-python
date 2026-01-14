@@ -5,17 +5,15 @@ This module handles authentication operations including client token management,
 token validation, user information retrieval, and logout functionality.
 """
 
-import hashlib
 import logging
-import time
 from typing import TYPE_CHECKING, Any, Dict, Optional, cast
 
 from ..models.config import AuthResult, AuthStrategy, UserInfo
 from ..services.cache import CacheService
 from ..services.redis import RedisService
+from ..utils.auth_cache_helpers import get_cache_ttl_from_token, get_token_cache_key
 from ..utils.error_utils import extract_correlation_id_from_error
 from ..utils.http_client import HttpClient
-from ..utils.jwt_tools import decode_token
 
 if TYPE_CHECKING:
     from ..api import ApiClient
@@ -61,8 +59,7 @@ class AuthService:
         Returns:
             Cache key string in format: token_validation:{sha256_hash}
         """
-        token_hash = hashlib.sha256(token.encode()).hexdigest()
-        return f"token_validation:{token_hash}"
+        return get_token_cache_key(token)
 
     def _get_cache_ttl_from_token(self, token: str) -> int:
         """
@@ -77,21 +74,7 @@ class AuthService:
         Returns:
             TTL in seconds
         """
-        try:
-            decoded = decode_token(token)
-            if decoded and "exp" in decoded:
-                token_exp = decoded["exp"]
-                if isinstance(token_exp, (int, float)):
-                    now = time.time()
-                    # Calculate TTL as token_exp - now - 30s buffer
-                    ttl = int(token_exp - now - 30)
-                    # Clamp between min (60s) and max (validation_ttl)
-                    return max(60, min(ttl, self.validation_ttl))
-        except Exception:
-            # If token expiration cannot be determined, use default TTL
-            pass
-
-        return self.validation_ttl
+        return get_cache_ttl_from_token(token, self.validation_ttl)
 
     async def get_environment_token(self) -> str:
         """

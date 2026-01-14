@@ -5,10 +5,13 @@ This module provides reusable filter utilities for parsing filter parameters,
 building query strings, and applying filters to arrays.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 from urllib.parse import parse_qs, quote, urlparse
 
-from ..models.filter import FilterQuery, JsonFilter
+if TYPE_CHECKING:
+    from ..models.filter_schema import FilterError, FilterSchema
+
+from ..models.filter import FilterOption, FilterQuery, JsonFilter
 from .filter_applier import apply_filters  # noqa: F401
 from .filter_parser import parse_filter_params  # noqa: F401
 
@@ -259,6 +262,7 @@ def validate_filter_option(option: Dict[str, Any]) -> bool:
         "lte",
         "contains",
         "like",
+        "ilike",
         "isNull",
         "isNotNull",
     ]
@@ -362,3 +366,60 @@ def validate_json_filter(json_data: Dict[str, Any]) -> bool:
                 return False
 
     return True
+
+
+def validate_filter_with_schema(
+    filter_option: FilterOption, schema: "FilterSchema"
+) -> Tuple[bool, Optional["FilterError"]]:
+    """
+    Validate a FilterOption against a FilterSchema.
+
+    Convenience wrapper around filter_schema.validate_filter().
+
+    Args:
+        filter_option: FilterOption to validate
+        schema: FilterSchema to validate against
+
+    Returns:
+        Tuple of (is_valid, error). If valid, error is None.
+        If invalid, error is a FilterError with RFC 7807 compliant structure.
+
+    Examples:
+        >>> from miso_client.models.filter import FilterOption
+        >>> from miso_client.models.filter_schema import FilterSchema
+        >>> schema = FilterSchema(resource="apps", fields={...})
+        >>> filter_opt = FilterOption(field="name", op="eq", value="test")
+        >>> is_valid, error = validate_filter_with_schema(filter_opt, schema)
+    """
+    from .filter_schema import validate_filter
+
+    return validate_filter(filter_option, schema)
+
+
+def coerce_filter_value(
+    value: Any, field_type: str, enum_values: Optional[List[str]] = None
+) -> Tuple[Any, Optional["FilterError"]]:
+    """
+    Coerce and validate a filter value based on field type.
+
+    Convenience wrapper around filter_schema.coerce_value().
+
+    Args:
+        value: Value to coerce and validate
+        field_type: Field type (string, number, boolean, uuid, timestamp, enum)
+        enum_values: Optional list of enum values (required if type is "enum")
+
+    Returns:
+        Tuple of (coerced_value, error). If valid, error is None.
+
+    Examples:
+        >>> coerced, error = coerce_filter_value("25", "number")
+        >>> print(coerced)  # 25 (int)
+    """
+    from ..models.filter_schema import FilterFieldDefinition
+    from .filter_schema import coerce_value
+
+    field_def = FilterFieldDefinition(
+        column="temp", type=field_type, operators=["eq"], enum=enum_values
+    )
+    return coerce_value(value, field_def)

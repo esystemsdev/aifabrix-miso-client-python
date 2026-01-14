@@ -21,6 +21,12 @@ from ..utils.audit_log_queue import AuditLogQueue
 from ..utils.circuit_breaker import CircuitBreaker
 from ..utils.internal_http_client import InternalHttpClient
 from ..utils.logger_helpers import build_log_entry, extract_metadata
+from ..utils.logger_request_helpers import (
+    get_for_request,
+    get_log_with_request,
+    get_with_context,
+    get_with_token,
+)
 
 if TYPE_CHECKING:
     from ..api import ApiClient
@@ -441,68 +447,7 @@ class LoggerService:
             >>> log_entry = logger.get_log_with_request(request, "Processing request")
             >>> # Use log_entry in your own logger table
         """
-        from ..utils.request_context import extract_request_context
-
-        # Extract request context
-        ctx = extract_request_context(request)
-
-        # Build options from extracted context
-        options = ClientLoggingOptions()
-        if ctx.user_id:
-            options.userId = ctx.user_id
-        if ctx.session_id:
-            options.sessionId = ctx.session_id
-        if ctx.correlation_id:
-            options.correlationId = ctx.correlation_id
-        if ctx.request_id:
-            options.requestId = ctx.request_id
-        if ctx.ip_address:
-            options.ipAddress = ctx.ip_address
-        if ctx.user_agent:
-            options.userAgent = ctx.user_agent
-
-        # Merge request info into context
-        request_context = context or {}
-        if ctx.method:
-            request_context["method"] = ctx.method
-        if ctx.path:
-            request_context["path"] = ctx.path
-        if ctx.referer:
-            request_context["referer"] = ctx.referer
-        if ctx.request_size:
-            request_context["requestSize"] = ctx.request_size
-
-        # Create log entry using helper function
-        correlation_id = (
-            options.correlationId if options else None
-        ) or self._generate_correlation_id()
-
-        # Get application context (with overwrites from options)
-        application_id_str: Optional[str] = None
-        if options and options.applicationId:
-            if isinstance(options.applicationId, ForeignKeyReference):
-                application_id_str = options.applicationId.id
-            else:
-                application_id_str = options.applicationId
-        app_context = await self.application_context_service.get_application_context(
-            overwrite_application=options.application if options else None,
-            overwrite_application_id=application_id_str,
-            overwrite_environment=options.environment if options else None,
-        )
-
-        return build_log_entry(
-            level=level,
-            message=message,
-            context=request_context,
-            config_client_id=self.config.client_id,
-            correlation_id=correlation_id,
-            jwt_token=options.token if options else None,
-            stack_trace=stack_trace,
-            options=options,
-            metadata=extract_metadata(),
-            mask_sensitive=self.mask_sensitive_data,
-            application_context=app_context.to_dict(),
-        )
+        return await get_log_with_request(self, request, message, level, context, stack_trace)
 
     async def get_with_context(
         self,
@@ -535,37 +480,7 @@ class LoggerService:
             ...     level="info"
             ... )
         """
-        final_options = options or ClientLoggingOptions()
-        correlation_id = (
-            final_options.correlationId if final_options else None
-        ) or self._generate_correlation_id()
-
-        # Get application context (with overwrites from options)
-        application_id_str: Optional[str] = None
-        if final_options and final_options.applicationId:
-            if isinstance(final_options.applicationId, ForeignKeyReference):
-                application_id_str = final_options.applicationId.id
-            else:
-                application_id_str = final_options.applicationId
-        app_context = await self.application_context_service.get_application_context(
-            overwrite_application=final_options.application if final_options else None,
-            overwrite_application_id=application_id_str,
-            overwrite_environment=final_options.environment if final_options else None,
-        )
-
-        return build_log_entry(
-            level=level,
-            message=message,
-            context=context,
-            config_client_id=self.config.client_id,
-            correlation_id=correlation_id,
-            jwt_token=final_options.token if final_options else None,
-            stack_trace=stack_trace,
-            options=final_options,
-            metadata=extract_metadata(),
-            mask_sensitive=self.mask_sensitive_data,
-            application_context=app_context.to_dict(),
-        )
+        return await get_with_context(self, context, message, level, stack_trace, options)
 
     async def get_with_token(
         self,
@@ -598,37 +513,7 @@ class LoggerService:
             ...     level="audit"
             ... )
         """
-        options = ClientLoggingOptions(token=token)
-        correlation_id = (
-            options.correlationId if options else None
-        ) or self._generate_correlation_id()
-
-        # Get application context (with overwrites from options)
-        application_id_str: Optional[str] = None
-        if options and options.applicationId:
-            if isinstance(options.applicationId, ForeignKeyReference):
-                application_id_str = options.applicationId.id
-            else:
-                application_id_str = options.applicationId
-        app_context = await self.application_context_service.get_application_context(
-            overwrite_application=options.application if options else None,
-            overwrite_application_id=application_id_str,
-            overwrite_environment=options.environment if options else None,
-        )
-
-        return build_log_entry(
-            level=level,
-            message=message,
-            context=context,
-            config_client_id=self.config.client_id,
-            correlation_id=correlation_id,
-            jwt_token=token,
-            stack_trace=stack_trace,
-            options=options,
-            metadata=extract_metadata(),
-            mask_sensitive=self.mask_sensitive_data,
-            application_context=app_context.to_dict(),
-        )
+        return await get_with_token(self, token, message, level, context, stack_trace)
 
     async def get_for_request(
         self,
@@ -656,4 +541,4 @@ class LoggerService:
         Example:
             >>> log_entry = await logger.get_for_request(request, "Request processed")
         """
-        return await self.get_log_with_request(request, message, level, context, stack_trace)
+        return await get_for_request(self, request, message, level, context, stack_trace)
