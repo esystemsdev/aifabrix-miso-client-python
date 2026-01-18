@@ -27,9 +27,7 @@ class TestFilterSchemaModels:
 
     def test_filter_field_definition_creation(self):
         """Test creating FilterFieldDefinition."""
-        field_def = FilterFieldDefinition(
-            column="name", type="string", operators=["eq", "ilike"]
-        )
+        field_def = FilterFieldDefinition(column="name", type="string", operators=["eq", "ilike"])
 
         assert field_def.column == "name"
         assert field_def.type == "string"
@@ -88,11 +86,7 @@ class TestValidateFilter:
         """Test validation with unknown field."""
         schema = FilterSchema(
             resource="applications",
-            fields={
-                "name": FilterFieldDefinition(
-                    column="name", type="string", operators=["eq"]
-                )
-            },
+            fields={"name": FilterFieldDefinition(column="name", type="string", operators=["eq"])},
         )
         filter_opt = FilterOption(field="unknown", op="eq", value="test")
 
@@ -108,11 +102,7 @@ class TestValidateFilter:
         """Test validation with invalid operator."""
         schema = FilterSchema(
             resource="applications",
-            fields={
-                "name": FilterFieldDefinition(
-                    column="name", type="string", operators=["eq"]
-                )
-            },
+            fields={"name": FilterFieldDefinition(column="name", type="string", operators=["eq"])},
         )
         filter_opt = FilterOption(field="name", op="ilike", value="test")
 
@@ -146,9 +136,7 @@ class TestCoerceValue:
 
     def test_coerce_string(self):
         """Test coercing string value."""
-        field_def = FilterFieldDefinition(
-            column="name", type="string", operators=["eq"]
-        )
+        field_def = FilterFieldDefinition(column="name", type="string", operators=["eq"])
 
         coerced, error = coerce_value("test", field_def)
 
@@ -157,9 +145,7 @@ class TestCoerceValue:
 
     def test_coerce_number_int(self):
         """Test coercing integer value."""
-        field_def = FilterFieldDefinition(
-            column="age", type="number", operators=["eq"]
-        )
+        field_def = FilterFieldDefinition(column="age", type="number", operators=["eq"])
 
         coerced, error = coerce_value("25", field_def)
 
@@ -169,9 +155,7 @@ class TestCoerceValue:
 
     def test_coerce_number_float(self):
         """Test coercing float value."""
-        field_def = FilterFieldDefinition(
-            column="price", type="number", operators=["eq"]
-        )
+        field_def = FilterFieldDefinition(column="price", type="number", operators=["eq"])
 
         coerced, error = coerce_value("99.99", field_def)
 
@@ -181,9 +165,7 @@ class TestCoerceValue:
 
     def test_coerce_number_invalid(self):
         """Test coercing invalid number."""
-        field_def = FilterFieldDefinition(
-            column="age", type="number", operators=["eq"]
-        )
+        field_def = FilterFieldDefinition(column="age", type="number", operators=["eq"])
 
         coerced, error = coerce_value("not_a_number", field_def)
 
@@ -194,9 +176,7 @@ class TestCoerceValue:
 
     def test_coerce_boolean_true(self):
         """Test coercing boolean true."""
-        field_def = FilterFieldDefinition(
-            column="active", type="boolean", operators=["eq"]
-        )
+        field_def = FilterFieldDefinition(column="active", type="boolean", operators=["eq"])
 
         coerced, error = coerce_value("true", field_def)
 
@@ -205,9 +185,7 @@ class TestCoerceValue:
 
     def test_coerce_boolean_false(self):
         """Test coercing boolean false."""
-        field_def = FilterFieldDefinition(
-            column="active", type="boolean", operators=["eq"]
-        )
+        field_def = FilterFieldDefinition(column="active", type="boolean", operators=["eq"])
 
         coerced, error = coerce_value("false", field_def)
 
@@ -216,9 +194,7 @@ class TestCoerceValue:
 
     def test_coerce_boolean_invalid(self):
         """Test coercing invalid boolean."""
-        field_def = FilterFieldDefinition(
-            column="active", type="boolean", operators=["eq"]
-        )
+        field_def = FilterFieldDefinition(column="active", type="boolean", operators=["eq"])
 
         coerced, error = coerce_value("maybe", field_def)
 
@@ -228,9 +204,7 @@ class TestCoerceValue:
 
     def test_coerce_uuid_valid(self):
         """Test coercing valid UUID."""
-        field_def = FilterFieldDefinition(
-            column="id", type="uuid", operators=["eq"]
-        )
+        field_def = FilterFieldDefinition(column="id", type="uuid", operators=["eq"])
         test_uuid = str(uuid.uuid4())
 
         coerced, error = coerce_value(test_uuid, field_def)
@@ -240,9 +214,7 @@ class TestCoerceValue:
 
     def test_coerce_uuid_invalid(self):
         """Test coercing invalid UUID."""
-        field_def = FilterFieldDefinition(
-            column="id", type="uuid", operators=["eq"]
-        )
+        field_def = FilterFieldDefinition(column="id", type="uuid", operators=["eq"])
 
         coerced, error = coerce_value("not-a-uuid", field_def)
 
@@ -253,9 +225,7 @@ class TestCoerceValue:
 
     def test_coerce_timestamp_valid(self):
         """Test coercing valid timestamp."""
-        field_def = FilterFieldDefinition(
-            column="created_at", type="timestamp", operators=["eq"]
-        )
+        field_def = FilterFieldDefinition(column="created_at", type="timestamp", operators=["eq"])
         timestamp_str = "2024-01-01T12:00:00"
 
         coerced, error = coerce_value(timestamp_str, field_def)
@@ -265,9 +235,7 @@ class TestCoerceValue:
 
     def test_coerce_timestamp_datetime_object(self):
         """Test coercing datetime object."""
-        field_def = FilterFieldDefinition(
-            column="created_at", type="timestamp", operators=["eq"]
-        )
+        field_def = FilterFieldDefinition(column="created_at", type="timestamp", operators=["eq"])
         dt = datetime(2024, 1, 1, 12, 0, 0)
 
         coerced, error = coerce_value(dt, field_def)
@@ -278,9 +246,7 @@ class TestCoerceValue:
 
     def test_coerce_timestamp_invalid(self):
         """Test coercing invalid timestamp."""
-        field_def = FilterFieldDefinition(
-            column="created_at", type="timestamp", operators=["eq"]
-        )
+        field_def = FilterFieldDefinition(column="created_at", type="timestamp", operators=["eq"])
 
         coerced, error = coerce_value("not-a-date", field_def)
 
@@ -321,9 +287,7 @@ class TestCoerceValue:
 
     def test_coerce_enum_missing_definition(self):
         """Test coercing enum without enum values defined."""
-        field_def = FilterFieldDefinition(
-            column="status", type="enum", operators=["eq"], enum=None
-        )
+        field_def = FilterFieldDefinition(column="status", type="enum", operators=["eq"], enum=None)
 
         coerced, error = coerce_value("active", field_def)
 
@@ -368,11 +332,7 @@ class TestCompileFilter:
         """Test compiling eq operator."""
         schema = FilterSchema(
             resource="applications",
-            fields={
-                "name": FilterFieldDefinition(
-                    column="name", type="string", operators=["eq"]
-                )
-            },
+            fields={"name": FilterFieldDefinition(column="name", type="string", operators=["eq"])},
         )
         filter_opt = FilterOption(field="name", op="eq", value="test")
 
@@ -387,9 +347,7 @@ class TestCompileFilter:
         schema = FilterSchema(
             resource="applications",
             fields={
-                "name": FilterFieldDefinition(
-                    column="name", type="string", operators=["ilike"]
-                )
+                "name": FilterFieldDefinition(column="name", type="string", operators=["ilike"])
             },
         )
         filter_opt = FilterOption(field="name", op="ilike", value="test")
@@ -404,9 +362,7 @@ class TestCompileFilter:
         schema = FilterSchema(
             resource="applications",
             fields={
-                "status": FilterFieldDefinition(
-                    column="status", type="string", operators=["in"]
-                )
+                "status": FilterFieldDefinition(column="status", type="string", operators=["in"])
             },
         )
         filter_opt = FilterOption(field="status", op="in", value=["active", "disabled"])
@@ -438,9 +394,7 @@ class TestCompileFilter:
         schema = FilterSchema(
             resource="applications",
             fields={
-                "name": FilterFieldDefinition(
-                    column="name", type="string", operators=["contains"]
-                )
+                "name": FilterFieldDefinition(column="name", type="string", operators=["contains"])
             },
         )
         filter_opt = FilterOption(field="name", op="contains", value="test")
@@ -454,11 +408,7 @@ class TestCompileFilter:
         """Test compiling with custom parameter index."""
         schema = FilterSchema(
             resource="applications",
-            fields={
-                "name": FilterFieldDefinition(
-                    column="name", type="string", operators=["eq"]
-                )
-            },
+            fields={"name": FilterFieldDefinition(column="name", type="string", operators=["eq"])},
         )
         filter_opt = FilterOption(field="name", op="eq", value="test")
 
@@ -591,11 +541,7 @@ class TestMetadataFields:
         schema = FilterSchema(
             resource="applications",
             version="1.0",
-            fields={
-                "name": FilterFieldDefinition(
-                    column="name", type="string", operators=["eq"]
-                )
-            },
+            fields={"name": FilterFieldDefinition(column="name", type="string", operators=["eq"])},
         )
 
         assert schema.version == "1.0"
@@ -605,11 +551,7 @@ class TestMetadataFields:
         """Test FilterSchema without version (defaults to None)."""
         schema = FilterSchema(
             resource="applications",
-            fields={
-                "name": FilterFieldDefinition(
-                    column="name", type="string", operators=["eq"]
-                )
-            },
+            fields={"name": FilterFieldDefinition(column="name", type="string", operators=["eq"])},
         )
 
         assert schema.version is None
@@ -653,9 +595,7 @@ class TestValidateFilters:
         schema = FilterSchema(
             resource="applications",
             fields={
-                "name": FilterFieldDefinition(
-                    column="name", type="string", operators=["eq"]
-                ),
+                "name": FilterFieldDefinition(column="name", type="string", operators=["eq"]),
             },
         )
         filters = [
@@ -676,9 +616,7 @@ class TestValidateFilters:
         schema = FilterSchema(
             resource="applications",
             fields={
-                "name": FilterFieldDefinition(
-                    column="name", type="string", operators=["eq"]
-                ),
+                "name": FilterFieldDefinition(column="name", type="string", operators=["eq"]),
             },
         )
 
@@ -698,12 +636,8 @@ class TestCompileFilters:
         schema = FilterSchema(
             resource="applications",
             fields={
-                "name": FilterFieldDefinition(
-                    column="name", type="string", operators=["eq"]
-                ),
-                "status": FilterFieldDefinition(
-                    column="status", type="string", operators=["eq"]
-                ),
+                "name": FilterFieldDefinition(column="name", type="string", operators=["eq"]),
+                "status": FilterFieldDefinition(column="status", type="string", operators=["eq"]),
             },
         )
         filters = [
@@ -724,12 +658,8 @@ class TestCompileFilters:
         schema = FilterSchema(
             resource="applications",
             fields={
-                "name": FilterFieldDefinition(
-                    column="name", type="string", operators=["eq"]
-                ),
-                "status": FilterFieldDefinition(
-                    column="status", type="string", operators=["eq"]
-                ),
+                "name": FilterFieldDefinition(column="name", type="string", operators=["eq"]),
+                "status": FilterFieldDefinition(column="status", type="string", operators=["eq"]),
             },
         )
         filters = [
@@ -749,9 +679,7 @@ class TestCompileFilters:
         schema = FilterSchema(
             resource="applications",
             fields={
-                "name": FilterFieldDefinition(
-                    column="name", type="string", operators=["eq"]
-                ),
+                "name": FilterFieldDefinition(column="name", type="string", operators=["eq"]),
             },
         )
 
@@ -768,9 +696,7 @@ class TestCompileFilters:
         schema = FilterSchema(
             resource="applications",
             fields={
-                "name": FilterFieldDefinition(
-                    column="name", type="string", operators=["eq"]
-                ),
+                "name": FilterFieldDefinition(column="name", type="string", operators=["eq"]),
             },
         )
         filters = [FilterOption(field="name", op="eq", value="test")]

@@ -84,11 +84,11 @@ from .utils.filter import (
     validate_json_filter,
 )
 from .utils.filter_schema import (
+    DEFAULT_OPERATORS_BY_TYPE,
+    coerce_value,
     compile_filter,
     compile_filters,
-    coerce_value,
     create_filter_schema,
-    DEFAULT_OPERATORS_BY_TYPE,
     parse_json_filter,
     validate_filter,
     validate_filters,
@@ -109,6 +109,7 @@ from .utils.pagination import (
     applyPaginationToArray,
     createMetaObject,
     createPaginatedListResponse,
+    parse_pagination_params,
     parsePaginationParams,
 )
 from .utils.request_context import RequestContext, extract_request_context
@@ -121,7 +122,7 @@ from .utils.unified_logger_factory import (
 )
 from .utils.url_validator import validate_url
 
-__version__ = "3.9.0"
+__version__ = "3.9.1"
 __author__ = "AI Fabrix Team"
 __license__ = "MIT"
 
@@ -857,6 +858,8 @@ __all__ = [
     "SortOption",
     # Pagination utilities (camelCase)
     "parsePaginationParams",
+    # Pagination utilities (snake_case)
+    "parse_pagination_params",
     "createMetaObject",
     "applyPaginationToArray",
     "createPaginatedListResponse",

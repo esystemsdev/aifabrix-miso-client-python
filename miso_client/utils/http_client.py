@@ -15,6 +15,7 @@ import httpx
 from ..models.config import AuthStrategy, MisoClientConfig
 from ..services.logger import LoggerService
 from ..utils.jwt_tools import JwtTokenCache
+from .http_client_auth_helpers import handle_401_refresh, prepare_authenticated_request
 from .http_client_logging_helpers import (
     handle_logging_task_error,
     log_http_request,
@@ -27,7 +28,6 @@ from .http_client_query_helpers import (
     parse_paginated_response,
     prepare_json_filter_body,
 )
-from .http_client_auth_helpers import handle_401_refresh, prepare_authenticated_request
 from .internal_http_client import InternalHttpClient
 from .user_token_refresh import UserTokenRefreshManager
 

@@ -36,9 +36,7 @@ async def prepare_authenticated_request(
         Valid token to use for request
     """
     # Get valid token (refresh if expired)
-    valid_token = await user_token_refresh.get_valid_token(
-        token, refresh_if_needed=auto_refresh
-    )
+    valid_token = await user_token_refresh.get_valid_token(token, refresh_if_needed=auto_refresh)
     if not valid_token:
         valid_token = token  # Fallback to original token
 

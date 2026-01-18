@@ -10,6 +10,7 @@ from miso_client.utils.pagination import (
     applyPaginationToArray,
     createMetaObject,
     createPaginatedListResponse,
+    parse_pagination_params,
     parsePaginationParams,
 )
 
@@ -122,6 +123,94 @@ class TestParsePaginationParams:
 
         assert result["currentPage"] == 1  # Default
         assert result["pageSize"] == 20  # Default
+
+
+class TestParsePaginationParamsSnakeCase:
+    """Test cases for parse_pagination_params function (snake_case version)."""
+
+    def test_parse_basic_params(self):
+        """Test parsing basic pagination parameters."""
+        page, page_size = parse_pagination_params({"page": 2, "page_size": 50})
+        assert page == 2
+        assert page_size == 50
+
+    def test_parse_string_params(self):
+        """Test parsing string parameters."""
+        page, page_size = parse_pagination_params({"page": "3", "page_size": "25"})
+        assert page == 3
+        assert page_size == 25
+
+    def test_parse_with_defaults(self):
+        """Test parsing with missing parameters (uses defaults)."""
+        page, page_size = parse_pagination_params({})
+        assert page == 1
+        assert page_size == 20
+
+    def test_parse_with_only_page(self):
+        """Test parsing with only page parameter."""
+        page, page_size = parse_pagination_params({"page": 2})
+        assert page == 2
+        assert page_size == 20
+
+    def test_parse_with_only_page_size(self):
+        """Test parsing with only page_size parameter."""
+        page, page_size = parse_pagination_params({"page_size": 50})
+        assert page == 1
+        assert page_size == 50
+
+    def test_parse_minimum_values(self):
+        """Test parsing with zero and negative values (clamped to 1)."""
+        page, page_size = parse_pagination_params({"page": 0, "page_size": -5})
+        assert page == 1
+        assert page_size == 1
+
+    def test_parse_invalid_values(self):
+        """Test parsing with invalid values (defaults applied)."""
+        page, page_size = parse_pagination_params({"page": None, "page_size": "invalid"})
+        assert page == 1
+        assert page_size == 20
+
+    def test_parse_returns_tuple(self):
+        """Test that function returns a tuple."""
+        result = parse_pagination_params({"page": 1, "page_size": 25})
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+
+    def test_parse_integer_params(self):
+        """Test parsing with integer parameters."""
+        page, page_size = parse_pagination_params({"page": 5, "page_size": 100})
+        assert page == 5
+        assert page_size == 100
+
+    def test_parse_large_values(self):
+        """Test parsing with large values."""
+        page, page_size = parse_pagination_params({"page": 100, "page_size": 1000})
+        assert page == 100
+        assert page_size == 1000
+
+    def test_parse_zero_page(self):
+        """Test parsing with zero page value (clamped to 1)."""
+        page, page_size = parse_pagination_params({"page": 0, "page_size": 25})
+        assert page == 1
+        assert page_size == 25
+
+    def test_parse_zero_page_size(self):
+        """Test parsing with zero page_size value (clamped to 1)."""
+        page, page_size = parse_pagination_params({"page": 1, "page_size": 0})
+        assert page == 1
+        assert page_size == 1
+
+    def test_parse_negative_page(self):
+        """Test parsing with negative page value (clamped to 1)."""
+        page, page_size = parse_pagination_params({"page": -1, "page_size": 25})
+        assert page == 1
+        assert page_size == 25
+
+    def test_parse_negative_page_size(self):
+        """Test parsing with negative page_size value (clamped to 1)."""
+        page, page_size = parse_pagination_params({"page": 1, "page_size": -10})
+        assert page == 1
+        assert page_size == 1
 
 
 class TestCreateMetaObject:

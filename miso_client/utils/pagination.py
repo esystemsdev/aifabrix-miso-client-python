@@ -5,7 +5,7 @@ This module provides reusable pagination utilities for parsing pagination parame
 creating meta objects, and working with paginated responses.
 """
 
-from typing import Dict, List, TypeVar
+from typing import Any, Dict, List, TypeVar
 
 from ..models.pagination import Meta, PaginatedListResponse
 
@@ -60,6 +60,65 @@ def parsePaginationParams(params: dict) -> Dict[str, int]:
             page_size = default_page_size
 
     return {"currentPage": current_page, "pageSize": page_size}
+
+
+def parse_pagination_params(params: dict[str, Any]) -> tuple[int, int]:
+    """
+    Parse pagination parameters from a dictionary.
+
+    This function normalizes pagination parameters, ensuring they are valid integers
+    and enforcing minimum values. It follows the same pattern as parse_filter_params
+    and parse_sort_params.
+
+    Args:
+        params: Dictionary with "page" and "page_size" keys.
+                Values can be int, str, or None.
+
+    Returns:
+        Tuple of (page, page_size) as integers.
+
+    Defaults:
+        - page: 1 if not provided or invalid
+        - page_size: 20 if not provided or invalid
+
+    Validation:
+        - page must be >= 1 (enforced via max(1, page))
+        - page_size must be >= 1 (enforced via max(1, page_size))
+        - Invalid values (non-numeric strings, None) default to safe values
+
+    Examples:
+        >>> parse_pagination_params({"page": 2, "page_size": 50})
+        (2, 50)
+        >>> parse_pagination_params({"page": "3", "page_size": "25"})
+        (3, 25)
+        >>> parse_pagination_params({"page": 1})
+        (1, 20)
+        >>> parse_pagination_params({})
+        (1, 20)
+        >>> parse_pagination_params({"page": 0, "page_size": -5})
+        (1, 1)
+        >>> parse_pagination_params({"page": None, "page_size": "invalid"})
+        (1, 20)
+    """
+    page = params.get("page", 1)
+    page_size = params.get("page_size", 20)
+
+    # Convert to int if needed (handles string inputs from query params)
+    try:
+        page = int(page) if page is not None else 1
+    except (ValueError, TypeError):
+        page = 1
+
+    try:
+        page_size = int(page_size) if page_size is not None else 20
+    except (ValueError, TypeError):
+        page_size = 20
+
+    # Ensure minimum values (page and page_size must be >= 1)
+    page = max(1, page)
+    page_size = max(1, page_size)
+
+    return page, page_size
 
 
 def createMetaObject(totalItems: int, currentPage: int, pageSize: int, type: str) -> Meta:

@@ -5,6 +5,22 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.1] - 2026-01-18
+
+### Added
+
+- **Pagination Utilities**: Added snake_case `parse_pagination_params()` function
+  - New `parse_pagination_params()` function that returns tuple `(page, page_size)` 
+  - Matches the pattern of `parse_filter_params` and `parse_sort_params` (snake_case naming)
+  - Provides Pythonic tuple return type alongside existing `parsePaginationParams()` (camelCase dict return)
+  - Both functions coexist for backward compatibility
+  - Comprehensive test coverage with 13 test cases covering edge cases
+
+### Technical
+
+- **Code Quality**: Import ordering improvements in filter utilities
+- **Documentation**: Updated README.md with examples for both `parsePaginationParams` and `parse_pagination_params`
+
 ## [3.9.0] - 2026-01-15
 
 ### Added

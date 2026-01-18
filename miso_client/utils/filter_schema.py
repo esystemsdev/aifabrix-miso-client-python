@@ -56,7 +56,9 @@ def validate_filter(
             type=ERROR_TYPE_UNKNOWN_FIELD,
             title="Unknown Field",
             statusCode=400,
-            errors=[f"Field '{filter_option.field}' is not filterable for resource '{schema.resource}'"],
+            errors=[
+                f"Field '{filter_option.field}' is not filterable for resource '{schema.resource}'"
+            ],
         )
 
     field_def = schema.fields[filter_option.field]
@@ -82,9 +84,7 @@ def validate_filter(
     return True, None
 
 
-def coerce_value(
-    value: Any, field_def: FilterFieldDefinition
-) -> Tuple[Any, Optional[FilterError]]:
+def coerce_value(value: Any, field_def: FilterFieldDefinition) -> Tuple[Any, Optional[FilterError]]:
     """
     Coerce and validate a value based on field definition type.
 
@@ -378,9 +378,7 @@ def create_filter_schema(
         field_type = field_def.get("type", "string")
 
         # Use provided operators or default based on type
-        operators = field_def.get("operators") or DEFAULT_OPERATORS_BY_TYPE.get(
-            field_type, ["eq"]
-        )
+        operators = field_def.get("operators") or DEFAULT_OPERATORS_BY_TYPE.get(field_type, ["eq"])
 
         complete_fields[field_name] = FilterFieldDefinition(
             column=field_def["column"],

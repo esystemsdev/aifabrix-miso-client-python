@@ -153,9 +153,7 @@ def coerce_timestamp(value: Any) -> Tuple[str, Optional[FilterError]]:
     )
 
 
-def coerce_enum(
-    value: Any, enum_values: Optional[List[str]]
-) -> Tuple[str, Optional[FilterError]]:
+def coerce_enum(value: Any, enum_values: Optional[List[str]]) -> Tuple[str, Optional[FilterError]]:
     """Coerce value to enum (validate against allowed values)."""
     if enum_values is None:
         return None, FilterError(
@@ -171,9 +169,7 @@ def coerce_enum(
             type=ERROR_TYPE_INVALID_ENUM,
             title="Invalid Enum Value",
             statusCode=400,
-            errors=[
-                f"Value '{str_value}' is not in allowed enum values: {', '.join(enum_values)}"
-            ],
+            errors=[f"Value '{str_value}' is not in allowed enum values: {', '.join(enum_values)}"],
         )
 
     return str_value, None

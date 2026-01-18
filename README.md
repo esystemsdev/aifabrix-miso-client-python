@@ -767,6 +767,7 @@ print(error_response.instance)   # "/api/endpoint"
 ```python
 from miso_client import (
     parsePaginationParams,
+    parse_pagination_params,
     createPaginatedListResponse,
     PaginatedListResponse,
 )
@@ -775,6 +776,10 @@ from miso_client import (
 params = {"page": "1", "pageSize": "20"}
 pagination = parsePaginationParams(params)
 # Returns: {"currentPage": 1, "pageSize": 20}
+
+# Parse pagination from query parameters (returns tuple with page/page_size)
+page, page_size = parse_pagination_params({"page": "1", "page_size": "20"})
+# Returns: (1, 20)
 
 # Create paginated response
 items = [{"id": 1}, {"id": 2}]
@@ -889,6 +894,7 @@ from miso_client import (
     FilterQuery,
     build_query_string,
     parsePaginationParams,
+    parse_pagination_params,
 )
 
 # Build filters
@@ -898,9 +904,13 @@ filter_builder = FilterBuilder() \
 
 # Parse pagination
 params = {'page': '1', 'pageSize': '20'}
+# Using camelCase function (returns dict)
 pagination = parsePaginationParams(params)
 current_page = pagination['currentPage']
 page_size = pagination['pageSize']
+
+# Using snake_case function (returns tuple)
+page, page_size = parse_pagination_params({"page": "1", "page_size": "25"})
 
 # Create complete query
 filter_query = FilterQuery(
@@ -967,6 +977,7 @@ response = await client.http_client.get_with_filters(
 
 - **camelCase Convention**: Pagination and error utilities use camelCase to match TypeScript SDK
   - `parsePaginationParams()` - Returns dict with `currentPage`/`pageSize` keys
+  - `parse_pagination_params()` - Returns tuple `(page, page_size)` (snake_case, Python convention)
   - `createMetaObject()` - Creates `Meta` objects with camelCase fields
   - `applyPaginationToArray()` - Applies pagination to arrays
   - `createPaginatedListResponse()` - Creates paginated list responses
