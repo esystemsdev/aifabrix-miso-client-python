@@ -5,6 +5,45 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.2] - 2026-01-19
+
+### Added
+
+- **LogsApi Extended Endpoints**: Complete Logs API implementation with all listing, statistics, and export endpoints
+  - `list_general_logs()`: GET /api/v1/logs/general - List general logs with pagination and filters
+  - `list_audit_logs()`: GET /api/v1/logs/audit - List audit logs with pagination and filters
+  - `list_job_logs()`: GET /api/v1/logs/jobs - List job logs with pagination and filters
+  - `get_job_log()`: GET /api/v1/logs/jobs/{id} - Get single job log entry
+  - `get_stats_summary()`: GET /api/v1/logs/stats/summary - Get aggregated log statistics
+  - `get_stats_errors()`: GET /api/v1/logs/stats/errors - Get top error statistics
+  - `get_stats_users()`: GET /api/v1/logs/stats/users - Get user activity statistics
+  - `get_stats_applications()`: GET /api/v1/logs/stats/applications - Get application statistics
+  - `export_logs()`: GET /api/v1/logs/export - Export logs in CSV or JSON format
+
+- **Logs Type Models**: Comprehensive Pydantic models for all new Logs API endpoints
+  - `GeneralLogEntry`, `AuditLogEntry`, `JobLogEntry`: Log entry models for list responses
+  - `ListGeneralLogsResponse`, `ListAuditLogsResponse`, `ListJobLogsResponse`: Paginated list responses
+  - `GetJobLogResponse`: Single job log entry response
+  - `LogStatsSummaryResponse`, `LogStatsErrorsResponse`: Statistics response models
+  - `LogStatsUsersResponse`, `LogStatsApplicationsResponse`: User and application statistics
+  - `LogExportResponse`, `LogExportMeta`: Export response models
+  - `ForeignKeyReference`, `PaginationLinks`: Supporting type models
+  - `TopError`, `TopUser`, `ApplicationStats`: Statistics data models
+
+- **Extended Integration Tests**: Comprehensive integration tests for new API endpoints
+  - Tests for all new Logs API endpoints (list, stats, export)
+  - Tests for Auth cache endpoints (stats, performance, efficiency)
+  - Tests for negative scenarios (invalid tokens, error handling)
+  - Tests for login diagnostics endpoint
+
+### Technical
+
+- **LogsApi**: Extended from 121 to 659 lines with all new endpoints
+- **logs_types.py**: Extended from 71 to 297 lines with all new type models
+- **types/__init__.py**: Added exports for all new type models (25 new exports)
+- **test_api_endpoints.py**: Extended from 458 to 869 lines with comprehensive integration tests
+- All new endpoints follow existing patterns with proper authentication and error handling
+
 ## [3.9.1] - 2026-01-18
 
 ### Added

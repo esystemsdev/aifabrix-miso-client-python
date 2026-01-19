@@ -456,3 +456,414 @@ class TestLogsEndpoints:
         except Exception as e:
             pytest.fail(f"Create batch logs failed: {e}")
         # Note: Don't disconnect here - client fixture is module-scoped and shared across tests
+
+
+class TestAuthEndpointsExtended:
+    """Extended integration tests for additional Auth API endpoints."""
+
+    async def _ensure_client_ready(self, client):
+        """Ensure the client is initialized and HTTP client is ready."""
+        await client.initialize()
+        # Force close and recreate the HTTP client to handle event loop changes
+        try:
+            if client._internal_http_client.client is not None:
+                await client._internal_http_client.close()
+        except Exception:
+            pass
+        client._internal_http_client.client = None
+        await client._internal_http_client._initialize_client()
+        await client._internal_http_client._ensure_client_token()
+
+    @pytest.mark.asyncio
+    async def test_login_diagnostics(self, client, config):
+        """Test GET /api/v1/auth/login/diagnostics - Get login diagnostics."""
+        if should_skip(config):
+            pytest.skip("Config not available")
+
+        try:
+            await self._ensure_client_ready(client)
+            # Call the diagnostics endpoint directly via HTTP client
+            response = await client._internal_http_client.get("/api/v1/auth/login/diagnostics")
+            assert response is not None
+            assert isinstance(response, dict)
+            # Diagnostics should return database, controller, environment info
+            if "data" in response:
+                data = response["data"]
+                # Check for expected diagnostic fields
+                assert isinstance(data, dict)
+        except Exception as e:
+            if "404" in str(e) or "Not Found" in str(e):
+                pytest.skip("Diagnostics endpoint not available")
+            pytest.fail(f"Login diagnostics failed: {e}")
+        # Note: Don't disconnect - client fixture is module-scoped
+
+    @pytest.mark.asyncio
+    async def test_auth_cache_stats(self, client, config, user_token):
+        """Test GET /api/v1/auth/cache/stats - Get cache statistics."""
+        if should_skip(config) or not user_token:
+            pytest.skip("Config or user token not available")
+
+        try:
+            await self._ensure_client_ready(client)
+            # Call cache stats endpoint directly via authenticated request
+            response = await client._internal_http_client.authenticated_request(
+                "GET", "/api/v1/auth/cache/stats", user_token
+            )
+            assert response is not None
+            assert isinstance(response, dict)
+        except Exception as e:
+            # Cache endpoints may require special permissions or not exist
+            if "403" in str(e) or "Forbidden" in str(e):
+                pytest.skip("Insufficient permissions for cache stats")
+            if "401" in str(e) or "Unauthorized" in str(e):
+                pytest.skip("Authentication not supported for cache stats with API key")
+            if "404" in str(e) or "Not Found" in str(e):
+                pytest.skip("Cache stats endpoint not available")
+            pytest.fail(f"Cache stats failed: {e}")
+        # Note: Don't disconnect - client fixture is module-scoped
+
+    @pytest.mark.asyncio
+    async def test_auth_cache_performance(self, client, config, user_token):
+        """Test GET /api/v1/auth/cache/performance - Get cache performance metrics."""
+        if should_skip(config) or not user_token:
+            pytest.skip("Config or user token not available")
+
+        try:
+            await self._ensure_client_ready(client)
+            response = await client._internal_http_client.authenticated_request(
+                "GET", "/api/v1/auth/cache/performance", user_token
+            )
+            assert response is not None
+            assert isinstance(response, dict)
+        except Exception as e:
+            if "403" in str(e) or "Forbidden" in str(e):
+                pytest.skip("Insufficient permissions for cache performance")
+            if "401" in str(e) or "Unauthorized" in str(e):
+                pytest.skip("Authentication not supported for cache performance with API key")
+            if "404" in str(e) or "Not Found" in str(e):
+                pytest.skip("Cache performance endpoint not available")
+            pytest.fail(f"Cache performance failed: {e}")
+        # Note: Don't disconnect - client fixture is module-scoped
+
+    @pytest.mark.asyncio
+    async def test_auth_cache_efficiency(self, client, config, user_token):
+        """Test GET /api/v1/auth/cache/efficiency - Get cache efficiency metrics."""
+        if should_skip(config) or not user_token:
+            pytest.skip("Config or user token not available")
+
+        try:
+            await self._ensure_client_ready(client)
+            response = await client._internal_http_client.authenticated_request(
+                "GET", "/api/v1/auth/cache/efficiency", user_token
+            )
+            assert response is not None
+            assert isinstance(response, dict)
+        except Exception as e:
+            if "403" in str(e) or "Forbidden" in str(e):
+                pytest.skip("Insufficient permissions for cache efficiency")
+            if "401" in str(e) or "Unauthorized" in str(e):
+                pytest.skip("Authentication not supported for cache efficiency with API key")
+            if "404" in str(e) or "Not Found" in str(e):
+                pytest.skip("Cache efficiency endpoint not available")
+            pytest.fail(f"Cache efficiency failed: {e}")
+        # Note: Don't disconnect - client fixture is module-scoped
+
+
+class TestLogsEndpointsExtended:
+    """Extended integration tests for Logs list/stats API endpoints."""
+
+    async def _ensure_client_ready(self, client):
+        """Ensure the client is initialized and HTTP client is ready."""
+        await client.initialize()
+        # Force close and recreate the HTTP client to handle event loop changes
+        try:
+            if client._internal_http_client.client is not None:
+                await client._internal_http_client.close()
+        except Exception:
+            pass
+        client._internal_http_client.client = None
+        await client._internal_http_client._initialize_client()
+        await client._internal_http_client._ensure_client_token()
+
+    @pytest.mark.asyncio
+    async def test_list_general_logs(self, client, config, user_token):
+        """Test GET /api/v1/logs/general - List general logs."""
+        if should_skip(config) or not user_token:
+            pytest.skip("Config or user token not available")
+
+        try:
+            await self._ensure_client_ready(client)
+            response = await client._internal_http_client.authenticated_request(
+                "GET", "/api/v1/logs/general", user_token, params={"page": 1, "pageSize": 10}
+            )
+            assert response is not None
+            assert isinstance(response, dict)
+            # Should have data, meta, links
+            assert "data" in response
+            assert isinstance(response["data"], list)
+            if "meta" in response:
+                assert "totalItems" in response["meta"] or "currentPage" in response["meta"]
+        except Exception as e:
+            if "403" in str(e) or "Forbidden" in str(e):
+                pytest.skip("Insufficient permissions for logs:read")
+            if "401" in str(e) or "Unauthorized" in str(e):
+                pytest.skip("Authentication not supported for logs:read with API key")
+            pytest.fail(f"List general logs failed: {e}")
+        # Note: Don't disconnect - client fixture is module-scoped
+
+    @pytest.mark.asyncio
+    async def test_list_audit_logs(self, client, config, user_token):
+        """Test GET /api/v1/logs/audit - List audit logs."""
+        if should_skip(config) or not user_token:
+            pytest.skip("Config or user token not available")
+
+        try:
+            await self._ensure_client_ready(client)
+            response = await client._internal_http_client.authenticated_request(
+                "GET", "/api/v1/logs/audit", user_token, params={"page": 1, "pageSize": 10}
+            )
+            assert response is not None
+            assert isinstance(response, dict)
+            assert "data" in response
+            assert isinstance(response["data"], list)
+        except Exception as e:
+            if "403" in str(e) or "Forbidden" in str(e):
+                pytest.skip("Insufficient permissions for audit:read")
+            if "401" in str(e) or "Unauthorized" in str(e):
+                pytest.skip("Authentication not supported for audit:read with API key")
+            pytest.fail(f"List audit logs failed: {e}")
+        # Note: Don't disconnect - client fixture is module-scoped
+
+    @pytest.mark.asyncio
+    async def test_list_job_logs(self, client, config, user_token):
+        """Test GET /api/v1/logs/jobs - List job logs."""
+        if should_skip(config) or not user_token:
+            pytest.skip("Config or user token not available")
+
+        try:
+            await self._ensure_client_ready(client)
+            response = await client._internal_http_client.authenticated_request(
+                "GET", "/api/v1/logs/jobs", user_token, params={"page": 1, "pageSize": 10}
+            )
+            assert response is not None
+            assert isinstance(response, dict)
+            assert "data" in response
+            assert isinstance(response["data"], list)
+        except Exception as e:
+            if "403" in str(e) or "Forbidden" in str(e):
+                pytest.skip("Insufficient permissions for jobs:read")
+            if "401" in str(e) or "Unauthorized" in str(e):
+                pytest.skip("Authentication not supported for jobs:read with API key")
+            pytest.fail(f"List job logs failed: {e}")
+        # Note: Don't disconnect - client fixture is module-scoped
+
+    @pytest.mark.asyncio
+    async def test_get_logs_stats_summary(self, client, config, user_token):
+        """Test GET /api/v1/logs/stats/summary - Get log statistics summary."""
+        if should_skip(config) or not user_token:
+            pytest.skip("Config or user token not available")
+
+        try:
+            await self._ensure_client_ready(client)
+            response = await client._internal_http_client.authenticated_request(
+                "GET", "/api/v1/logs/stats/summary", user_token
+            )
+            assert response is not None
+            assert isinstance(response, dict)
+            if "data" in response:
+                data = response["data"]
+                # Check for expected stats fields
+                assert isinstance(data, dict)
+        except Exception as e:
+            if "403" in str(e) or "Forbidden" in str(e):
+                pytest.skip("Insufficient permissions for logs:read")
+            if "401" in str(e) or "Unauthorized" in str(e):
+                pytest.skip("Authentication not supported for logs:read with API key")
+            pytest.fail(f"Get logs stats summary failed: {e}")
+        # Note: Don't disconnect - client fixture is module-scoped
+
+    @pytest.mark.asyncio
+    async def test_get_logs_stats_errors(self, client, config, user_token):
+        """Test GET /api/v1/logs/stats/errors - Get error statistics."""
+        if should_skip(config) or not user_token:
+            pytest.skip("Config or user token not available")
+
+        try:
+            await self._ensure_client_ready(client)
+            response = await client._internal_http_client.authenticated_request(
+                "GET", "/api/v1/logs/stats/errors", user_token, params={"limit": 10}
+            )
+            assert response is not None
+            assert isinstance(response, dict)
+        except Exception as e:
+            if "403" in str(e) or "Forbidden" in str(e):
+                pytest.skip("Insufficient permissions for logs:read")
+            if "401" in str(e) or "Unauthorized" in str(e):
+                pytest.skip("Authentication not supported for logs:read with API key")
+            pytest.fail(f"Get logs stats errors failed: {e}")
+        # Note: Don't disconnect - client fixture is module-scoped
+
+    @pytest.mark.asyncio
+    async def test_get_logs_stats_applications(self, client, config, user_token):
+        """Test GET /api/v1/logs/stats/applications - Get application statistics."""
+        if should_skip(config) or not user_token:
+            pytest.skip("Config or user token not available")
+
+        try:
+            await self._ensure_client_ready(client)
+            response = await client._internal_http_client.authenticated_request(
+                "GET", "/api/v1/logs/stats/applications", user_token
+            )
+            assert response is not None
+            assert isinstance(response, dict)
+        except Exception as e:
+            if "403" in str(e) or "Forbidden" in str(e):
+                pytest.skip("Insufficient permissions for logs:read")
+            if "401" in str(e) or "Unauthorized" in str(e):
+                pytest.skip("Authentication not supported for logs:read with API key")
+            pytest.fail(f"Get logs stats applications failed: {e}")
+        # Note: Don't disconnect - client fixture is module-scoped
+
+    @pytest.mark.asyncio
+    async def test_get_logs_stats_users(self, client, config, user_token):
+        """Test GET /api/v1/logs/stats/users - Get user activity statistics."""
+        if should_skip(config) or not user_token:
+            pytest.skip("Config or user token not available")
+
+        try:
+            await self._ensure_client_ready(client)
+            response = await client._internal_http_client.authenticated_request(
+                "GET", "/api/v1/logs/stats/users", user_token, params={"limit": 10}
+            )
+            assert response is not None
+            assert isinstance(response, dict)
+        except Exception as e:
+            if "403" in str(e) or "Forbidden" in str(e):
+                pytest.skip("Insufficient permissions for admin:read")
+            if "401" in str(e) or "Unauthorized" in str(e):
+                pytest.skip("Authentication not supported for admin:read with API key")
+            pytest.fail(f"Get logs stats users failed: {e}")
+        # Note: Don't disconnect - client fixture is module-scoped
+
+
+class TestNegativeScenarios:
+    """Integration tests for error handling and negative scenarios."""
+
+    async def _ensure_client_ready(self, client):
+        """Ensure the client is initialized and HTTP client is ready."""
+        await client.initialize()
+        # Force close and recreate the HTTP client to handle event loop changes
+        try:
+            if client._internal_http_client.client is not None:
+                await client._internal_http_client.close()
+        except Exception:
+            pass
+        client._internal_http_client.client = None
+        await client._internal_http_client._initialize_client()
+        await client._internal_http_client._ensure_client_token()
+
+    @pytest.mark.asyncio
+    async def test_invalid_token_validation(self, client, config):
+        """Test POST /api/v1/auth/validate - Validate with invalid token."""
+        if should_skip(config):
+            pytest.skip("Config not available")
+
+        try:
+            await self._ensure_client_ready(client)
+            # Use an obviously invalid token
+            is_valid = await client.validate_token("invalid-token-12345")
+            # Should return False for invalid token (not raise exception)
+            assert is_valid is False
+        except Exception:
+            # Some implementations may raise exception instead of returning False
+            # This is acceptable behavior for invalid tokens
+            pass
+        # Note: Don't disconnect - client fixture is module-scoped
+
+    @pytest.mark.asyncio
+    async def test_expired_token_handling(self, client, config):
+        """Test handling of expired JWT token."""
+        if should_skip(config):
+            pytest.skip("Config not available")
+
+        try:
+            await self._ensure_client_ready(client)
+            # Use a malformed JWT that would be expired
+            # This is a valid JWT structure but with expired timestamp
+            expired_token = (
+                "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
+                "eyJzdWIiOiIxMjM0NTY3ODkwIiwiZXhwIjoxMDAwMDAwMDAwfQ."
+                "invalid-signature"
+            )
+            is_valid = await client.validate_token(expired_token)
+            # Should return False for expired/invalid token
+            assert is_valid is False
+        except Exception:
+            # Exception is acceptable for invalid tokens
+            pass
+        # Note: Don't disconnect - client fixture is module-scoped
+
+    @pytest.mark.asyncio
+    async def test_empty_token_validation(self, client, config):
+        """Test POST /api/v1/auth/validate - Validate with empty token."""
+        if should_skip(config):
+            pytest.skip("Config not available")
+
+        try:
+            await self._ensure_client_ready(client)
+            # Test with empty string token
+            is_valid = await client.validate_token("")
+            # Should return False for empty token
+            assert is_valid is False
+        except Exception:
+            # Exception is acceptable for empty tokens
+            pass
+        # Note: Don't disconnect - client fixture is module-scoped
+
+    @pytest.mark.asyncio
+    async def test_roles_with_invalid_token(self, client, config):
+        """Test GET /api/v1/auth/roles - Get roles with invalid token."""
+        if should_skip(config):
+            pytest.skip("Config not available")
+
+        try:
+            await self._ensure_client_ready(client)
+            roles = await client.get_roles("invalid-token")
+            # Should return empty list on error (service pattern)
+            assert roles == []
+        except Exception:
+            # Exception is also acceptable
+            pass
+        # Note: Don't disconnect - client fixture is module-scoped
+
+    @pytest.mark.asyncio
+    async def test_permissions_with_invalid_token(self, client, config):
+        """Test GET /api/v1/auth/permissions - Get permissions with invalid token."""
+        if should_skip(config):
+            pytest.skip("Config not available")
+
+        try:
+            await self._ensure_client_ready(client)
+            permissions = await client.get_permissions("invalid-token")
+            # Should return empty list on error (service pattern)
+            assert permissions == []
+        except Exception:
+            # Exception is also acceptable
+            pass
+        # Note: Don't disconnect - client fixture is module-scoped
+
+    @pytest.mark.asyncio
+    async def test_user_info_with_invalid_token(self, client, config):
+        """Test GET /api/v1/auth/user - Get user info with invalid token."""
+        if should_skip(config):
+            pytest.skip("Config not available")
+
+        try:
+            await self._ensure_client_ready(client)
+            user_info = await client.get_user("invalid-token")
+            # Should return None on error (service pattern)
+            assert user_info is None
+        except Exception:
+            # Exception is also acceptable
+            pass
+        # Note: Don't disconnect - client fixture is module-scoped

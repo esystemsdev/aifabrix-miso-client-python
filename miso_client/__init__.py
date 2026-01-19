@@ -122,7 +122,7 @@ from .utils.unified_logger_factory import (
 )
 from .utils.url_validator import validate_url
 
-__version__ = "3.9.1"
+__version__ = "3.9.2"
 __author__ = "AI Fabrix Team"
 __license__ = "MIT"
 
