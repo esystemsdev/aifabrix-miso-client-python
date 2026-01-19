@@ -309,7 +309,9 @@ class AuthService:
         # Fall back to OAuth2 validation
         try:
             result = await self._validate_token_request(token, auth_strategy)
-            auth_result = AuthResult(**result)
+            # Unwrap data field - response is {"data": {"authenticated": ...}}
+            auth_data = result.get("data", result)
+            auth_result = AuthResult(**auth_data)
             return auth_result.authenticated
 
         except Exception as error:
