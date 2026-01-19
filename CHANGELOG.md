@@ -5,6 +5,38 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.3] - 2026-01-20
+
+### Fixed
+
+- **Auth API Type Alignment with OpenAPI Spec**: Updated all Auth API response types to match controller OpenAPI specification
+  - Removed extraneous `success` and `timestamp` fields from response types (controller returns `{"data": {...}}` format)
+  - `LoginResponse`: Removed `success` and `timestamp` fields, now only contains `data`
+  - `ValidateTokenResponse`: Removed wrapper fields, added `environment` and `application` to `ValidateTokenResponseData`
+  - `GetUserResponse`: Removed wrapper fields, made `user` field optional in `GetUserResponseData`
+  - `LogoutResponse`: Updated to match spec with `data` field containing optional `LogoutResponseData`
+  - `RefreshTokenResponse`: Removed wrapper fields
+  - `DeviceCodeResponseWrapper`: Removed `success` and `timestamp` fields
+  - `DeviceCodeTokenPollResponse`: Removed `timestamp` field
+  - `GetRolesResponse`, `RefreshRolesResponse`: Removed wrapper fields, made `roles` use `default_factory`
+  - `GetPermissionsResponse`, `RefreshPermissionsResponse`: Removed wrapper fields, made `permissions` use `default_factory`
+
+- **AuthService Response Handling**: Updated service methods to align with simplified response types
+  - `validate_token_with_api_client()`: Returns data without `success`/`timestamp` wrapper
+  - `login()`: Returns data without wrapper fields
+  - `logout()`: Fixed unused `response` variable linting error
+
+- **Test Suite Updates**: Simplified test mocks to match new response format
+  - Updated `test_auth_api.py` with streamlined mock responses
+  - Updated `test_auth_utils.py` to use simplified response structures
+  - Updated `test_miso_client.py` with corrected response format
+
+### Technical
+
+- **Code Cleanup**: Removed 88 lines of redundant code across 6 files
+- **Type Safety**: All response types now strictly match OpenAPI specification
+- **Test Coverage**: All 1025 tests passing with 89% code coverage
+
 ## [3.9.2] - 2026-01-19
 
 ### Added

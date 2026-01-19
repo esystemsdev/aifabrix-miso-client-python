@@ -127,15 +127,13 @@ class AuthService:
         if not self.api_client:
             raise ValueError("ApiClient is required for this method")
         response = await self.api_client.auth.validate_token(token, auth_strategy=auth_strategy)
-        # Extract data from typed response
+        # Extract data from typed response (matches OpenAPI spec format)
         return {
-            "success": response.success,
             "data": {
                 "authenticated": response.data.authenticated,
                 "user": response.data.user.model_dump() if response.data.user else None,
                 "expiresAt": response.data.expiresAt,
             },
-            "timestamp": response.timestamp,
         }
 
     async def _fetch_validation_from_http_client(
@@ -264,14 +262,12 @@ class AuthService:
             if self.api_client:
                 # Use ApiClient for typed API calls
                 response = await self.api_client.auth.login(redirect, state)
-                # Extract data from typed response
+                # Extract data from typed response (matches OpenAPI spec format)
                 return {
-                    "success": response.success,
                     "data": {
                         "loginUrl": response.data.loginUrl,
                         "state": state,  # State is returned in response if provided
                     },
-                    "timestamp": response.timestamp,
                 }
             else:
                 # Fallback to HttpClient for backward compatibility
@@ -439,12 +435,11 @@ class AuthService:
         try:
             if self.api_client:
                 # Use ApiClient for typed API calls
-                response = await self.api_client.auth.logout(token)
-                # Extract data from typed response
+                await self.api_client.auth.logout(token)
+                # Extract data from typed response (matches OpenAPI spec format)
+                # Logout returns {"data": null} per OpenAPI spec
                 result = {
-                    "success": response.success,
-                    "message": response.message,
-                    "timestamp": response.timestamp,
+                    "data": None,
                 }
             else:
                 # Fallback to HttpClient for backward compatibility
@@ -501,18 +496,15 @@ class AuthService:
             if self.api_client:
                 # Use ApiClient for typed API calls
                 response = await self.api_client.auth.refresh_token(refresh_token)
-                # Extract data from typed response
+                # Extract data from typed response (matches OpenAPI spec format)
                 # Map accessToken to token for backward compatibility
                 return {
-                    "success": response.success,
                     "data": {
                         "token": response.data.accessToken,  # Map accessToken to token
                         "accessToken": response.data.accessToken,
                         "refreshToken": response.data.refreshToken,
                         "expiresIn": response.data.expiresIn,
                     },
-                    "message": response.message,
-                    "timestamp": response.timestamp,
                 }
             else:
                 # Fallback to HttpClient for backward compatibility

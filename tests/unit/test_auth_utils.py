@@ -3,6 +3,8 @@ Unit tests for auth_utils shared utility functions.
 
 Tests the validate_token_request shared utility function used by
 RoleService and PermissionService.
+
+All responses now follow OpenAPI spec format: {"data": {...}} without success/timestamp.
 """
 
 from unittest.mock import AsyncMock, MagicMock
@@ -47,9 +49,8 @@ class TestValidateTokenRequest:
     @pytest.mark.asyncio
     async def test_validate_token_request_with_api_client(self, mock_api_client, mock_http_client):
         """Test validate_token_request using ApiClient path."""
-        # Mock ApiClient response
+        # Mock ApiClient response (matches OpenAPI spec format)
         mock_response = ValidateTokenResponse(
-            success=True,
             data=ValidateTokenResponseData(
                 authenticated=True,
                 user=UserInfo(
@@ -62,18 +63,15 @@ class TestValidateTokenRequest:
                 ),
                 expiresAt="2024-12-31T23:59:59Z",
             ),
-            timestamp="2024-01-01T00:00:00Z",
         )
         mock_api_client.auth.validate_token = AsyncMock(return_value=mock_response)
 
         result = await validate_token_request("test-token", mock_http_client, mock_api_client, None)
 
-        assert result["success"] is True
         assert result["data"]["authenticated"] is True
         assert result["data"]["user"]["id"] == "user-123"
         assert result["data"]["user"]["email"] == "test@example.com"
         assert result["data"]["expiresAt"] == "2024-12-31T23:59:59Z"
-        assert result["timestamp"] == "2024-01-01T00:00:00Z"
         mock_api_client.auth.validate_token.assert_called_once_with(
             "test-token", auth_strategy=None
         )
@@ -85,7 +83,6 @@ class TestValidateTokenRequest:
         """Test validate_token_request using ApiClient with auth_strategy."""
         auth_strategy = AuthStrategy(environment="dev", application="app1")
         mock_response = ValidateTokenResponse(
-            success=True,
             data=ValidateTokenResponseData(
                 authenticated=True,
                 user=UserInfo(
@@ -98,7 +95,6 @@ class TestValidateTokenRequest:
                 ),
                 expiresAt="2024-12-31T23:59:59Z",
             ),
-            timestamp="2024-01-01T00:00:00Z",
         )
         mock_api_client.auth.validate_token = AsyncMock(return_value=mock_response)
 
@@ -106,7 +102,6 @@ class TestValidateTokenRequest:
             "test-token", mock_http_client, mock_api_client, auth_strategy
         )
 
-        assert result["success"] is True
         assert result["data"]["authenticated"] is True
         assert result["data"]["user"]["id"] == "user-456"
         mock_api_client.auth.validate_token.assert_called_once_with(
@@ -119,19 +114,16 @@ class TestValidateTokenRequest:
     ):
         """Test validate_token_request using ApiClient when user is None."""
         mock_response = ValidateTokenResponse(
-            success=True,
             data=ValidateTokenResponseData(
                 authenticated=False,
                 user=None,
                 expiresAt=None,
             ),
-            timestamp="2024-01-01T00:00:00Z",
         )
         mock_api_client.auth.validate_token = AsyncMock(return_value=mock_response)
 
         result = await validate_token_request("test-token", mock_http_client, mock_api_client, None)
 
-        assert result["success"] is True
         assert result["data"]["authenticated"] is False
         assert result["data"]["user"] is None
         assert result["data"]["expiresAt"] is None
@@ -140,13 +132,11 @@ class TestValidateTokenRequest:
     async def test_validate_token_request_with_http_client(self, mock_http_client):
         """Test validate_token_request using HttpClient fallback path."""
         mock_response = {
-            "success": True,
             "data": {
                 "authenticated": True,
                 "user": {"id": "user-789", "email": "test3@example.com"},
                 "expiresAt": "2024-12-31T23:59:59Z",
             },
-            "timestamp": "2024-01-01T00:00:00Z",
         }
         mock_http_client.authenticated_request = AsyncMock(return_value=mock_response)
 
@@ -164,13 +154,11 @@ class TestValidateTokenRequest:
         """Test validate_token_request using HttpClient with auth_strategy."""
         auth_strategy = AuthStrategy(environment="prod", application="app2")
         mock_response = {
-            "success": True,
             "data": {
                 "authenticated": True,
                 "user": {"id": "user-999", "email": "test4@example.com"},
                 "expiresAt": "2024-12-31T23:59:59Z",
             },
-            "timestamp": "2024-01-01T00:00:00Z",
         }
         mock_http_client.authenticated_request = AsyncMock(return_value=mock_response)
 
@@ -191,7 +179,6 @@ class TestValidateTokenRequest:
     ):
         """Test that ApiClient is preferred over HttpClient when both are provided."""
         mock_response = ValidateTokenResponse(
-            success=True,
             data=ValidateTokenResponseData(
                 authenticated=True,
                 user=UserInfo(
@@ -204,7 +191,6 @@ class TestValidateTokenRequest:
                 ),
                 expiresAt="2024-12-31T23:59:59Z",
             ),
-            timestamp="2024-01-01T00:00:00Z",
         )
         mock_api_client.auth.validate_token = AsyncMock(return_value=mock_response)
 

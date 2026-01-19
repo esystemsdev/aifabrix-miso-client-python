@@ -113,10 +113,9 @@ class TestMisoClient:
         token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
 
         with patch.object(client.auth, "logout", new_callable=AsyncMock) as mock_auth_logout:
+            # Mock response matches OpenAPI spec: {"data": null} for logout
             mock_auth_logout.return_value = {
-                "success": True,
-                "message": "Logout successful",
-                "timestamp": "2024-01-01T00:00:00Z",
+                "data": None,
             }
 
             with patch.object(
@@ -134,8 +133,8 @@ class TestMisoClient:
                     mock_clear_roles.assert_called_once_with(token)
                     mock_clear_permissions.assert_called_once_with(token)
 
-                    # Verify response is returned
-                    assert result["success"] is True
+                    # Verify response is returned (OpenAPI spec: {"data": null})
+                    assert result["data"] is None
 
     @pytest.mark.asyncio
     async def test_logout_clears_caches_even_on_failure(self, client):
@@ -187,7 +186,7 @@ class TestMisoClient:
         )
 
         with patch.object(client.auth, "logout", new_callable=AsyncMock) as mock_auth_logout:
-            mock_auth_logout.return_value = {"success": True}
+            mock_auth_logout.return_value = {"data": None}
 
             with patch.object(client.roles, "clear_roles_cache", new_callable=AsyncMock):
                 with patch.object(
@@ -385,10 +384,9 @@ class TestAuthService:
     @pytest.mark.asyncio
     async def test_login_success(self, auth_service):
         """Test successful login."""
+        # LoginResponse now matches OpenAPI spec: {"data": {...}} without success/timestamp
         login_response = LoginResponse(
-            success=True,
             data=LoginResponseData(loginUrl="https://keycloak.example.com/auth?redirect_uri=..."),
-            timestamp="2024-01-01T00:00:00Z",
         )
         auth_service.api_client.auth.login = AsyncMock(return_value=login_response)
 
@@ -396,7 +394,6 @@ class TestAuthService:
             redirect="http://localhost:3000/auth/callback", state="abc123"
         )
 
-        assert result["success"] is True
         assert "loginUrl" in result["data"]
         assert result["data"]["state"] == "abc123"
         auth_service.api_client.auth.login.assert_called_once_with(
@@ -406,16 +403,14 @@ class TestAuthService:
     @pytest.mark.asyncio
     async def test_login_without_state(self, auth_service):
         """Test login without state parameter."""
+        # LoginResponse now matches OpenAPI spec: {"data": {...}} without success/timestamp
         login_response = LoginResponse(
-            success=True,
             data=LoginResponseData(loginUrl="https://keycloak.example.com/auth?redirect_uri=..."),
-            timestamp="2024-01-01T00:00:00Z",
         )
         auth_service.api_client.auth.login = AsyncMock(return_value=login_response)
 
         result = await auth_service.login(redirect="http://localhost:3000/auth/callback")
 
-        assert result["success"] is True
         assert "loginUrl" in result["data"]
         auth_service.api_client.auth.login.assert_called_once_with(
             "http://localhost:3000/auth/callback", None
@@ -438,18 +433,17 @@ class TestAuthService:
         """Test successful logout."""
         from miso_client.api.types.auth_types import LogoutResponse
 
+        # LogoutResponse now matches OpenAPI spec: {"data": null} for logout
         logout_response = LogoutResponse(
-            success=True,
-            message="Logout successful",
-            timestamp="2024-01-01T00:00:00Z",
+            data=None,
         )
         auth_service.api_client.auth.logout = AsyncMock(return_value=logout_response)
 
         with patch.object(auth_service.http_client, "clear_user_token") as mock_clear_token:
             result = await auth_service.logout(token="jwt-token-123")
 
-            assert result["success"] is True
-            assert result["message"] == "Logout successful"
+            # OpenAPI spec: logout returns {"data": null}
+            assert result["data"] is None
             auth_service.api_client.auth.logout.assert_called_once_with("jwt-token-123")
             # Verify JWT cache is cleared
             mock_clear_token.assert_called_once_with("jwt-token-123")
@@ -467,10 +461,9 @@ class TestAuthService:
     @pytest.mark.asyncio
     async def test_validate_token_cache_hit(self, auth_service, mock_cache):
         """Test token validation cache hit - should return cached result without HTTP request."""
+        # Cached result matches OpenAPI spec format: {"data": {...}} without success/timestamp
         cached_result = {
-            "success": True,
             "data": {"authenticated": True, "user": {"id": "123", "username": "testuser"}},
-            "timestamp": "2024-01-01T00:00:00Z",
         }
         mock_cache.get = AsyncMock(return_value=cached_result)
 

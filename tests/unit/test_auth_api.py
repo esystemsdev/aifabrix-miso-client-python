@@ -2,6 +2,7 @@
 Unit tests for AuthApi.
 
 Tests all authentication API endpoints with proper mocking.
+All responses now follow OpenAPI spec format: {"data": {...}} without success/timestamp.
 """
 
 from unittest.mock import AsyncMock, MagicMock
@@ -58,16 +59,13 @@ class TestAuthApi:
     async def test_login_success(self, auth_api, mock_http_client):
         """Test successful login."""
         mock_response = {
-            "success": True,
             "data": {"loginUrl": "https://keycloak.example.com/auth"},
-            "timestamp": "2024-01-01T00:00:00Z",
         }
         mock_http_client.get.return_value = mock_response
 
         result = await auth_api.login("https://example.com/callback", "state123")
 
         assert isinstance(result, LoginResponse)
-        assert result.success is True
         assert result.data.loginUrl == "https://keycloak.example.com/auth"
         mock_http_client.get.assert_called_once_with(
             auth_api.LOGIN_ENDPOINT,
@@ -78,9 +76,7 @@ class TestAuthApi:
     async def test_login_without_state(self, auth_api, mock_http_client):
         """Test login without state parameter."""
         mock_response = {
-            "success": True,
             "data": {"loginUrl": "https://keycloak.example.com/auth"},
-            "timestamp": "2024-01-01T00:00:00Z",
         }
         mock_http_client.get.return_value = mock_response
 
@@ -95,20 +91,17 @@ class TestAuthApi:
     async def test_validate_token_success(self, auth_api, mock_http_client):
         """Test successful token validation."""
         mock_response = {
-            "success": True,
             "data": {
                 "authenticated": True,
                 "user": {"id": "123", "username": "test", "email": "test@example.com"},
                 "expiresAt": "2024-01-01T01:00:00Z",
             },
-            "timestamp": "2024-01-01T00:00:00Z",
         }
         mock_http_client.authenticated_request.return_value = mock_response
 
         result = await auth_api.validate_token("test-token", "dev", "app1")
 
         assert isinstance(result, ValidateTokenResponse)
-        assert result.success is True
         assert result.data.authenticated is True
         assert result.data.user is not None
         assert result.data.user.id == "123"
@@ -122,19 +115,16 @@ class TestAuthApi:
     async def test_get_user_with_token(self, auth_api, mock_http_client):
         """Test get user with token."""
         mock_response = {
-            "success": True,
             "data": {
                 "user": {"id": "123", "username": "test", "email": "test@example.com"},
                 "authenticated": True,
             },
-            "timestamp": "2024-01-01T00:00:00Z",
         }
         mock_http_client.authenticated_request.return_value = mock_response
 
         result = await auth_api.get_user("test-token")
 
         assert isinstance(result, GetUserResponse)
-        assert result.success is True
         assert result.data.user.id == "123"
         mock_http_client.authenticated_request.assert_called_once_with(
             "GET", auth_api.USER_ENDPOINT, "test-token", auth_strategy=None
@@ -144,57 +134,48 @@ class TestAuthApi:
     async def test_get_user_without_token(self, auth_api, mock_http_client):
         """Test get user without token (uses x-client-token)."""
         mock_response = {
-            "success": True,
             "data": {
                 "user": {"id": "123", "username": "test", "email": "test@example.com"},
                 "authenticated": True,
             },
-            "timestamp": "2024-01-01T00:00:00Z",
         }
         mock_http_client.get.return_value = mock_response
 
         result = await auth_api.get_user()
 
         assert isinstance(result, GetUserResponse)
-        assert result.success is True
         mock_http_client.get.assert_called_once_with(auth_api.USER_ENDPOINT)
 
     @pytest.mark.asyncio
     async def test_logout_success(self, auth_api, mock_http_client):
         """Test successful logout."""
+        # OpenAPI spec shows logout returns {"data": null}
         mock_response = {
-            "success": True,
-            "message": "Logged out successfully",
-            "timestamp": "2024-01-01T00:00:00Z",
+            "data": None,
         }
         mock_http_client.post.return_value = mock_response
 
         result = await auth_api.logout()
 
         assert isinstance(result, LogoutResponse)
-        assert result.success is True
-        assert result.message == "Logged out successfully"
+        assert result.data is None
         mock_http_client.post.assert_called_once_with(auth_api.LOGOUT_ENDPOINT)
 
     @pytest.mark.asyncio
     async def test_refresh_token_success(self, auth_api, mock_http_client):
         """Test successful token refresh."""
         mock_response = {
-            "success": True,
             "data": {
                 "accessToken": "new-access-token",
                 "refreshToken": "new-refresh-token",
                 "expiresIn": 3600,
             },
-            "message": "Token refreshed",
-            "timestamp": "2024-01-01T00:00:00Z",
         }
         mock_http_client.post.return_value = mock_response
 
         result = await auth_api.refresh_token("refresh-token")
 
         assert isinstance(result, RefreshTokenResponse)
-        assert result.success is True
         assert result.data.accessToken == "new-access-token"
         mock_http_client.post.assert_called_once()
         call_args = mock_http_client.post.call_args
@@ -204,7 +185,6 @@ class TestAuthApi:
     async def test_initiate_device_code_success(self, auth_api, mock_http_client):
         """Test successful device code initiation."""
         mock_response = {
-            "success": True,
             "data": {
                 "deviceCode": "device-code-123",
                 "userCode": "ABCD-1234",
@@ -213,14 +193,12 @@ class TestAuthApi:
                 "expiresIn": 600,
                 "interval": 5,
             },
-            "timestamp": "2024-01-01T00:00:00Z",
         }
         mock_http_client.post.return_value = mock_response
 
         result = await auth_api.initiate_device_code("dev", "openid profile email")
 
         assert isinstance(result, DeviceCodeResponseWrapper)
-        assert result.success is True
         assert result.data.deviceCode == "device-code-123"
         mock_http_client.post.assert_called_once()
 
@@ -228,20 +206,17 @@ class TestAuthApi:
     async def test_poll_device_code_token_success(self, auth_api, mock_http_client):
         """Test successful device code token poll."""
         mock_response = {
-            "success": True,
             "data": {
                 "accessToken": "access-token",
                 "refreshToken": "refresh-token",
                 "expiresIn": 3600,
             },
-            "timestamp": "2024-01-01T00:00:00Z",
         }
         mock_http_client.post.return_value = mock_response
 
         result = await auth_api.poll_device_code_token("device-code-123")
 
         assert isinstance(result, DeviceCodeTokenPollResponse)
-        assert result.success is True
         assert result.data is not None
         assert result.data.accessToken == "access-token"
 
@@ -249,18 +224,15 @@ class TestAuthApi:
     async def test_poll_device_code_token_pending(self, auth_api, mock_http_client):
         """Test device code token poll while pending."""
         mock_response = {
-            "success": True,
             "data": None,
             "error": "authorization_pending",
             "errorDescription": "Authorization pending",
-            "timestamp": "2024-01-01T00:00:00Z",
         }
         mock_http_client.post.return_value = mock_response
 
         result = await auth_api.poll_device_code_token("device-code-123")
 
         assert isinstance(result, DeviceCodeTokenPollResponse)
-        assert result.success is True
         assert result.data is None
         assert result.error == "authorization_pending"
 
@@ -268,13 +240,11 @@ class TestAuthApi:
     async def test_refresh_device_code_token_success(self, auth_api, mock_http_client):
         """Test successful device code token refresh."""
         mock_response = {
-            "success": True,
             "data": {
                 "accessToken": "new-access-token",
                 "refreshToken": "new-refresh-token",
                 "expiresIn": 3600,
             },
-            "timestamp": "2024-01-01T00:00:00Z",
         }
         mock_http_client.post.return_value = mock_response
 
@@ -288,16 +258,13 @@ class TestAuthApi:
     async def test_get_roles_with_token(self, auth_api, mock_http_client):
         """Test get roles with token."""
         mock_response = {
-            "success": True,
             "data": {"roles": ["admin", "user"]},
-            "timestamp": "2024-01-01T00:00:00Z",
         }
         mock_http_client.authenticated_request.return_value = mock_response
 
         result = await auth_api.get_roles("test-token", "dev", "app1")
 
         assert isinstance(result, GetRolesResponse)
-        assert result.success is True
         assert result.data.roles == ["admin", "user"]
         mock_http_client.authenticated_request.assert_called_once()
         call_args = mock_http_client.authenticated_request.call_args
@@ -307,64 +274,52 @@ class TestAuthApi:
     async def test_get_roles_without_token(self, auth_api, mock_http_client):
         """Test get roles without token."""
         mock_response = {
-            "success": True,
             "data": {"roles": ["admin", "user"]},
-            "timestamp": "2024-01-01T00:00:00Z",
         }
         mock_http_client.get.return_value = mock_response
 
         result = await auth_api.get_roles()
 
         assert isinstance(result, GetRolesResponse)
-        assert result.success is True
         mock_http_client.get.assert_called_once_with(auth_api.ROLES_ENDPOINT, params={})
 
     @pytest.mark.asyncio
     async def test_refresh_roles_with_token(self, auth_api, mock_http_client):
         """Test refresh roles with token."""
         mock_response = {
-            "success": True,
             "data": {"roles": ["admin", "user"]},
-            "timestamp": "2024-01-01T00:00:00Z",
         }
         mock_http_client.authenticated_request.return_value = mock_response
 
         result = await auth_api.refresh_roles("test-token")
 
         assert isinstance(result, RefreshRolesResponse)
-        assert result.success is True
         mock_http_client.authenticated_request.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_get_permissions_with_token(self, auth_api, mock_http_client):
         """Test get permissions with token."""
         mock_response = {
-            "success": True,
             "data": {"permissions": ["read", "write"]},
-            "timestamp": "2024-01-01T00:00:00Z",
         }
         mock_http_client.authenticated_request.return_value = mock_response
 
         result = await auth_api.get_permissions("test-token", "dev", "app1")
 
         assert isinstance(result, GetPermissionsResponse)
-        assert result.success is True
         assert result.data.permissions == ["read", "write"]
 
     @pytest.mark.asyncio
     async def test_refresh_permissions_with_token(self, auth_api, mock_http_client):
         """Test refresh permissions with token."""
         mock_response = {
-            "success": True,
             "data": {"permissions": ["read", "write"]},
-            "timestamp": "2024-01-01T00:00:00Z",
         }
         mock_http_client.authenticated_request.return_value = mock_response
 
         result = await auth_api.refresh_permissions("test-token")
 
         assert isinstance(result, RefreshPermissionsResponse)
-        assert result.success is True
         assert result.data.permissions == ["read", "write"]
 
     @pytest.mark.asyncio

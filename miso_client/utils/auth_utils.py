@@ -37,15 +37,13 @@ async def validate_token_request(
     if api_client:
         # Use ApiClient for typed API calls
         response = await api_client.auth.validate_token(token, auth_strategy=auth_strategy)
-        # Extract data from typed response
+        # Extract data from typed response (matches OpenAPI spec format)
         return {
-            "success": response.success,
             "data": {
                 "authenticated": response.data.authenticated,
                 "user": response.data.user.model_dump() if response.data.user else None,
                 "expiresAt": response.data.expiresAt,
             },
-            "timestamp": response.timestamp,
         }
     else:
         # Fallback to HttpClient for backward compatibility

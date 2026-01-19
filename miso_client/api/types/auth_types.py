@@ -2,6 +2,7 @@
 Auth API request and response types.
 
 All types follow OpenAPI specification with camelCase field names.
+The controller returns responses in format: {"data": {...}} without success/timestamp.
 """
 
 from typing import List, Optional
@@ -14,9 +15,7 @@ from ...models.config import UserInfo
 class LoginResponse(BaseModel):
     """Login response with login URL."""
 
-    success: bool = Field(..., description="Whether request was successful")
     data: "LoginResponseData" = Field(..., description="Login data")
-    timestamp: str = Field(..., description="Response timestamp (ISO 8601)")
 
 
 class LoginResponseData(BaseModel):
@@ -34,11 +33,9 @@ class ValidateTokenRequest(BaseModel):
 
 
 class ValidateTokenResponse(BaseModel):
-    """Token validation response."""
+    """Token validation response - matches OpenAPI spec."""
 
-    success: bool = Field(..., description="Whether request was successful")
     data: "ValidateTokenResponseData" = Field(..., description="Validation data")
-    timestamp: str = Field(..., description="Response timestamp (ISO 8601)")
 
 
 class ValidateTokenResponseData(BaseModel):
@@ -47,29 +44,35 @@ class ValidateTokenResponseData(BaseModel):
     authenticated: bool = Field(..., description="Whether token is authenticated")
     user: Optional[UserInfo] = Field(default=None, description="User information if authenticated")
     expiresAt: Optional[str] = Field(default=None, description="Token expiration timestamp")
+    environment: Optional[str] = Field(default=None, description="Environment key")
+    application: Optional[str] = Field(default=None, description="Application key")
 
 
 class GetUserResponse(BaseModel):
-    """Get user response."""
+    """Get user response - matches OpenAPI spec."""
 
-    success: bool = Field(..., description="Whether request was successful")
     data: "GetUserResponseData" = Field(..., description="User data")
-    timestamp: str = Field(..., description="Response timestamp (ISO 8601)")
 
 
 class GetUserResponseData(BaseModel):
     """Get user response data."""
 
-    user: UserInfo = Field(..., description="User information")
+    user: Optional[UserInfo] = Field(default=None, description="User information")
     authenticated: bool = Field(..., description="Whether user is authenticated")
 
 
 class LogoutResponse(BaseModel):
-    """Logout response."""
+    """Logout response - matches OpenAPI spec."""
 
-    success: bool = Field(..., description="Whether request was successful")
-    message: str = Field(..., description="Logout message")
-    timestamp: str = Field(..., description="Response timestamp (ISO 8601)")
+    data: Optional["LogoutResponseData"] = Field(
+        default=None, description="Logout data (always null per OpenAPI spec)"
+    )
+
+
+class LogoutResponseData(BaseModel):
+    """Logout response data (typically null)."""
+
+    message: str = Field(default="Logged out successfully", description="Logout message")
 
 
 class RefreshTokenRequest(BaseModel):
@@ -87,12 +90,9 @@ class DeviceCodeTokenResponse(BaseModel):
 
 
 class RefreshTokenResponse(BaseModel):
-    """Refresh token response."""
+    """Refresh token response - matches OpenAPI spec."""
 
-    success: bool = Field(..., description="Whether request was successful")
     data: DeviceCodeTokenResponse = Field(..., description="Token data")
-    message: Optional[str] = Field(default=None, description="Optional message")
-    timestamp: str = Field(..., description="Response timestamp (ISO 8601)")
 
 
 class DeviceCodeRequest(BaseModel):
@@ -116,11 +116,9 @@ class DeviceCodeResponse(BaseModel):
 
 
 class DeviceCodeResponseWrapper(BaseModel):
-    """Device code response wrapper."""
+    """Device code response wrapper - matches OpenAPI spec."""
 
-    success: bool = Field(..., description="Whether request was successful")
     data: DeviceCodeResponse = Field(..., description="Device code data")
-    timestamp: str = Field(..., description="Response timestamp (ISO 8601)")
 
 
 class DeviceCodeTokenPollRequest(BaseModel):
@@ -130,54 +128,44 @@ class DeviceCodeTokenPollRequest(BaseModel):
 
 
 class DeviceCodeTokenPollResponse(BaseModel):
-    """Device code token poll response."""
+    """Device code token poll response - matches OpenAPI spec."""
 
-    success: bool = Field(..., description="Whether request was successful")
     data: Optional[DeviceCodeTokenResponse] = Field(default=None, description="Token data if ready")
     error: Optional[str] = Field(default=None, description="Error code if pending")
     errorDescription: Optional[str] = Field(default=None, description="Error description")
-    timestamp: str = Field(..., description="Response timestamp (ISO 8601)")
 
 
 class GetRolesResponse(BaseModel):
-    """Get roles response."""
+    """Get roles response - matches OpenAPI spec."""
 
-    success: bool = Field(..., description="Whether request was successful")
     data: "GetRolesResponseData" = Field(..., description="Roles data")
-    timestamp: str = Field(..., description="Response timestamp (ISO 8601)")
 
 
 class GetRolesResponseData(BaseModel):
     """Get roles response data."""
 
-    roles: List[str] = Field(..., description="List of user roles")
+    roles: List[str] = Field(default_factory=list, description="List of user roles")
 
 
 class RefreshRolesResponse(BaseModel):
-    """Refresh roles response."""
+    """Refresh roles response - matches OpenAPI spec."""
 
-    success: bool = Field(..., description="Whether request was successful")
     data: GetRolesResponseData = Field(..., description="Roles data")
-    timestamp: str = Field(..., description="Response timestamp (ISO 8601)")
 
 
 class GetPermissionsResponse(BaseModel):
-    """Get permissions response."""
+    """Get permissions response - matches OpenAPI spec."""
 
-    success: bool = Field(..., description="Whether request was successful")
     data: "GetPermissionsResponseData" = Field(..., description="Permissions data")
-    timestamp: str = Field(..., description="Response timestamp (ISO 8601)")
 
 
 class GetPermissionsResponseData(BaseModel):
     """Get permissions response data."""
 
-    permissions: List[str] = Field(..., description="List of user permissions")
+    permissions: List[str] = Field(default_factory=list, description="List of user permissions")
 
 
 class RefreshPermissionsResponse(BaseModel):
-    """Refresh permissions response."""
+    """Refresh permissions response - matches OpenAPI spec."""
 
-    success: bool = Field(..., description="Whether request was successful")
     data: GetPermissionsResponseData = Field(..., description="Permissions data")
-    timestamp: str = Field(..., description="Response timestamp (ISO 8601)")
