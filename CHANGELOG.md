@@ -5,6 +5,66 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.0] - 2026-01-20
+
+### Breaking Changes
+
+- **Encryption Service Rewrite**: Local Fernet encryption replaced with server-side encryption via miso-controller
+  - `encrypt()` now async: `await client.encryption.encrypt(plaintext, parameter_name)`
+  - `decrypt()` now async: `await client.encryption.decrypt(value, parameter_name)`
+  - `encrypt()` returns `EncryptResult` object (with `value` and `storage` fields) instead of string
+  - Both methods now require `parameter_name` argument (1-128 chars, alphanumeric with ._-)
+  - `ENCRYPTION_KEY` environment variable no longer used
+  - `cryptography` dependency no longer required for encryption (still used elsewhere in SDK)
+
+### Added
+
+- `EncryptionError` exception with error codes for better error handling:
+  - `INVALID_PARAMETER_NAME` - Parameter name doesn't match pattern
+  - `ENCRYPTION_FAILED` - Controller encryption failed
+  - `DECRYPTION_FAILED` - Controller decryption failed
+  - `ACCESS_DENIED` - App doesn't have access to parameter
+  - `PARAMETER_NOT_FOUND` - Parameter doesn't exist (Key Vault mode)
+- `EncryptResult` model with `value` and `storage` fields
+- `StorageType` type alias for storage backends (`"keyvault"` | `"local"`)
+- `docs/encryption.md` - Comprehensive encryption service documentation
+
+### Changed
+
+- `EncryptionService` now receives `HttpClient` as constructor argument (instead of optional `encryption_key`)
+- Encryption service is always available (no longer optional based on `ENCRYPTION_KEY`)
+
+### Removed
+
+- Local Fernet encryption implementation
+- `ENCRYPTION_KEY` environment variable support for encryption
+- Old `test_encryption.py` unit tests (replaced with `test_encryption_service.py`)
+
+### Migration Guide
+
+**Before (v3.x):**
+
+```python
+# Required ENCRYPTION_KEY environment variable
+client = MisoClient(config)
+encrypted = client.encrypt("secret")  # Sync, returns string
+decrypted = client.decrypt(encrypted)  # Sync
+```
+
+**After (v4.0.0):**
+
+```python
+# No ENCRYPTION_KEY needed - controller handles encryption
+client = MisoClient(config)
+await client.initialize()
+
+result = await client.encryption.encrypt("secret", "my-param")
+# result.value: "kv://my-param" or "enc://v1:..."
+# result.storage: "keyvault" or "local"
+
+decrypted = await client.encryption.decrypt(result.value, "my-param")
+```
+
 ## [3.9.4] - 2026-01-20
 
 ### Fixed

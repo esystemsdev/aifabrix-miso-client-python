@@ -1,94 +1,134 @@
 """
-Encryption service for sensitive data using Fernet symmetric encryption.
+Encryption service for security parameter management via miso-controller.
 
-This module provides encryption/decryption functionality that can be used anywhere
-in the application. It supports reading the encryption key from environment variables
-or accepting it as a constructor parameter.
+This service provides encryption and decryption functionality by calling
+miso-controller API endpoints. It supports Azure Key Vault and local
+storage modes, with the storage backend determined by server configuration.
 """
 
-import base64
-import os
-from typing import Optional
+import logging
+import re
+from typing import TYPE_CHECKING
 
-from cryptography.fernet import Fernet
+from ..errors import EncryptionError, MisoClientError
+from ..models.encryption import EncryptResult
 
-from ..errors import ConfigurationError
+if TYPE_CHECKING:
+    from ..utils.http_client import HttpClient
+
+logger = logging.getLogger(__name__)
+
+# Centralize endpoint URLs as constants (aligned with TypeScript SDK)
+ENCRYPT_ENDPOINT = "/api/security/parameters/encrypt"
+DECRYPT_ENDPOINT = "/api/security/parameters/decrypt"
+
+# Parameter name validation regex (matches controller validation)
+PARAMETER_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9._-]{1,128}$")
 
 
 class EncryptionService:
-    """Service for encrypting/decrypting sensitive data using Fernet encryption."""
+    """
+    Encryption service calling miso-controller for server-side encryption.
 
-    def __init__(self, encryption_key: Optional[str] = None):
+    This service provides encrypt/decrypt methods with client-side parameter
+    validation before calling the controller API endpoints.
+    """
+
+    def __init__(self, http_client: "HttpClient"):
         """
-        Initialize encryption service with key from environment or parameter.
+        Initialize encryption service with HTTP client.
 
         Args:
-            encryption_key: Optional encryption key. If not provided, reads from EXTENSION_KEY env var.
-                           If provided, overrides environment variable.
+            http_client: HTTP client instance for controller API calls
+        """
+        self.http_client = http_client
+
+    def _validate_parameter_name(self, parameter_name: str) -> None:
+        """
+        Validate parameter name against allowed pattern.
+
+        Args:
+            parameter_name: Name to validate
 
         Raises:
-            ConfigurationError: If encryption key is not found or invalid
+            EncryptionError: If name doesn't match pattern
         """
-        # Use provided key, or fall back to environment variable
-        key = encryption_key or os.environ.get("ENCRYPTION_KEY")
-
-        if not key:
-            raise ConfigurationError(
-                "ENCRYPTION_KEY not found. Either set ENCRYPTION_KEY environment variable "
-                "or pass encryption_key parameter to EncryptionService constructor."
+        if not parameter_name or not PARAMETER_NAME_PATTERN.match(parameter_name):
+            raise EncryptionError(
+                f"Invalid parameter name: '{parameter_name}'. "
+                "Must be 1-128 chars, alphanumeric with ._-",
+                code="INVALID_PARAMETER_NAME",
+                parameter_name=parameter_name,
             )
 
+    async def encrypt(self, plaintext: str, parameter_name: str) -> EncryptResult:
+        """
+        Encrypt a plaintext value via miso-controller.
+
+        The storage backend (Key Vault or local encryption) is determined
+        by the controller's configuration.
+
+        Args:
+            plaintext: Value to encrypt (max 32KB)
+            parameter_name: Name identifier (1-128 chars, alphanumeric with ._-)
+
+        Returns:
+            EncryptResult with value reference (kv:// or enc://v1:) and storage type
+
+        Raises:
+            EncryptionError: If validation fails or encryption fails
+        """
+        self._validate_parameter_name(parameter_name)
         try:
-            # Fernet.generate_key() returns bytes, but env vars are strings
-            # Convert string to bytes if needed
-            key_bytes = key.encode() if isinstance(key, str) else key
-            self.fernet = Fernet(key_bytes)
-        except Exception as e:
-            raise ConfigurationError(
-                f"Failed to initialize encryption service with provided key: {str(e)}"
+            response = await self.http_client.post(
+                ENCRYPT_ENDPOINT,
+                data={"plaintext": plaintext, "parameterName": parameter_name},
+            )
+            return EncryptResult(value=response["value"], storage=response["storage"])
+        except MisoClientError as e:
+            logger.error(f"Encryption failed for parameter '{parameter_name}'")
+            raise EncryptionError(
+                str(e),
+                code="ENCRYPTION_FAILED",
+                parameter_name=parameter_name,
+                status_code=e.status_code,
             ) from e
 
-    def encrypt(self, plaintext: str) -> str:
+    async def decrypt(self, value: str, parameter_name: str) -> str:
         """
-        Encrypt sensitive data.
+        Decrypt an encrypted reference via miso-controller.
+
+        The storage provider is auto-detected from the value prefix
+        (kv:// for Key Vault, enc://v1: for local).
 
         Args:
-            plaintext: Plain text string to encrypt
+            value: Encrypted reference (kv:// or enc://v1:)
+            parameter_name: Name identifier (must match encryption)
 
         Returns:
-            Base64-encoded encrypted string
+            Decrypted plaintext string
 
         Raises:
-            ValueError: If encryption fails
+            EncryptionError: If validation fails or decryption fails
         """
-        if not plaintext:
-            return ""
-
+        self._validate_parameter_name(parameter_name)
         try:
-            encrypted = self.fernet.encrypt(plaintext.encode())
-            return base64.b64encode(encrypted).decode()
-        except Exception as e:
-            raise ValueError(f"Failed to encrypt data: {str(e)}") from e
-
-    def decrypt(self, encrypted_text: str) -> str:
-        """
-        Decrypt sensitive data.
-
-        Args:
-            encrypted_text: Base64-encoded encrypted string
-
-        Returns:
-            Decrypted plain text string
-
-        Raises:
-            ValueError: If decryption fails or data is invalid
-        """
-        if not encrypted_text:
-            return ""
-
-        try:
-            decoded = base64.b64decode(encrypted_text.encode())
-            decrypted = self.fernet.decrypt(decoded)
-            return decrypted.decode()
-        except Exception as e:
-            raise ValueError(f"Failed to decrypt data: {str(e)}") from e
+            response = await self.http_client.post(
+                DECRYPT_ENDPOINT,
+                data={"value": value, "parameterName": parameter_name},
+            )
+            return response["plaintext"]
+        except MisoClientError as e:
+            # Map specific error codes from controller response
+            code = "DECRYPTION_FAILED"
+            if e.status_code == 404:
+                code = "PARAMETER_NOT_FOUND"
+            elif e.status_code == 403:
+                code = "ACCESS_DENIED"
+            logger.error(f"Decryption failed for parameter '{parameter_name}'")
+            raise EncryptionError(
+                str(e),
+                code=code,
+                parameter_name=parameter_name,
+                status_code=e.status_code,
+            ) from e
