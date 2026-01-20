@@ -11,6 +11,7 @@ import time
 from typing import TYPE_CHECKING, List, Optional, cast
 
 from ..models.config import AuthStrategy, RoleResult
+from ..services.application_context import ApplicationContextService
 from ..services.cache import CacheService
 from ..utils.auth_utils import validate_token_request
 from ..utils.error_utils import extract_correlation_id_from_error
@@ -42,9 +43,39 @@ class RoleService:
         self.cache = cache
         self.api_client = api_client
         self.role_ttl = self.config.role_ttl
+        # Initialize application context service for automatic environment detection
+        self._app_context_service: Optional[ApplicationContextService] = None
+
+    def _get_app_context_service(self) -> ApplicationContextService:
+        """Get or create application context service."""
+        if self._app_context_service is None:
+            # Access internal HTTP client from http_client
+            internal_client = self.http_client._internal_client
+            self._app_context_service = ApplicationContextService(internal_client)
+        return self._app_context_service
+
+    def _get_environment_from_context(self) -> Optional[str]:
+        """
+        Get environment from application context (synchronous, uses cached value).
+
+        Returns:
+            Environment string if found, None otherwise
+        """
+        try:
+            app_context_service = self._get_app_context_service()
+            # If context is cached, use it synchronously (matching TypeScript behavior)
+            if app_context_service._cached_context is not None:
+                env = app_context_service._cached_context.environment
+                return env if env and env != "unknown" else None
+            # If not cached, return None (will be fetched async on first use)
+            return None
+        except Exception:
+            return None
 
     async def get_roles(
-        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+        self,
+        token: str,
+        auth_strategy: Optional[AuthStrategy] = None,
     ) -> List[str]:
         """
         Get user roles with Redis caching.
@@ -61,6 +92,7 @@ class RoleService:
         try:
             # Extract userId from token to check cache first (avoids API call on cache hit)
             user_id = extract_user_id(token)
+            # Cache key does NOT include environment (matching TypeScript)
             cache_key = f"roles:{user_id}" if user_id else None
 
             # Check cache first if we have userId
@@ -75,31 +107,60 @@ class RoleService:
                 user_info = await validate_token_request(
                     token, self.http_client, self.api_client, auth_strategy
                 )
-                user_id = user_info.get("user", {}).get("id") if user_info else None
+                # validate_token_request returns {"data": {"user": {...}}} format
+                user_id = user_info.get("data", {}).get("user", {}).get("id") if user_info else None
                 if not user_id:
                     return []
                 cache_key = f"roles:{user_id}"
 
+            # Extract environment and application from application context service (matching TypeScript)
+            context = await self._get_app_context_service().get_application_context()
+            environment = (
+                context.environment
+                if context.environment and context.environment != "unknown"
+                else None
+            )
+            application = (
+                context.application
+                if context.application and context.application != "unknown"
+                else None
+            )
+
             # Cache miss - fetch from controller
             if self.api_client:
                 # Use ApiClient for typed API calls
-                response = await self.api_client.roles.get_roles(token, auth_strategy=auth_strategy)
+                response = await self.api_client.roles.get_roles(
+                    token,
+                    environment=environment,
+                    application=application,
+                    auth_strategy=auth_strategy,
+                )
                 roles = response.data.roles or []
             else:
                 # Fallback to HttpClient for backward compatibility
+                params = {}
+                if environment:
+                    params["environment"] = environment
+                if application:
+                    params["application"] = application
                 if auth_strategy is not None:
                     role_result = await self.http_client.authenticated_request(
-                        "GET", "/api/v1/auth/roles", token, auth_strategy=auth_strategy
+                        "GET",
+                        "/api/v1/auth/roles",
+                        token,
+                        params=params,
+                        auth_strategy=auth_strategy,
                     )
                 else:
                     role_result = await self.http_client.authenticated_request(
-                        "GET", "/api/v1/auth/roles", token
+                        "GET", "/api/v1/auth/roles", token, params=params
                     )
 
                 role_data = RoleResult(**role_result)
                 roles = role_data.roles or []
 
             # Cache the result (CacheService handles Redis + in-memory automatically)
+            # Cache key does NOT include environment (matching TypeScript)
             assert cache_key is not None
             await self.cache.set(
                 cache_key, {"roles": roles, "timestamp": int(time.time() * 1000)}, self.role_ttl
@@ -117,7 +178,10 @@ class RoleService:
             return []
 
     async def has_role(
-        self, token: str, role: str, auth_strategy: Optional[AuthStrategy] = None
+        self,
+        token: str,
+        role: str,
+        auth_strategy: Optional[AuthStrategy] = None,
     ) -> bool:
         """
         Check if user has specific role.
@@ -134,7 +198,10 @@ class RoleService:
         return role in roles
 
     async def has_any_role(
-        self, token: str, roles: List[str], auth_strategy: Optional[AuthStrategy] = None
+        self,
+        token: str,
+        roles: List[str],
+        auth_strategy: Optional[AuthStrategy] = None,
     ) -> bool:
         """
         Check if user has any of the specified roles.
@@ -151,7 +218,10 @@ class RoleService:
         return any(role in user_roles for role in roles)
 
     async def has_all_roles(
-        self, token: str, roles: List[str], auth_strategy: Optional[AuthStrategy] = None
+        self,
+        token: str,
+        roles: List[str],
+        auth_strategy: Optional[AuthStrategy] = None,
     ) -> bool:
         """
         Check if user has all of the specified roles.
@@ -168,7 +238,9 @@ class RoleService:
         return all(role in user_roles for role in roles)
 
     async def refresh_roles(
-        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+        self,
+        token: str,
+        auth_strategy: Optional[AuthStrategy] = None,
     ) -> List[str]:
         """
         Force refresh roles from controller (bypass cache).
@@ -185,34 +257,62 @@ class RoleService:
             user_info = await validate_token_request(
                 token, self.http_client, self.api_client, auth_strategy
             )
-            user_id = user_info.get("user", {}).get("id") if user_info else None
+            # validate_token_request returns {"data": {"user": {...}}} format
+            user_id = user_info.get("data", {}).get("user", {}).get("id") if user_info else None
             if not user_id:
                 return []
 
+            # Cache key does NOT include environment (matching TypeScript)
             cache_key = f"roles:{user_id}"
+
+            # Extract environment and application from application context service (matching TypeScript)
+            context = await self._get_app_context_service().get_application_context()
+            environment = (
+                context.environment
+                if context.environment and context.environment != "unknown"
+                else None
+            )
+            application = (
+                context.application
+                if context.application and context.application != "unknown"
+                else None
+            )
 
             # Fetch fresh roles from controller using refresh endpoint
             if self.api_client:
                 # Use ApiClient for typed API calls
                 response = await self.api_client.roles.refresh_roles(
-                    token, auth_strategy=auth_strategy
+                    token,
+                    environment=environment,
+                    application=application,
+                    auth_strategy=auth_strategy,
                 )
                 roles = response.data.roles or []
             else:
                 # Fallback to HttpClient for backward compatibility
+                params = {}
+                if environment:
+                    params["environment"] = environment
+                if application:
+                    params["application"] = application
                 if auth_strategy is not None:
                     role_result = await self.http_client.authenticated_request(
-                        "GET", "/api/v1/auth/roles/refresh", token, auth_strategy=auth_strategy
+                        "GET",
+                        "/api/v1/auth/roles/refresh",
+                        token,
+                        params=params,
+                        auth_strategy=auth_strategy,
                     )
                 else:
                     role_result = await self.http_client.authenticated_request(
-                        "GET", "/api/v1/auth/roles/refresh", token
+                        "GET", "/api/v1/auth/roles/refresh", token, params=params
                     )
 
                 role_data = RoleResult(**role_result)
                 roles = role_data.roles or []
 
             # Update cache with fresh data (CacheService handles Redis + in-memory automatically)
+            # Cache key does NOT include environment (matching TypeScript)
             await self.cache.set(
                 cache_key, {"roles": roles, "timestamp": int(time.time() * 1000)}, self.role_ttl
             )
@@ -246,7 +346,8 @@ class RoleService:
                 user_info = await validate_token_request(
                     token, self.http_client, self.api_client, auth_strategy
                 )
-                user_id = user_info.get("user", {}).get("id") if user_info else None
+                # validate_token_request returns {"data": {"user": {...}}} format
+                user_id = user_info.get("data", {}).get("user", {}).get("id") if user_info else None
                 if not user_id:
                     return  # Cannot clear cache without userId
 

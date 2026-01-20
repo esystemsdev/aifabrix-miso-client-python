@@ -117,7 +117,11 @@ class TestPermissionsApi:
         assert result.success is True
         assert result.data.permissions == ["read", "write", "delete"]
         mock_http_client.authenticated_request.assert_called_once_with(
-            "GET", permissions_api.PERMISSIONS_REFRESH_ENDPOINT, "test-token", auth_strategy=None
+            "GET",
+            permissions_api.PERMISSIONS_REFRESH_ENDPOINT,
+            "test-token",
+            params={},
+            auth_strategy=None,
         )
 
     @pytest.mark.asyncio
@@ -134,7 +138,9 @@ class TestPermissionsApi:
 
         assert isinstance(result, RefreshPermissionsResponse)
         assert result.success is True
-        mock_http_client.get.assert_called_once_with(permissions_api.PERMISSIONS_REFRESH_ENDPOINT)
+        mock_http_client.get.assert_called_once_with(
+            permissions_api.PERMISSIONS_REFRESH_ENDPOINT, params={}
+        )
 
     @pytest.mark.asyncio
     async def test_get_permissions_error(self, permissions_api, mock_http_client):

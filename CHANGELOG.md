@@ -5,6 +5,18 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.10.0] - 2026-01-20
+
+### Fixed
+
+- **Roles and Permissions API Context Parameters**: Updated RoleService and PermissionService to extract and pass both `environment` and `application` parameters from ApplicationContextService to API calls
+  - `RoleService.get_roles()`: Now extracts and passes both `environment` and `application` to `RolesApi.get_roles()`
+  - `RoleService.refresh_roles()`: Now extracts and passes both `environment` and `application` to `RolesApi.refresh_roles()`
+  - `PermissionService.get_permissions()`: Now extracts and passes both `environment` and `application` to `PermissionsApi.get_permissions()`
+  - `PermissionService.refresh_permissions()`: Now extracts and passes both `environment` and `application` to `PermissionsApi.refresh_permissions()`
+  - Both services now properly extract `application` from `ApplicationContext` (previously only extracted `environment`)
+  - HttpClient fallback methods now build params dictionary with both `environment` and `application` when available
+
 ## [3.9.4] - 2026-01-20
 
 ### Fixed
@@ -721,7 +733,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **API Validation Tool**: Added `validate_api_calls.py` script and `VALIDATION_REPORT.md`
+- **API Validation Tool**: Added `tests/integration/validate_api_calls.py` script and `VALIDATION_REPORT.md`
   - Validates all API calls in the codebase against OpenAPI specification
   - Reports any endpoints used in code but not found in the OpenAPI spec
   - Helps ensure API compatibility before releases

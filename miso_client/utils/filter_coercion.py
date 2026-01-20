@@ -58,7 +58,7 @@ def coerce_single_value(
     )
 
 
-def coerce_number(value: Any) -> Tuple[Union[int, float], Optional[FilterError]]:
+def coerce_number(value: Any) -> Tuple[Optional[Union[int, float]], Optional[FilterError]]:
     """Coerce value to number (int or float)."""
     if isinstance(value, (int, float)):
         return value, None
@@ -84,7 +84,7 @@ def coerce_number(value: Any) -> Tuple[Union[int, float], Optional[FilterError]]
     )
 
 
-def coerce_boolean(value: Any) -> Tuple[bool, Optional[FilterError]]:
+def coerce_boolean(value: Any) -> Tuple[Optional[bool], Optional[FilterError]]:
     """Coerce value to boolean."""
     if isinstance(value, bool):
         return value, None
@@ -104,7 +104,7 @@ def coerce_boolean(value: Any) -> Tuple[bool, Optional[FilterError]]:
     )
 
 
-def coerce_uuid(value: Any) -> Tuple[str, Optional[FilterError]]:
+def coerce_uuid(value: Any) -> Tuple[Optional[str], Optional[FilterError]]:
     """Coerce value to UUID string."""
     if isinstance(value, str):
         try:
@@ -127,7 +127,7 @@ def coerce_uuid(value: Any) -> Tuple[str, Optional[FilterError]]:
     )
 
 
-def coerce_timestamp(value: Any) -> Tuple[str, Optional[FilterError]]:
+def coerce_timestamp(value: Any) -> Tuple[Optional[str], Optional[FilterError]]:
     """Coerce value to ISO 8601 timestamp string."""
     if isinstance(value, str):
         try:
@@ -153,7 +153,9 @@ def coerce_timestamp(value: Any) -> Tuple[str, Optional[FilterError]]:
     )
 
 
-def coerce_enum(value: Any, enum_values: Optional[List[str]]) -> Tuple[str, Optional[FilterError]]:
+def coerce_enum(
+    value: Any, enum_values: Optional[List[str]]
+) -> Tuple[Optional[str], Optional[FilterError]]:
     """Coerce value to enum (validate against allowed values)."""
     if enum_values is None:
         return None, FilterError(

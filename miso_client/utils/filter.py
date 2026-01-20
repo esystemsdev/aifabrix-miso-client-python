@@ -416,10 +416,15 @@ def coerce_filter_value(
         >>> coerced, error = coerce_filter_value("25", "number")
         >>> print(coerced)  # 25 (int)
     """
+    from typing import Literal, cast
+
     from ..models.filter_schema import FilterFieldDefinition
     from .filter_schema import coerce_value
 
     field_def = FilterFieldDefinition(
-        column="temp", type=field_type, operators=["eq"], enum=enum_values
+        column="temp",
+        type=cast(Literal["string", "number", "boolean", "uuid", "timestamp", "enum"], field_type),
+        operators=["eq"],
+        enum=enum_values,
     )
     return coerce_value(value, field_def)

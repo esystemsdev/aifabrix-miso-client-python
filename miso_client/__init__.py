@@ -122,7 +122,7 @@ from .utils.unified_logger_factory import (
 )
 from .utils.url_validator import validate_url
 
-__version__ = "3.9.4"
+__version__ = "3.10.0"
 __author__ = "AI Fabrix Team"
 __license__ = "MIT"
 
@@ -454,7 +454,9 @@ class MisoClient:
     # ==================== AUTHORIZATION METHODS ====================
 
     async def get_roles(
-        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+        self,
+        token: str,
+        auth_strategy: Optional[AuthStrategy] = None,
     ) -> list[str]:
         """
         Get user roles (cached in Redis if available).
@@ -469,7 +471,10 @@ class MisoClient:
         return await self.roles.get_roles(token, auth_strategy=auth_strategy)
 
     async def has_role(
-        self, token: str, role: str, auth_strategy: Optional[AuthStrategy] = None
+        self,
+        token: str,
+        role: str,
+        auth_strategy: Optional[AuthStrategy] = None,
     ) -> bool:
         """
         Check if user has specific role.
@@ -485,7 +490,10 @@ class MisoClient:
         return await self.roles.has_role(token, role, auth_strategy=auth_strategy)
 
     async def has_any_role(
-        self, token: str, roles: list[str], auth_strategy: Optional[AuthStrategy] = None
+        self,
+        token: str,
+        roles: list[str],
+        auth_strategy: Optional[AuthStrategy] = None,
     ) -> bool:
         """
         Check if user has any of the specified roles.
@@ -501,7 +509,10 @@ class MisoClient:
         return await self.roles.has_any_role(token, roles, auth_strategy=auth_strategy)
 
     async def has_all_roles(
-        self, token: str, roles: list[str], auth_strategy: Optional[AuthStrategy] = None
+        self,
+        token: str,
+        roles: list[str],
+        auth_strategy: Optional[AuthStrategy] = None,
     ) -> bool:
         """
         Check if user has all of the specified roles.
@@ -517,7 +528,9 @@ class MisoClient:
         return await self.roles.has_all_roles(token, roles, auth_strategy=auth_strategy)
 
     async def refresh_roles(
-        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+        self,
+        token: str,
+        auth_strategy: Optional[AuthStrategy] = None,
     ) -> list[str]:
         """
         Force refresh roles from controller (bypass cache).
@@ -532,7 +545,9 @@ class MisoClient:
         return await self.roles.refresh_roles(token, auth_strategy=auth_strategy)
 
     async def get_permissions(
-        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+        self,
+        token: str,
+        auth_strategy: Optional[AuthStrategy] = None,
     ) -> list[str]:
         """
         Get user permissions (cached in Redis if available).
@@ -547,7 +562,10 @@ class MisoClient:
         return await self.permissions.get_permissions(token, auth_strategy=auth_strategy)
 
     async def has_permission(
-        self, token: str, permission: str, auth_strategy: Optional[AuthStrategy] = None
+        self,
+        token: str,
+        permission: str,
+        auth_strategy: Optional[AuthStrategy] = None,
     ) -> bool:
         """
         Check if user has specific permission.
@@ -563,7 +581,10 @@ class MisoClient:
         return await self.permissions.has_permission(token, permission, auth_strategy=auth_strategy)
 
     async def has_any_permission(
-        self, token: str, permissions: list[str], auth_strategy: Optional[AuthStrategy] = None
+        self,
+        token: str,
+        permissions: list[str],
+        auth_strategy: Optional[AuthStrategy] = None,
     ) -> bool:
         """
         Check if user has any of the specified permissions.
@@ -581,7 +602,10 @@ class MisoClient:
         )
 
     async def has_all_permissions(
-        self, token: str, permissions: list[str], auth_strategy: Optional[AuthStrategy] = None
+        self,
+        token: str,
+        permissions: list[str],
+        auth_strategy: Optional[AuthStrategy] = None,
     ) -> bool:
         """
         Check if user has all of the specified permissions.
@@ -599,7 +623,9 @@ class MisoClient:
         )
 
     async def refresh_permissions(
-        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+        self,
+        token: str,
+        auth_strategy: Optional[AuthStrategy] = None,
     ) -> list[str]:
         """
         Force refresh permissions from controller (bypass cache).

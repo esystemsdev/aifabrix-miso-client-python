@@ -11,6 +11,7 @@ import time
 from typing import TYPE_CHECKING, List, Optional, cast
 
 from ..models.config import AuthStrategy, PermissionResult
+from ..services.application_context import ApplicationContextService
 from ..services.cache import CacheService
 from ..utils.auth_utils import validate_token_request
 from ..utils.error_utils import extract_correlation_id_from_error
@@ -42,9 +43,39 @@ class PermissionService:
         self.cache = cache
         self.api_client = api_client
         self.permission_ttl = self.config.permission_ttl
+        # Initialize application context service for automatic environment detection
+        self._app_context_service: Optional[ApplicationContextService] = None
+
+    def _get_app_context_service(self) -> ApplicationContextService:
+        """Get or create application context service."""
+        if self._app_context_service is None:
+            # Access internal HTTP client from http_client
+            internal_client = self.http_client._internal_client
+            self._app_context_service = ApplicationContextService(internal_client)
+        return self._app_context_service
+
+    def _get_environment_from_context(self) -> Optional[str]:
+        """
+        Get environment from application context (synchronous, uses cached value).
+
+        Returns:
+            Environment string if found, None otherwise
+        """
+        try:
+            app_context_service = self._get_app_context_service()
+            # If context is cached, use it synchronously (matching TypeScript behavior)
+            if app_context_service._cached_context is not None:
+                env = app_context_service._cached_context.environment
+                return env if env and env != "unknown" else None
+            # If not cached, return None (will be fetched async on first use)
+            return None
+        except Exception:
+            return None
 
     async def get_permissions(
-        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+        self,
+        token: str,
+        auth_strategy: Optional[AuthStrategy] = None,
     ) -> List[str]:
         """
         Get user permissions with Redis caching.
@@ -61,6 +92,7 @@ class PermissionService:
         try:
             # Extract userId from token to check cache first (avoids API call on cache hit)
             user_id = extract_user_id(token)
+            # Cache key does NOT include environment (matching TypeScript)
             cache_key = f"permissions:{user_id}" if user_id else None
 
             # Check cache first if we have userId
@@ -75,33 +107,60 @@ class PermissionService:
                 user_info = await validate_token_request(
                     token, self.http_client, self.api_client, auth_strategy
                 )
-                user_id = user_info.get("user", {}).get("id") if user_info else None
+                # validate_token_request returns {"data": {"user": {...}}} format
+                user_id = user_info.get("data", {}).get("user", {}).get("id") if user_info else None
                 if not user_id:
                     return []
                 cache_key = f"permissions:{user_id}"
+
+            # Extract environment and application from application context service (matching TypeScript)
+            context = await self._get_app_context_service().get_application_context()
+            environment = (
+                context.environment
+                if context.environment and context.environment != "unknown"
+                else None
+            )
+            application = (
+                context.application
+                if context.application and context.application != "unknown"
+                else None
+            )
 
             # Cache miss - fetch from controller
             if self.api_client:
                 # Use ApiClient for typed API calls
                 response = await self.api_client.permissions.get_permissions(
-                    token, auth_strategy=auth_strategy
+                    token,
+                    environment=environment,
+                    application=application,
+                    auth_strategy=auth_strategy,
                 )
                 permissions = response.data.permissions or []
             else:
                 # Fallback to HttpClient for backward compatibility
+                params = {}
+                if environment:
+                    params["environment"] = environment
+                if application:
+                    params["application"] = application
                 if auth_strategy is not None:
                     permission_result = await self.http_client.authenticated_request(
-                        "GET", "/api/v1/auth/permissions", token, auth_strategy=auth_strategy
+                        "GET",
+                        "/api/v1/auth/permissions",
+                        token,
+                        params=params,
+                        auth_strategy=auth_strategy,
                     )
                 else:
                     permission_result = await self.http_client.authenticated_request(
-                        "GET", "/api/v1/auth/permissions", token
+                        "GET", "/api/v1/auth/permissions", token, params=params
                     )
 
                 permission_data = PermissionResult(**permission_result)
                 permissions = permission_data.permissions or []
 
             # Cache the result (CacheService handles Redis + in-memory automatically)
+            # Cache key does NOT include environment (matching TypeScript)
             assert cache_key is not None
             await self.cache.set(
                 cache_key,
@@ -121,7 +180,10 @@ class PermissionService:
             return []
 
     async def has_permission(
-        self, token: str, permission: str, auth_strategy: Optional[AuthStrategy] = None
+        self,
+        token: str,
+        permission: str,
+        auth_strategy: Optional[AuthStrategy] = None,
     ) -> bool:
         """
         Check if user has specific permission.
@@ -138,7 +200,10 @@ class PermissionService:
         return permission in permissions
 
     async def has_any_permission(
-        self, token: str, permissions: List[str], auth_strategy: Optional[AuthStrategy] = None
+        self,
+        token: str,
+        permissions: List[str],
+        auth_strategy: Optional[AuthStrategy] = None,
     ) -> bool:
         """
         Check if user has any of the specified permissions.
@@ -155,7 +220,10 @@ class PermissionService:
         return any(permission in user_permissions for permission in permissions)
 
     async def has_all_permissions(
-        self, token: str, permissions: List[str], auth_strategy: Optional[AuthStrategy] = None
+        self,
+        token: str,
+        permissions: List[str],
+        auth_strategy: Optional[AuthStrategy] = None,
     ) -> bool:
         """
         Check if user has all of the specified permissions.
@@ -172,7 +240,9 @@ class PermissionService:
         return all(permission in user_permissions for permission in permissions)
 
     async def refresh_permissions(
-        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+        self,
+        token: str,
+        auth_strategy: Optional[AuthStrategy] = None,
     ) -> List[str]:
         """
         Force refresh permissions from controller (bypass cache).
@@ -189,37 +259,62 @@ class PermissionService:
             user_info = await validate_token_request(
                 token, self.http_client, self.api_client, auth_strategy
             )
-            user_id = user_info.get("user", {}).get("id") if user_info else None
+            # validate_token_request returns {"data": {"user": {...}}} format
+            user_id = user_info.get("data", {}).get("user", {}).get("id") if user_info else None
             if not user_id:
                 return []
 
+            # Cache key does NOT include environment (matching TypeScript)
             cache_key = f"permissions:{user_id}"
+
+            # Extract environment and application from application context service (matching TypeScript)
+            context = await self._get_app_context_service().get_application_context()
+            environment = (
+                context.environment
+                if context.environment and context.environment != "unknown"
+                else None
+            )
+            application = (
+                context.application
+                if context.application and context.application != "unknown"
+                else None
+            )
 
             # Fetch fresh permissions from controller using refresh endpoint
             if self.api_client:
                 # Use ApiClient for typed API calls
                 response = await self.api_client.permissions.refresh_permissions(
-                    token, auth_strategy=auth_strategy
+                    token,
+                    environment=environment,
+                    application=application,
+                    auth_strategy=auth_strategy,
                 )
                 permissions = response.data.permissions or []
             else:
                 # Fallback to HttpClient for backward compatibility
+                params = {}
+                if environment:
+                    params["environment"] = environment
+                if application:
+                    params["application"] = application
                 if auth_strategy is not None:
                     permission_result = await self.http_client.authenticated_request(
                         "GET",
                         "/api/v1/auth/permissions/refresh",
                         token,
+                        params=params,
                         auth_strategy=auth_strategy,
                     )
                 else:
                     permission_result = await self.http_client.authenticated_request(
-                        "GET", "/api/v1/auth/permissions/refresh", token
+                        "GET", "/api/v1/auth/permissions/refresh", token, params=params
                     )
 
                 permission_data = PermissionResult(**permission_result)
                 permissions = permission_data.permissions or []
 
             # Update cache with fresh data (CacheService handles Redis + in-memory automatically)
+            # Cache key does NOT include environment (matching TypeScript)
             await self.cache.set(
                 cache_key,
                 {"permissions": permissions, "timestamp": int(time.time() * 1000)},
@@ -252,7 +347,8 @@ class PermissionService:
             user_info = await validate_token_request(
                 token, self.http_client, self.api_client, auth_strategy
             )
-            user_id = user_info.get("user", {}).get("id") if user_info else None
+            # validate_token_request returns {"data": {"user": {...}}} format
+            user_id = user_info.get("data", {}).get("user", {}).get("id") if user_info else None
             if not user_id:
                 return
 
