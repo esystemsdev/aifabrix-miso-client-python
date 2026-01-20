@@ -8,7 +8,7 @@ storage modes, with the storage backend determined by server configuration.
 
 import logging
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from ..errors import EncryptionError, MisoClientError
 from ..models.encryption import EncryptResult
@@ -117,10 +117,12 @@ class EncryptionService:
                 DECRYPT_ENDPOINT,
                 data={"value": value, "parameterName": parameter_name},
             )
-            return response["plaintext"]
+            return cast(str, response["plaintext"])
         except MisoClientError as e:
             # Map specific error codes from controller response
-            code = "DECRYPTION_FAILED"
+            from ..errors import EncryptionErrorCode
+
+            code: EncryptionErrorCode = "DECRYPTION_FAILED"
             if e.status_code == 404:
                 code = "PARAMETER_NOT_FOUND"
             elif e.status_code == 403:

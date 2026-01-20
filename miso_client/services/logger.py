@@ -5,6 +5,7 @@ This module provides structured logging with Redis queuing and HTTP fallback.
 Includes JWT context extraction, data masking, and correlation IDs.
 """
 
+import asyncio
 import inspect
 import random
 from datetime import datetime
@@ -286,19 +287,31 @@ class LoggerService:
 
     async def _get_app_context(self, options: Optional[ClientLoggingOptions]) -> Dict[str, Any]:
         """Get application context with option overwrites."""
-        app_id = None
-        if options and options.applicationId:
-            app_id = (
-                options.applicationId.id
-                if isinstance(options.applicationId, ForeignKeyReference)
-                else options.applicationId
+        try:
+            app_id = None
+            if options and options.applicationId:
+                app_id = (
+                    options.applicationId.id
+                    if isinstance(options.applicationId, ForeignKeyReference)
+                    else options.applicationId
+                )
+            ctx = await self.application_context_service.get_application_context(
+                overwrite_application=options.application if options else None,
+                overwrite_application_id=app_id,
+                overwrite_environment=options.environment if options else None,
             )
-        ctx = await self.application_context_service.get_application_context(
-            overwrite_application=options.application if options else None,
-            overwrite_application_id=app_id,
-            overwrite_environment=options.environment if options else None,
-        )
-        return ctx.to_dict()
+            return ctx.to_dict()
+        except (RuntimeError, asyncio.CancelledError, ConnectionError):
+            # Event loop closed or connection error - return default context
+            return {
+                "application": (
+                    options.application if options and options.application else "unknown"
+                ),
+                "applicationId": app_id if app_id else None,
+                "environment": (
+                    options.environment if options and options.environment else "unknown"
+                ),
+            }
 
     async def _build_log_entry(
         self,

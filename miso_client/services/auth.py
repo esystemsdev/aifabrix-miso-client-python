@@ -407,8 +407,11 @@ class AuthService:
                     },
                 }
 
-            return await self.http_client.request(
-                "POST", "/api/v1/auth/refresh", {"refreshToken": refresh_token}
+            return cast(
+                Optional[Dict[str, Any]],
+                await self.http_client.request(
+                    "POST", "/api/v1/auth/refresh", {"refreshToken": refresh_token}
+                ),
             )
         except Exception as error:
             self._log_error("Failed to refresh user token", error)

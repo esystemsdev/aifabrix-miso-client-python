@@ -8,6 +8,7 @@ from typing import Optional
 
 from ..models.config import AuthStrategy
 from ..utils.http_client import HttpClient
+from .response_utils import normalize_api_response
 from .types.permissions_types import GetPermissionsResponse, RefreshPermissionsResponse
 
 
@@ -61,6 +62,9 @@ class PermissionsApi:
             )
         else:
             response = await self.http_client.get(self.PERMISSIONS_ENDPOINT, params=params)
+
+        # Normalize response to ensure success and timestamp fields exist
+        response = normalize_api_response(response)
         return GetPermissionsResponse(**response)
 
     async def refresh_permissions(
@@ -101,4 +105,7 @@ class PermissionsApi:
             )
         else:
             response = await self.http_client.get(self.PERMISSIONS_REFRESH_ENDPOINT, params=params)
+
+        # Normalize response to ensure success and timestamp fields exist
+        response = normalize_api_response(response)
         return RefreshPermissionsResponse(**response)

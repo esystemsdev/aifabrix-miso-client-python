@@ -5,6 +5,7 @@ This service provides a unified way to extract application context information
 from client tokens and clientId format with consistent fallback logic.
 """
 
+import asyncio
 from typing import Dict, Optional
 
 from ..utils.internal_http_client import InternalHttpClient
@@ -100,6 +101,68 @@ class ApplicationContextService:
             "environment": environment,
         }
 
+    def get_application_context_sync(self) -> ApplicationContext:
+        """
+        Get application context synchronously (no controller calls).
+
+        Uses cached client token or parses clientId format.
+        Matches TypeScript getApplicationContext() behavior.
+
+        Returns:
+            ApplicationContext object with application, applicationId, and environment
+        """
+        # Use cached context if available
+        if self._cached_context is not None:
+            return self._cached_context
+
+        # Try to get cached client token (synchronous, no fetch)
+        client_token = self.internal_http_client.token_manager.client_token
+
+        if client_token:
+            try:
+                token_info = extract_client_token_info(client_token)
+
+                application = token_info.get("application")
+                application_id = token_info.get("applicationId")
+                environment = token_info.get("environment")
+
+                # If we got values from token, use them
+                if application or environment:
+                    context = ApplicationContext(
+                        application=application or self.config.client_id,
+                        application_id=application_id,
+                        environment=environment or "unknown",
+                    )
+                    self._cached_context = context
+                    return context
+            except Exception:
+                # Token extraction failed, fall back to clientId parsing
+                pass
+
+        # Fall back to parsing clientId format
+        parsed = self._parse_client_id_format(self.config.client_id)
+        application = parsed.get("application")
+        environment = parsed.get("environment")
+
+        # If parsing succeeded, use parsed values
+        if application and environment:
+            context = ApplicationContext(
+                application=application,
+                application_id=None,
+                environment=environment,
+            )
+            self._cached_context = context
+            return context
+
+        # Final fallback: use clientId as application name
+        context = ApplicationContext(
+            application=self.config.client_id,
+            application_id=None,
+            environment="unknown",
+        )
+        self._cached_context = context
+        return context
+
     async def get_application_context(
         self,
         overwrite_application: Optional[str] = None,
@@ -136,7 +199,14 @@ class ApplicationContextService:
 
         # Extract from client token first
         try:
-            client_token = await self.internal_http_client.token_manager.get_client_token()
+            # Handle case where HTTP client might be closed during teardown
+            try:
+                client_token = await self.internal_http_client.token_manager.get_client_token()
+            except (RuntimeError, asyncio.CancelledError, ConnectionError):
+                # Event loop closed or connection error - return default context
+                return ApplicationContext(
+                    application="unknown", application_id=None, environment="unknown"
+                )
             token_info = extract_client_token_info(client_token)
 
             application = token_info.get("application")

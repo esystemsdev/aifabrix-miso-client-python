@@ -6,6 +6,7 @@ token management. This class is not meant to be used directly - use the public
 HttpClient class instead which adds ISO 27001 compliant audit and debug logging.
 """
 
+import asyncio
 from typing import Any, Dict, Literal, Optional
 
 import httpx
@@ -60,8 +61,16 @@ class InternalHttpClient:
     async def close(self):
         """Close the HTTP client."""
         if self.client:
-            await self.client.aclose()
-            self.client = None
+            try:
+                await self.client.aclose()
+            except (RuntimeError, asyncio.CancelledError):
+                # Event loop closed or cancelled - that's okay during teardown
+                pass
+            except Exception:
+                # Ignore any other errors during cleanup
+                pass
+            finally:
+                self.client = None
 
     async def __aenter__(self):
         """Async context manager entry."""

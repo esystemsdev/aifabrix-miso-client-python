@@ -66,7 +66,7 @@ class LogResponse(BaseModel):
     """Log response."""
 
     success: bool = Field(..., description="Whether request was successful")
-    message: str = Field(..., description="Response message")
+    message: Optional[str] = Field(default=None, description="Response message")
     timestamp: str = Field(..., description="Response timestamp (ISO 8601)")
 
 

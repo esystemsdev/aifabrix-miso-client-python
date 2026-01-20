@@ -8,6 +8,7 @@ from typing import Optional
 
 from ..models.config import AuthStrategy
 from ..utils.http_client import HttpClient
+from .response_utils import normalize_api_response
 from .types.roles_types import GetRolesResponse, RefreshRolesResponse
 
 
@@ -61,6 +62,9 @@ class RolesApi:
             )
         else:
             response = await self.http_client.get(self.ROLES_ENDPOINT, params=params)
+
+        # Normalize response to ensure success and timestamp fields exist
+        response = normalize_api_response(response)
         return GetRolesResponse(**response)
 
     async def refresh_roles(
@@ -101,4 +105,7 @@ class RolesApi:
             )
         else:
             response = await self.http_client.get(self.ROLES_REFRESH_ENDPOINT, params=params)
+
+        # Normalize response to ensure success and timestamp fields exist
+        response = normalize_api_response(response)
         return RefreshRolesResponse(**response)

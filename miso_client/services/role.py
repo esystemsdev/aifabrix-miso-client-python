@@ -114,7 +114,8 @@ class RoleService:
                 cache_key = f"roles:{user_id}"
 
             # Extract environment and application from application context service (matching TypeScript)
-            context = await self._get_app_context_service().get_application_context()
+            # Use synchronous method to avoid triggering controller calls on cache hits
+            context = self._get_app_context_service().get_application_context_sync()
             environment = (
                 context.environment
                 if context.environment and context.environment != "unknown"
@@ -266,7 +267,8 @@ class RoleService:
             cache_key = f"roles:{user_id}"
 
             # Extract environment and application from application context service (matching TypeScript)
-            context = await self._get_app_context_service().get_application_context()
+            # Use synchronous method to avoid triggering controller calls on cache hits
+            context = self._get_app_context_service().get_application_context_sync()
             environment = (
                 context.environment
                 if context.environment and context.environment != "unknown"

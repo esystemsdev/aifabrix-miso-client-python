@@ -8,8 +8,8 @@ from typing import Optional
 
 from ..models.config import AuthStrategy
 from ..utils.http_client import HttpClient
+from .response_utils import normalize_api_response
 from .types.auth_types import (
-    DeviceCodeRequest,
     DeviceCodeResponseWrapper,
     DeviceCodeTokenPollRequest,
     DeviceCodeTokenPollResponse,
@@ -37,7 +37,7 @@ class AuthApi:
     USER_ENDPOINT = "/api/v1/auth/user"
     LOGOUT_ENDPOINT = "/api/v1/auth/logout"
     REFRESH_ENDPOINT = "/api/v1/auth/refresh"
-    DEVICE_CODE_ENDPOINT = "/api/v1/auth/login"
+    DEVICE_CODE_ENDPOINT = "/api/v1/auth/login/device"
     DEVICE_CODE_TOKEN_ENDPOINT = "/api/v1/auth/login/device/token"
     DEVICE_CODE_REFRESH_ENDPOINT = "/api/v1/auth/login/device/refresh"
     ROLES_ENDPOINT = "/api/v1/auth/roles"
@@ -199,9 +199,14 @@ class AuthApi:
         Raises:
             MisoClientError: If request fails
         """
-        request_data = DeviceCodeRequest(environment=environment, scope=scope)
+        # Build request data
+        request_data = {}
+        if environment:
+            request_data["environment"] = environment
+        if scope:
+            request_data["scope"] = scope
         response = await self.http_client.post(
-            self.DEVICE_CODE_ENDPOINT, data=request_data.model_dump(exclude_none=True)
+            self.DEVICE_CODE_ENDPOINT, data=request_data if request_data else None
         )
         return DeviceCodeResponseWrapper(**response)
 
@@ -280,6 +285,7 @@ class AuthApi:
             )
         else:
             response = await self.http_client.get(self.ROLES_ENDPOINT, params=params)
+        response = normalize_api_response(response)
         return GetRolesResponse(**response)
 
     async def refresh_roles(
@@ -304,6 +310,7 @@ class AuthApi:
             )
         else:
             response = await self.http_client.get(self.ROLES_REFRESH_ENDPOINT)
+        response = normalize_api_response(response)
         return RefreshRolesResponse(**response)
 
     async def get_permissions(
@@ -340,6 +347,7 @@ class AuthApi:
             )
         else:
             response = await self.http_client.get(self.PERMISSIONS_ENDPOINT, params=params)
+        response = normalize_api_response(response)
         return GetPermissionsResponse(**response)
 
     async def refresh_permissions(
@@ -364,4 +372,5 @@ class AuthApi:
             )
         else:
             response = await self.http_client.get(self.PERMISSIONS_REFRESH_ENDPOINT)
+        response = normalize_api_response(response)
         return RefreshPermissionsResponse(**response)

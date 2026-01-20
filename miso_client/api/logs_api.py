@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Literal, Optional
 
 from ..models.config import AuthStrategy, LogEntry
 from ..utils.http_client import HttpClient
+from .response_utils import normalize_api_response
 from .types.logs_types import (
     BatchLogRequest,
     BatchLogResponse,
@@ -85,6 +86,7 @@ class LogsApi:
             response = await self.http_client.post(
                 self.LOGS_ENDPOINT, data=log_entry.model_dump(exclude_none=True)
             )
+        response = normalize_api_response(response)
         return LogResponse(**response)
 
     async def send_batch_logs(
@@ -118,6 +120,7 @@ class LogsApi:
             response = await self.http_client.post(
                 self.LOGS_BATCH_ENDPOINT, data=request_data.model_dump(exclude_none=True)
             )
+        response = normalize_api_response(response)
         return BatchLogResponse(**response)
 
     # =========================================================================
@@ -184,6 +187,7 @@ class LogsApi:
             params=params,
             auth_strategy=auth_strategy,
         )
+        response = normalize_api_response(response)
         return ListGeneralLogsResponse(**response)
 
     async def list_audit_logs(
@@ -253,6 +257,7 @@ class LogsApi:
             params=params,
             auth_strategy=auth_strategy,
         )
+        response = normalize_api_response(response)
         return ListAuditLogsResponse(**response)
 
     async def list_job_logs(
@@ -317,6 +322,7 @@ class LogsApi:
             params=params,
             auth_strategy=auth_strategy,
         )
+        response = normalize_api_response(response)
         return ListJobLogsResponse(**response)
 
     async def get_job_log(
@@ -345,6 +351,7 @@ class LogsApi:
             token,
             auth_strategy=auth_strategy,
         )
+        response = normalize_api_response(response)
         return GetJobLogResponse(**response)
 
     # =========================================================================
@@ -393,6 +400,7 @@ class LogsApi:
             params=params,
             auth_strategy=auth_strategy,
         )
+        response = normalize_api_response(response)
         return LogStatsSummaryResponse(**response)
 
     async def get_stats_errors(
@@ -440,6 +448,7 @@ class LogsApi:
             params=params,
             auth_strategy=auth_strategy,
         )
+        response = normalize_api_response(response)
         return LogStatsErrorsResponse(**response)
 
     async def get_stats_users(
@@ -484,6 +493,7 @@ class LogsApi:
             params=params,
             auth_strategy=auth_strategy,
         )
+        response = normalize_api_response(response)
         return LogStatsUsersResponse(**response)
 
     async def get_stats_applications(
@@ -522,6 +532,7 @@ class LogsApi:
             params=params,
             auth_strategy=auth_strategy,
         )
+        response = normalize_api_response(response)
         return LogStatsApplicationsResponse(**response)
 
     # =========================================================================
@@ -588,6 +599,7 @@ class LogsApi:
             params=params,
             auth_strategy=auth_strategy,
         )
+        response = normalize_api_response(response)
         return LogExportResponse(**response)
 
     # =========================================================================

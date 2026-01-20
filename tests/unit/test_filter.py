@@ -17,12 +17,14 @@ from miso_client.models.filter import (
 from miso_client.utils.filter import (
     apply_filters,
     build_query_string,
+    coerce_filter_value,
     filter_query_to_json,
     json_filter_to_query_string,
     json_to_filter_query,
     parse_filter_params,
     query_string_to_json_filter,
     validate_filter_option,
+    validate_filter_with_schema,
     validate_json_filter,
 )
 
@@ -1364,3 +1366,189 @@ class TestNullCheckOperators:
         # Should not have a third colon (no value part)
         parts = query_string.split("isNotNull")
         assert len(parts) == 2
+
+
+class TestMissingCoverage:
+    """Test cases for missing coverage lines."""
+
+    def test_build_query_string_with_none_value_non_null_operator(self):
+        """Test build_query_string with None value for non-null operator (line 63)."""
+        # When value is None but operator is not isNull/isNotNull, should use empty string
+        filter_query = FilterQuery(filters=[FilterOption(field="status", op="eq", value=None)])
+        query_string = build_query_string(filter_query)
+
+        # Should include the filter with empty value
+        assert "filter=status:eq:" in query_string
+
+    def test_query_string_to_json_filter_sort_as_string(self):
+        """Test query_string_to_json_filter with sort as string (lines 192-193)."""
+        # parse_qs always returns lists, so we need to test the string case directly
+        # by mocking parse_qs or testing the internal logic
+        from unittest.mock import patch
+
+        # Mock parse_qs to return a string for sort (simulating edge case)
+        with patch("miso_client.utils.filter.parse_qs") as mock_parse_qs:
+            mock_parse_qs.return_value = {"sort": "-updated_at"}  # String, not list
+
+            query_string = "sort=-updated_at"
+            json_filter = query_string_to_json_filter(query_string)
+
+            assert json_filter.sort is not None
+            assert isinstance(json_filter.sort, list)
+            assert "-updated_at" in json_filter.sort
+
+    def test_validate_filter_option_not_dict(self):
+        """Test validate_filter_option with non-dict input (line 247)."""
+        assert validate_filter_option("not-a-dict") is False
+        assert validate_filter_option(123) is False
+        assert validate_filter_option(None) is False
+        assert validate_filter_option([]) is False
+
+    def test_validate_filter_option_missing_value_for_non_null_operator(self):
+        """Test validate_filter_option missing value for non-null operator (line 274)."""
+        option = {"field": "status", "op": "eq"}  # Missing value
+
+        assert validate_filter_option(option) is False
+
+    def test_validate_filter_option_field_not_string(self):
+        """Test validate_filter_option with non-string field (line 278)."""
+        option = {"field": 123, "op": "eq", "value": "active"}  # Field is not string
+
+        assert validate_filter_option(option) is False
+
+    def test_validate_json_filter_not_dict(self):
+        """Test validate_json_filter with non-dict input (line 303)."""
+        assert validate_json_filter("not-a-dict") is False
+        assert validate_json_filter(123) is False
+        assert validate_json_filter(None) is False
+        assert validate_json_filter([]) is False
+
+    def test_validate_json_filter_filters_not_list(self):
+        """Test validate_json_filter with filters not a list (line 308)."""
+        json_data = {"filters": "not-a-list"}
+
+        assert validate_json_filter(json_data) is False
+
+    def test_validate_json_filter_groups_not_list(self):
+        """Test validate_json_filter with groups not a list (line 316)."""
+        json_data = {"groups": "not-a-list"}
+
+        assert validate_json_filter(json_data) is False
+
+    def test_validate_json_filter_group_not_dict(self):
+        """Test validate_json_filter with group not a dict (line 319)."""
+        json_data = {"groups": ["not-a-dict"]}
+
+        assert validate_json_filter(json_data) is False
+
+    def test_validate_json_filter_group_missing_operator(self):
+        """Test validate_json_filter with group missing operator (line 321)."""
+        json_data = {
+            "groups": [
+                {
+                    "filters": [{"field": "status", "op": "eq", "value": "active"}],
+                    # Missing operator
+                }
+            ]
+        }
+
+        assert validate_json_filter(json_data) is False
+
+    def test_validate_json_filter_group_filters_not_list(self):
+        """Test validate_json_filter with group filters not a list (line 327)."""
+        json_data = {
+            "groups": [
+                {
+                    "operator": "and",
+                    "filters": "not-a-list",
+                }
+            ]
+        }
+
+        assert validate_json_filter(json_data) is False
+
+    def test_validate_json_filter_group_invalid_filter_option(self):
+        """Test validate_json_filter with invalid filter option in group (line 330)."""
+        json_data = {
+            "groups": [
+                {
+                    "operator": "and",
+                    "filters": [{"field": "status"}],  # Missing op and value
+                }
+            ]
+        }
+
+        assert validate_json_filter(json_data) is False
+
+    def test_validate_json_filter_sort_not_list(self):
+        """Test validate_json_filter with sort not a list (line 345)."""
+        json_data = {"sort": "not-a-list"}
+
+        assert validate_json_filter(json_data) is False
+
+    def test_validate_json_filter_fields_not_list(self):
+        """Test validate_json_filter with fields not a list (line 363)."""
+        json_data = {"fields": "not-a-list"}
+
+        assert validate_json_filter(json_data) is False
+
+    def test_validate_filter_with_schema(self):
+        """Test validate_filter_with_schema function (lines 394-396)."""
+        from miso_client.models.filter import FilterOption
+        from miso_client.models.filter_schema import FilterFieldDefinition, FilterSchema
+
+        # Create a simple schema
+        field_def = FilterFieldDefinition(
+            column="status",
+            type="string",
+            operators=["eq", "neq"],
+        )
+        schema = FilterSchema(resource="test", fields={"status": field_def})
+
+        # Valid filter
+        filter_option = FilterOption(field="status", op="eq", value="active")
+        is_valid, error = validate_filter_with_schema(filter_option, schema)
+
+        assert is_valid is True
+        assert error is None
+
+        # Invalid filter (field not in schema)
+        filter_option_invalid = FilterOption(field="unknown", op="eq", value="active")
+        is_valid, error = validate_filter_with_schema(filter_option_invalid, schema)
+
+        assert is_valid is False
+        assert error is not None
+
+    def test_coerce_filter_value(self):
+        """Test coerce_filter_value function (lines 419-430)."""
+        # Test string type
+        coerced, error = coerce_filter_value("test", "string")
+        assert coerced == "test"
+        assert error is None
+
+        # Test number type
+        coerced, error = coerce_filter_value("25", "number")
+        assert coerced == 25
+        assert error is None
+
+        # Test boolean type
+        coerced, error = coerce_filter_value("true", "boolean")
+        assert coerced is True
+        assert error is None
+
+        # Test enum type
+        coerced, error = coerce_filter_value("active", "enum", enum_values=["active", "inactive"])
+        assert coerced == "active"
+        assert error is None
+
+        # Test invalid enum value
+        coerced, error = coerce_filter_value("invalid", "enum", enum_values=["active", "inactive"])
+        assert error is not None
+
+        # Test uuid type
+        coerced, error = coerce_filter_value("123e4567-e89b-12d3-a456-426614174000", "uuid")
+        assert error is None
+
+        # Test timestamp type
+        coerced, error = coerce_filter_value("2024-01-01T00:00:00Z", "timestamp")
+        assert error is None

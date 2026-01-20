@@ -536,6 +536,67 @@ class TestLoggerChain:
         assert chain.options is not None
         assert chain.options.sessionId == "session-123"
 
+    def test_with_application_with_none_options(self, logger_service):
+        """Test with_application when options is None."""
+        chain = LoggerChain(logger_service, {}, None)
+        result = chain.with_application("my-app")
+
+        assert result is chain
+        assert chain.options is not None
+        assert chain.options.application == "my-app"
+
+    def test_with_application_id_with_none_options(self, logger_service):
+        """Test with_application_id when options is None."""
+        chain = LoggerChain(logger_service, {}, None)
+        result = chain.with_application_id("app-id-123")
+
+        assert result is chain
+        assert chain.options is not None
+        assert chain.options.applicationId == "app-id-123"
+
+    def test_with_environment_with_none_options(self, logger_service):
+        """Test with_environment when options is None."""
+        chain = LoggerChain(logger_service, {}, None)
+        result = chain.with_environment("production")
+
+        assert result is chain
+        assert chain.options is not None
+        assert chain.options.environment == "production"
+
+    def test_with_request_with_request_id(self, logger_chain):
+        """Test with_request when request_id exists in context."""
+        from miso_client.utils.request_context import RequestContext
+
+        request = MagicMock()
+        request.method = "POST"
+        request.url = MagicMock()
+        request.url.path = "/api/test"
+        request.client = MagicMock()
+        request.client.host = "192.168.1.1"
+        request.headers = MagicMock()
+        request.headers.get = MagicMock(return_value=None)
+
+        # Mock extract_request_context to return a context with request_id
+        with patch("miso_client.services.logger_chain.extract_request_context") as mock_extract:
+            mock_context = RequestContext(
+                user_id="user-123",
+                session_id="session-456",
+                correlation_id="corr-789",
+                request_id="req-999",  # This should trigger line 131
+                ip_address="192.168.1.1",
+                user_agent="Mozilla/5.0",
+                method="POST",
+                path="/api/test",
+                referer=None,
+                request_size=None,
+            )
+            mock_extract.return_value = mock_context
+
+            result = logger_chain.with_request(request)
+
+            assert result is logger_chain
+            assert logger_chain.options.requestId == "req-999"
+
     def test_chain_methods_with_empty_strings(self, logger_chain):
         """Test chain methods handle empty strings gracefully."""
         result = (

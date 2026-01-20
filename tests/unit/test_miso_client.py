@@ -637,6 +637,159 @@ class TestAuthService:
         auth_service.api_client.auth.refresh_token.assert_called_once_with("refresh-token-abc")
 
     @pytest.mark.asyncio
+    async def test_fetch_validation_from_api_client_no_api_client(self, auth_service):
+        """Test _fetch_validation_from_api_client raises ValueError when api_client is None (line 128)."""
+        auth_service.api_client = None
+
+        with pytest.raises(ValueError, match="ApiClient is required"):
+            await auth_service._fetch_validation_from_api_client("token")
+
+    @pytest.mark.asyncio
+    async def test_fetch_validation_from_http_client_with_auth_strategy(self, auth_service):
+        """Test _fetch_validation_from_http_client with auth_strategy (lines 153-160)."""
+        from miso_client.models.config import AuthStrategy
+
+        auth_strategy = AuthStrategy(methods=["bearer", "client-token"])
+        auth_service.api_client = None  # Use HttpClient fallback
+
+        with patch.object(
+            auth_service.http_client, "authenticated_request", new_callable=AsyncMock
+        ) as mock_request:
+            mock_request.return_value = {
+                "data": {"authenticated": True, "user": {"id": "123"}},
+            }
+
+            result = await auth_service._fetch_validation_from_http_client("token", auth_strategy)
+
+            assert result["data"]["authenticated"] is True
+            mock_request.assert_called_once_with(
+                "POST",
+                "/api/v1/auth/validate",
+                "token",
+                {"token": "token"},
+                auth_strategy=auth_strategy,
+            )
+
+    @pytest.mark.asyncio
+    async def test_get_user_exception_handling(self, auth_service):
+        """Test get_user exception handling (lines 316-318)."""
+        auth_service.api_client = None
+
+        with patch.object(
+            auth_service, "_validate_token_request", new_callable=AsyncMock
+        ) as mock_validate:
+            mock_validate.side_effect = Exception("Validation failed")
+
+            result = await auth_service.get_user("token")
+
+            assert result is None
+
+    @pytest.mark.asyncio
+    async def test_get_user_info_exception_handling(self, auth_service):
+        """Test get_user_info exception handling (lines 345-347)."""
+        auth_service.api_client = None
+
+        with patch.object(
+            auth_service.http_client, "authenticated_request", new_callable=AsyncMock
+        ) as mock_request:
+            mock_request.side_effect = Exception("Request failed")
+
+            result = await auth_service.get_user_info("token")
+
+            assert result is None
+
+    @pytest.mark.asyncio
+    async def test_clear_logout_caches_exception_handling(self, auth_service, mock_cache):
+        """Test _clear_logout_caches exception handling (lines 353-354, 360-361)."""
+        # Test exception in clear_user_token
+        with patch.object(
+            auth_service.http_client, "clear_user_token", side_effect=Exception("Clear failed")
+        ):
+            # Should not raise exception
+            await auth_service._clear_logout_caches("token")
+
+        # Test exception in cache.delete
+        with patch.object(mock_cache, "delete", new_callable=AsyncMock) as mock_delete:
+            mock_delete.side_effect = Exception("Delete failed")
+            # Should not raise exception
+            await auth_service._clear_logout_caches("token")
+
+    @pytest.mark.asyncio
+    async def test_logout_http_client_fallback(self, auth_service):
+        """Test logout with HttpClient fallback (line 378)."""
+        auth_service.api_client = None
+
+        with patch.object(
+            auth_service.http_client, "authenticated_request", new_callable=AsyncMock
+        ) as mock_request:
+            mock_request.return_value = {"data": None}
+
+            with patch.object(auth_service, "_clear_logout_caches", new_callable=AsyncMock):
+                result = await auth_service.logout("token")
+
+                assert result["data"] is None
+                mock_request.assert_called_once_with(
+                    "POST", "/api/v1/auth/logout", "token", {"token": "token"}
+                )
+
+    @pytest.mark.asyncio
+    async def test_refresh_user_token_http_client_fallback(self, auth_service):
+        """Test refresh_user_token with HttpClient fallback (line 410)."""
+        auth_service.api_client = None
+
+        with patch.object(
+            auth_service.http_client, "request", new_callable=AsyncMock
+        ) as mock_request:
+            mock_request.return_value = {
+                "data": {
+                    "token": "new-access-token",
+                    "refreshToken": "new-refresh-token",
+                    "expiresIn": 3600,
+                }
+            }
+
+            result = await auth_service.refresh_user_token("refresh-token")
+
+            assert result is not None
+            assert result["data"]["token"] == "new-access-token"
+            mock_request.assert_called_once_with(
+                "POST", "/api/v1/auth/refresh", {"refreshToken": "refresh-token"}
+            )
+
+    @pytest.mark.asyncio
+    async def test_is_authenticated_with_auth_strategy(self, auth_service):
+        """Test is_authenticated with auth_strategy (line 434)."""
+        from miso_client.models.config import AuthStrategy
+
+        auth_strategy = AuthStrategy(methods=["bearer", "client-token"])
+
+        with patch.object(auth_service, "validate_token", new_callable=AsyncMock) as mock_validate:
+            mock_validate.return_value = True
+
+            result = await auth_service.is_authenticated("token", auth_strategy=auth_strategy)
+
+            assert result is True
+            mock_validate.assert_called_once_with("token", auth_strategy=auth_strategy)
+
+    @pytest.mark.asyncio
+    async def test_login_with_state_parameter_http_client(self, auth_service):
+        """Test login with state parameter using HttpClient (lines 258-261)."""
+        auth_service.api_client = None
+
+        with patch.object(auth_service.http_client, "get", new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = {"data": {"loginUrl": "https://keycloak.example.com/auth"}}
+
+            result = await auth_service.login(
+                redirect="http://localhost:3000/auth/callback", state="state-123"
+            )
+
+            assert "loginUrl" in result["data"]
+            mock_get.assert_called_once_with(
+                "/api/v1/auth/login",
+                params={"redirect": "http://localhost:3000/auth/callback", "state": "state-123"},
+            )
+
+    @pytest.mark.asyncio
     async def test_validate_token_with_api_key_match(self, mock_http_client, mock_redis):
         """Test validate_token with matching API_KEY bypasses OAuth2."""
         from miso_client.models.config import MisoClientConfig
@@ -845,10 +998,13 @@ class TestRoleService:
         with patch.object(
             role_service, "_get_app_context_service", return_value=MagicMock()
         ) as mock_get_service:
-            mock_app_context = MagicMock()
-            mock_app_context.environment = "miso"
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
             mock_app_context_service = MagicMock()
-            mock_app_context_service.get_application_context = AsyncMock(
+            mock_app_context_service.get_application_context_sync = MagicMock(
                 return_value=mock_app_context
             )
             mock_get_service.return_value = mock_app_context_service
@@ -873,10 +1029,13 @@ class TestRoleService:
         with patch.object(
             role_service, "_get_app_context_service", return_value=MagicMock()
         ) as mock_get_service:
-            mock_app_context = MagicMock()
-            mock_app_context.environment = "miso"
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
             mock_app_context_service = MagicMock()
-            mock_app_context_service.get_application_context = AsyncMock(
+            mock_app_context_service.get_application_context_sync = MagicMock(
                 return_value=mock_app_context
             )
             mock_get_service.return_value = mock_app_context_service
@@ -922,10 +1081,13 @@ class TestRoleService:
         with patch.object(
             role_service, "_get_app_context_service", return_value=MagicMock()
         ) as mock_get_service:
-            mock_app_context = MagicMock()
-            mock_app_context.environment = "miso"
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
             mock_app_context_service = MagicMock()
-            mock_app_context_service.get_application_context = AsyncMock(
+            mock_app_context_service.get_application_context_sync = MagicMock(
                 return_value=mock_app_context
             )
             mock_get_service.return_value = mock_app_context_service
@@ -1002,10 +1164,13 @@ class TestRoleService:
         with patch.object(
             role_service, "_get_app_context_service", return_value=MagicMock()
         ) as mock_get_service:
-            mock_app_context = MagicMock()
-            mock_app_context.environment = "miso"
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
             mock_app_context_service = MagicMock()
-            mock_app_context_service.get_application_context = AsyncMock(
+            mock_app_context_service.get_application_context_sync = MagicMock(
                 return_value=mock_app_context
             )
             mock_get_service.return_value = mock_app_context_service
@@ -1131,10 +1296,13 @@ class TestRoleService:
         with patch.object(
             role_service, "_get_app_context_service", return_value=MagicMock()
         ) as mock_get_service:
-            mock_app_context = MagicMock()
-            mock_app_context.environment = "miso"
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
             mock_app_context_service = MagicMock()
-            mock_app_context_service.get_application_context = AsyncMock(
+            mock_app_context_service.get_application_context_sync = MagicMock(
                 return_value=mock_app_context
             )
             mock_get_service.return_value = mock_app_context_service
@@ -1172,6 +1340,87 @@ class TestRoleService:
                         cache_key = mock_set.call_args[0][0]
                         assert cache_key == "roles:user-123"
 
+    @pytest.mark.asyncio
+    async def test_get_roles_cache_hit_no_controller_calls(self, role_service):
+        """Test that cache hits don't trigger controller calls (including token refresh)."""
+        import jwt
+
+        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+
+        # Mock application context service with synchronous method
+        mock_app_context_service = MagicMock()
+        mock_app_context = MagicMock()
+        mock_app_context.environment = "miso"
+        mock_app_context.application = "test-app"
+        mock_app_context_service.get_application_context_sync = MagicMock(
+            return_value=mock_app_context
+        )
+
+        with patch.object(
+            role_service, "_get_app_context_service", return_value=mock_app_context_service
+        ):
+            with patch.object(role_service.cache, "get", new_callable=AsyncMock) as mock_get:
+                # Cache hit
+                mock_get.return_value = {"roles": ["admin", "user"], "timestamp": 1234567890}
+
+                roles = await role_service.get_roles(token)
+
+                assert roles == ["admin", "user"]
+                # Verify cache was checked
+                mock_get.assert_called_once_with("roles:user-123")
+                # Verify synchronous context method was NOT called (cache hit returns early)
+                mock_app_context_service.get_application_context_sync.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_get_roles_cache_miss_only_one_controller_call(self, role_service):
+        """Test that cache misses only trigger one controller call (for roles, not context)."""
+        import jwt
+
+        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+
+        # Mock application context service with synchronous method
+        mock_app_context_service = MagicMock()
+        mock_app_context = MagicMock()
+        mock_app_context.environment = "miso"
+        mock_app_context.application = "test-app"
+        mock_app_context_service.get_application_context_sync = MagicMock(
+            return_value=mock_app_context
+        )
+
+        with patch.object(
+            role_service, "_get_app_context_service", return_value=mock_app_context_service
+        ):
+            with patch.object(role_service.cache, "get", new_callable=AsyncMock) as mock_get:
+                # Cache miss
+                mock_get.return_value = None
+
+                with patch.object(
+                    role_service.api_client.roles, "get_roles", new_callable=AsyncMock
+                ) as mock_api_get_roles:
+                    from miso_client.api.types.roles_types import (
+                        GetRolesResponse,
+                        GetRolesResponseData,
+                    )
+
+                    mock_api_get_roles.return_value = GetRolesResponse(
+                        success=True,
+                        data=GetRolesResponseData(roles=["admin", "user"]),
+                        timestamp="2024-01-01T00:00:00Z",
+                    )
+
+                    with patch.object(
+                        role_service.cache, "set", new_callable=AsyncMock
+                    ) as mock_set:
+                        roles = await role_service.get_roles(token)
+
+                        assert roles == ["admin", "user"]
+                        # Verify only one API call (for roles)
+                        mock_api_get_roles.assert_called_once()
+                        # Verify cache was set
+                        mock_set.assert_called_once()
+                        # Verify synchronous context method was used (no async call)
+                        mock_app_context_service.get_application_context_sync.assert_called_once()
+
 
 class TestPermissionService:
     """Test cases for PermissionService."""
@@ -1192,10 +1441,13 @@ class TestPermissionService:
         with patch.object(
             permission_service, "_get_app_context_service", return_value=MagicMock()
         ) as mock_get_service:
-            mock_app_context = MagicMock()
-            mock_app_context.environment = "miso"
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
             mock_app_context_service = MagicMock()
-            mock_app_context_service.get_application_context = AsyncMock(
+            mock_app_context_service.get_application_context_sync = MagicMock(
                 return_value=mock_app_context
             )
             mock_get_service.return_value = mock_app_context_service
@@ -1258,10 +1510,13 @@ class TestPermissionService:
         with patch.object(
             permission_service, "_get_app_context_service", return_value=MagicMock()
         ) as mock_get_service:
-            mock_app_context = MagicMock()
-            mock_app_context.environment = "miso"
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
             mock_app_context_service = MagicMock()
-            mock_app_context_service.get_application_context = AsyncMock(
+            mock_app_context_service.get_application_context_sync = MagicMock(
                 return_value=mock_app_context
             )
             mock_get_service.return_value = mock_app_context_service
@@ -1360,10 +1615,13 @@ class TestPermissionService:
         with patch.object(
             permission_service, "_get_app_context_service", return_value=MagicMock()
         ) as mock_get_service:
-            mock_app_context = MagicMock()
-            mock_app_context.environment = "miso"
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
             mock_app_context_service = MagicMock()
-            mock_app_context_service.get_application_context = AsyncMock(
+            mock_app_context_service.get_application_context_sync = MagicMock(
                 return_value=mock_app_context
             )
             mock_get_service.return_value = mock_app_context_service
@@ -1456,10 +1714,13 @@ class TestPermissionService:
         with patch.object(
             permission_service, "_get_app_context_service", return_value=MagicMock()
         ) as mock_get_service:
-            mock_app_context = MagicMock()
-            mock_app_context.environment = "miso"
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
             mock_app_context_service = MagicMock()
-            mock_app_context_service.get_application_context = AsyncMock(
+            mock_app_context_service.get_application_context_sync = MagicMock(
                 return_value=mock_app_context
             )
             mock_get_service.return_value = mock_app_context_service
@@ -1510,10 +1771,13 @@ class TestPermissionService:
         with patch.object(
             permission_service, "_get_app_context_service", return_value=MagicMock()
         ) as mock_get_service:
-            mock_app_context = MagicMock()
-            mock_app_context.environment = "miso"
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
             mock_app_context_service = MagicMock()
-            mock_app_context_service.get_application_context = AsyncMock(
+            mock_app_context_service.get_application_context_sync = MagicMock(
                 return_value=mock_app_context
             )
             mock_get_service.return_value = mock_app_context_service
@@ -1554,10 +1818,13 @@ class TestPermissionService:
         with patch.object(
             permission_service, "_get_app_context_service", return_value=MagicMock()
         ) as mock_get_service:
-            mock_app_context = MagicMock()
-            mock_app_context.environment = "miso"
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
             mock_app_context_service = MagicMock()
-            mock_app_context_service.get_application_context = AsyncMock(
+            mock_app_context_service.get_application_context_sync = MagicMock(
                 return_value=mock_app_context
             )
             mock_get_service.return_value = mock_app_context_service
@@ -1595,21 +1862,106 @@ class TestPermissionService:
         """Test get_permissions when validate endpoint fails."""
         import jwt
 
-        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        # Use token without user_id so validate_token_request is called
+        token = jwt.encode({"name": "test"}, "secret", algorithm="HS256")
 
         # Mock application context (won't be called if validate fails)
         with patch.object(permission_service, "_get_app_context_service", return_value=MagicMock()):
             with patch.object(permission_service.cache, "get", new_callable=AsyncMock) as mock_get:
                 mock_get.return_value = None  # Cache miss
 
-                with patch.object(
-                    permission_service.http_client, "authenticated_request", new_callable=AsyncMock
-                ) as mock_request:
-                    mock_request.side_effect = Exception("Validate endpoint failed")
+                # Mock validate_token_request to raise exception
+                with patch(
+                    "miso_client.services.permission.validate_token_request", new_callable=AsyncMock
+                ) as mock_validate:
+                    mock_validate.side_effect = Exception("Validate endpoint failed")
 
                     permissions = await permission_service.get_permissions(token)
 
                     assert permissions == []
+
+    @pytest.mark.asyncio
+    async def test_get_permissions_cache_hit_no_controller_calls(self, permission_service):
+        """Test that cache hits don't trigger controller calls (including token refresh)."""
+        import jwt
+
+        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+
+        # Mock application context service with synchronous method
+        mock_app_context_service = MagicMock()
+        mock_app_context = MagicMock()
+        mock_app_context.environment = "miso"
+        mock_app_context.application = "test-app"
+        mock_app_context_service.get_application_context_sync = MagicMock(
+            return_value=mock_app_context
+        )
+
+        with patch.object(
+            permission_service, "_get_app_context_service", return_value=mock_app_context_service
+        ):
+            with patch.object(permission_service.cache, "get", new_callable=AsyncMock) as mock_get:
+                # Cache hit
+                mock_get.return_value = {"permissions": ["read", "write"], "timestamp": 1234567890}
+
+                permissions = await permission_service.get_permissions(token)
+
+                assert permissions == ["read", "write"]
+                # Verify cache was checked
+                mock_get.assert_called_once_with("permissions:user-123")
+                # Verify synchronous context method was NOT called (cache hit returns early)
+                mock_app_context_service.get_application_context_sync.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_get_permissions_cache_miss_only_one_controller_call(self, permission_service):
+        """Test that cache misses only trigger one controller call (for permissions, not context)."""
+        import jwt
+
+        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+
+        # Mock application context service with synchronous method
+        mock_app_context_service = MagicMock()
+        mock_app_context = MagicMock()
+        mock_app_context.environment = "miso"
+        mock_app_context.application = "test-app"
+        mock_app_context_service.get_application_context_sync = MagicMock(
+            return_value=mock_app_context
+        )
+
+        with patch.object(
+            permission_service, "_get_app_context_service", return_value=mock_app_context_service
+        ):
+            with patch.object(permission_service.cache, "get", new_callable=AsyncMock) as mock_get:
+                # Cache miss
+                mock_get.return_value = None
+
+                with patch.object(
+                    permission_service.api_client.permissions,
+                    "get_permissions",
+                    new_callable=AsyncMock,
+                ) as mock_api_get_permissions:
+                    from miso_client.api.types.permissions_types import (
+                        GetPermissionsResponse,
+                        GetPermissionsResponseData,
+                    )
+
+                    mock_api_get_permissions.return_value = GetPermissionsResponse(
+                        success=True,
+                        data=GetPermissionsResponseData(permissions=["read", "write"]),
+                        timestamp="2024-01-01T00:00:00Z",
+                    )
+
+                    with patch.object(
+                        permission_service.cache, "set", new_callable=AsyncMock
+                    ) as mock_set:
+                        permissions = await permission_service.get_permissions(token)
+
+                        assert permissions == ["read", "write"]
+                        # Verify only one API call (for permissions)
+                        mock_api_get_permissions.assert_called_once()
+                        # Verify cache was set
+                        mock_set.assert_called_once()
+                        # Verify synchronous context method was used (no async call)
+                        mock_app_context_service.get_application_context_sync.assert_called_once()
 
 
 class TestLoggerService:
@@ -2583,3 +2935,1567 @@ class TestRedisService:
         result = await redis_service.set("test_key", "test_value", 300)
 
         assert result is True
+
+
+# Additional comprehensive tests for RoleService
+class TestRoleServiceAdditional:
+    """Additional comprehensive test cases for RoleService."""
+
+    @pytest.fixture
+    def role_service(self, mock_http_client, mock_cache, mock_api_client):
+        """Test RoleService instance."""
+        return RoleService(mock_http_client, mock_cache, mock_api_client)
+
+    @pytest.mark.asyncio
+    async def test_get_roles_with_auth_strategy(self, role_service):
+        """Test get_roles with auth_strategy parameter."""
+        import jwt
+
+        from miso_client.models.config import AuthStrategy
+
+        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        auth_strategy = AuthStrategy(methods=["bearer", "client-token"])
+
+        with patch.object(
+            role_service, "_get_app_context_service", return_value=MagicMock()
+        ) as mock_get_service:
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
+            mock_app_context_service = MagicMock()
+            mock_app_context_service.get_application_context_sync = MagicMock(
+                return_value=mock_app_context
+            )
+            mock_get_service.return_value = mock_app_context_service
+
+            with patch.object(role_service.cache, "get", new_callable=AsyncMock) as mock_get:
+                mock_get.return_value = None  # Cache miss
+
+                with patch.object(
+                    role_service.api_client.roles, "get_roles", new_callable=AsyncMock
+                ) as mock_api_get_roles:
+                    from miso_client.api.types.roles_types import (
+                        GetRolesResponse,
+                        GetRolesResponseData,
+                    )
+
+                    mock_api_get_roles.return_value = GetRolesResponse(
+                        success=True,
+                        data=GetRolesResponseData(roles=["admin"]),
+                        timestamp="2024-01-01T00:00:00Z",
+                    )
+
+                    with patch.object(role_service.cache, "set", new_callable=AsyncMock):
+                        roles = await role_service.get_roles(token, auth_strategy=auth_strategy)
+
+                        assert roles == ["admin"]
+                        # Verify auth_strategy was passed
+                        mock_api_get_roles.assert_called_once()
+                        call_kwargs = mock_api_get_roles.call_args[1]
+                        assert call_kwargs.get("auth_strategy") == auth_strategy
+
+    @pytest.mark.asyncio
+    async def test_get_roles_error_handling(self, role_service):
+        """Test get_roles error handling returns empty list."""
+        import jwt
+
+        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+
+        with patch.object(
+            role_service, "_get_app_context_service", return_value=MagicMock()
+        ) as mock_get_service:
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
+            mock_app_context_service = MagicMock()
+            mock_app_context_service.get_application_context_sync = MagicMock(
+                return_value=mock_app_context
+            )
+            mock_get_service.return_value = mock_app_context_service
+
+            with patch.object(role_service.cache, "get", new_callable=AsyncMock) as mock_get:
+                mock_get.return_value = None  # Cache miss
+
+                with patch.object(
+                    role_service.api_client.roles, "get_roles", new_callable=AsyncMock
+                ) as mock_api_get_roles:
+                    mock_api_get_roles.side_effect = Exception("API error")
+
+                    roles = await role_service.get_roles(token)
+
+                    # Should return empty list on error
+                    assert roles == []
+
+    @pytest.mark.asyncio
+    async def test_get_roles_with_empty_roles_list(self, role_service):
+        """Test get_roles with empty roles list from API."""
+        import jwt
+
+        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+
+        with patch.object(
+            role_service, "_get_app_context_service", return_value=MagicMock()
+        ) as mock_get_service:
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
+            mock_app_context_service = MagicMock()
+            mock_app_context_service.get_application_context_sync = MagicMock(
+                return_value=mock_app_context
+            )
+            mock_get_service.return_value = mock_app_context_service
+
+            with patch.object(role_service.cache, "get", new_callable=AsyncMock) as mock_get:
+                mock_get.return_value = None  # Cache miss
+
+                with patch.object(
+                    role_service.api_client.roles, "get_roles", new_callable=AsyncMock
+                ) as mock_api_get_roles:
+                    from miso_client.api.types.roles_types import (
+                        GetRolesResponse,
+                        GetRolesResponseData,
+                    )
+
+                    mock_api_get_roles.return_value = GetRolesResponse(
+                        success=True,
+                        data=GetRolesResponseData(roles=[]),
+                        timestamp="2024-01-01T00:00:00Z",
+                    )
+
+                    with patch.object(role_service.cache, "set", new_callable=AsyncMock):
+                        roles = await role_service.get_roles(token)
+
+                        assert roles == []
+
+    @pytest.mark.asyncio
+    async def test_get_roles_with_none_roles_from_api(self, role_service):
+        """Test get_roles with None roles from API (should return empty list)."""
+        import jwt
+
+        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+
+        with patch.object(
+            role_service, "_get_app_context_service", return_value=MagicMock()
+        ) as mock_get_service:
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
+            mock_app_context_service = MagicMock()
+            mock_app_context_service.get_application_context_sync = MagicMock(
+                return_value=mock_app_context
+            )
+            mock_get_service.return_value = mock_app_context_service
+
+            with patch.object(role_service.cache, "get", new_callable=AsyncMock) as mock_get:
+                mock_get.return_value = None  # Cache miss
+
+                with patch.object(
+                    role_service.api_client.roles, "get_roles", new_callable=AsyncMock
+                ) as mock_api_get_roles:
+                    from miso_client.api.types.roles_types import (
+                        GetRolesResponse,
+                        GetRolesResponseData,
+                    )
+
+                    mock_api_get_roles.return_value = GetRolesResponse(
+                        success=True,
+                        data=GetRolesResponseData(roles=[]),
+                        timestamp="2024-01-01T00:00:00Z",
+                    )
+
+                    with patch.object(role_service.cache, "set", new_callable=AsyncMock):
+                        roles = await role_service.get_roles(token)
+
+                        # Should return empty list when roles is empty
+                        assert roles == []
+
+    @pytest.mark.asyncio
+    async def test_get_roles_with_http_client_fallback(
+        self, role_service, mock_http_client, mock_cache
+    ):
+        """Test get_roles with HttpClient fallback when api_client is None."""
+        import jwt
+
+        # Create role service without api_client
+        role_service_no_api = RoleService(mock_http_client, mock_cache, None)
+
+        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+
+        with patch.object(
+            role_service_no_api, "_get_app_context_service", return_value=MagicMock()
+        ) as mock_get_service:
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
+            mock_app_context_service = MagicMock()
+            mock_app_context_service.get_application_context_sync = MagicMock(
+                return_value=mock_app_context
+            )
+            mock_get_service.return_value = mock_app_context_service
+
+            with patch.object(role_service_no_api.cache, "get", new_callable=AsyncMock) as mock_get:
+                mock_get.return_value = None  # Cache miss
+
+                with patch.object(
+                    role_service_no_api.http_client,
+                    "authenticated_request",
+                    new_callable=AsyncMock,
+                ) as mock_request:
+                    mock_request.return_value = {
+                        "userId": "user-123",
+                        "roles": ["admin", "user"],
+                        "environment": "miso",
+                        "application": "test-app",
+                    }
+
+                    with patch.object(role_service_no_api.cache, "set", new_callable=AsyncMock):
+                        roles = await role_service_no_api.get_roles(token)
+
+                        assert roles == ["admin", "user"]
+                        # Verify HttpClient was used
+                        mock_request.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_roles_with_different_jwt_userid_fields(self, role_service):
+        """Test get_roles with different JWT userId field names."""
+        import jwt
+
+        # Test with userId field
+        token_userid = jwt.encode({"userId": "user-456"}, "secret", algorithm="HS256")
+
+        with patch.object(
+            role_service, "_get_app_context_service", return_value=MagicMock()
+        ) as mock_get_service:
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
+            mock_app_context_service = MagicMock()
+            mock_app_context_service.get_application_context_sync = MagicMock(
+                return_value=mock_app_context
+            )
+            mock_get_service.return_value = mock_app_context_service
+
+            with patch.object(role_service.cache, "get", new_callable=AsyncMock) as mock_get:
+                mock_get.return_value = {"roles": ["admin"], "timestamp": 1234567890}
+
+                roles = await role_service.get_roles(token_userid)
+
+                assert roles == ["admin"]
+                # Verify cache key uses userId
+                mock_get.assert_called_once_with("roles:user-456")
+
+        # Test with user_id field
+        token_user_id = jwt.encode({"user_id": "user-789"}, "secret", algorithm="HS256")
+
+        with patch.object(
+            role_service, "_get_app_context_service", return_value=MagicMock()
+        ) as mock_get_service:
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
+            mock_app_context_service = MagicMock()
+            mock_app_context_service.get_application_context_sync = MagicMock(
+                return_value=mock_app_context
+            )
+            mock_get_service.return_value = mock_app_context_service
+
+            with patch.object(role_service.cache, "get", new_callable=AsyncMock) as mock_get:
+                mock_get.return_value = {"roles": ["user"], "timestamp": 1234567890}
+
+                roles = await role_service.get_roles(token_user_id)
+
+                assert roles == ["user"]
+                mock_get.assert_called_once_with("roles:user-789")
+
+    @pytest.mark.asyncio
+    async def test_get_roles_with_invalid_cache_data_format(self, role_service):
+        """Test get_roles with invalid cache data format (not a dict)."""
+        import jwt
+
+        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+
+        with patch.object(
+            role_service, "_get_app_context_service", return_value=MagicMock()
+        ) as mock_get_service:
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
+            mock_app_context_service = MagicMock()
+            mock_app_context_service.get_application_context_sync = MagicMock(
+                return_value=mock_app_context
+            )
+            mock_get_service.return_value = mock_app_context_service
+
+            with patch.object(role_service.cache, "get", new_callable=AsyncMock) as mock_get:
+                # Cache returns non-dict (invalid format)
+                mock_get.return_value = "invalid-cache-data"
+
+                with patch.object(
+                    role_service.api_client.roles, "get_roles", new_callable=AsyncMock
+                ) as mock_api_get_roles:
+                    from miso_client.api.types.roles_types import (
+                        GetRolesResponse,
+                        GetRolesResponseData,
+                    )
+
+                    mock_api_get_roles.return_value = GetRolesResponse(
+                        success=True,
+                        data=GetRolesResponseData(roles=["admin"]),
+                        timestamp="2024-01-01T00:00:00Z",
+                    )
+
+                    with patch.object(role_service.cache, "set", new_callable=AsyncMock):
+                        # Should fallback to controller when cache data is invalid
+                        roles = await role_service.get_roles(token)
+
+                        assert roles == ["admin"]
+                        # Should have called API
+                        mock_api_get_roles.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_roles_with_application_context_unknown(self, role_service):
+        """Test get_roles with application context returning unknown environment."""
+        import jwt
+
+        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+
+        with patch.object(
+            role_service, "_get_app_context_service", return_value=MagicMock()
+        ) as mock_get_service:
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="unknown", application_id=None, environment="unknown"
+            )
+            mock_app_context_service = MagicMock()
+            mock_app_context_service.get_application_context_sync = MagicMock(
+                return_value=mock_app_context
+            )
+            mock_get_service.return_value = mock_app_context_service
+
+            with patch.object(role_service.cache, "get", new_callable=AsyncMock) as mock_get:
+                mock_get.return_value = None  # Cache miss
+
+                with patch.object(
+                    role_service.api_client.roles, "get_roles", new_callable=AsyncMock
+                ) as mock_api_get_roles:
+                    from miso_client.api.types.roles_types import (
+                        GetRolesResponse,
+                        GetRolesResponseData,
+                    )
+
+                    mock_api_get_roles.return_value = GetRolesResponse(
+                        success=True,
+                        data=GetRolesResponseData(roles=["admin"]),
+                        timestamp="2024-01-01T00:00:00Z",
+                    )
+
+                    with patch.object(role_service.cache, "set", new_callable=AsyncMock):
+                        roles = await role_service.get_roles(token)
+
+                        assert roles == ["admin"]
+                        # Verify environment and application were not passed (None for unknown)
+                        mock_api_get_roles.assert_called_once()
+                        call_kwargs = mock_api_get_roles.call_args[1]
+                        assert call_kwargs.get("environment") is None
+                        assert call_kwargs.get("application") is None
+
+    @pytest.mark.asyncio
+    async def test_refresh_roles_with_http_client_fallback(
+        self, role_service, mock_http_client, mock_cache
+    ):
+        """Test refresh_roles with HttpClient fallback when api_client is None."""
+        # Create role service without api_client
+        role_service_no_api = RoleService(mock_http_client, mock_cache, None)
+
+        with patch.object(
+            role_service_no_api, "_get_app_context_service", return_value=MagicMock()
+        ) as mock_get_service:
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
+            mock_app_context_service = MagicMock()
+            mock_app_context_service.get_application_context_sync = MagicMock(
+                return_value=mock_app_context
+            )
+            mock_get_service.return_value = mock_app_context_service
+
+            with patch(
+                "miso_client.services.role.validate_token_request", new_callable=AsyncMock
+            ) as mock_validate:
+                mock_validate.return_value = {"data": {"user": {"id": "user-123"}}}
+
+                with patch.object(
+                    role_service_no_api.http_client,
+                    "authenticated_request",
+                    new_callable=AsyncMock,
+                ) as mock_request:
+                    mock_request.return_value = {
+                        "userId": "user-123",
+                        "roles": ["admin", "user"],
+                        "environment": "miso",
+                        "application": "test-app",
+                    }
+
+                    with patch.object(role_service_no_api.cache, "set", new_callable=AsyncMock):
+                        roles = await role_service_no_api.refresh_roles("token")
+
+                        assert roles == ["admin", "user"]
+                        # Verify HttpClient was used
+                        mock_request.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_refresh_roles_with_empty_roles(self, role_service):
+        """Test refresh_roles with empty roles list."""
+        with patch.object(
+            role_service, "_get_app_context_service", return_value=MagicMock()
+        ) as mock_get_service:
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
+            mock_app_context_service = MagicMock()
+            mock_app_context_service.get_application_context_sync = MagicMock(
+                return_value=mock_app_context
+            )
+            mock_get_service.return_value = mock_app_context_service
+
+            with patch(
+                "miso_client.services.role.validate_token_request", new_callable=AsyncMock
+            ) as mock_validate:
+                mock_validate.return_value = {"data": {"user": {"id": "user-123"}}}
+
+                with patch.object(
+                    role_service.api_client.roles, "refresh_roles", new_callable=AsyncMock
+                ) as mock_api_refresh:
+                    from miso_client.api.types.roles_types import (
+                        GetRolesResponseData,
+                        RefreshRolesResponse,
+                    )
+
+                    mock_api_refresh.return_value = RefreshRolesResponse(
+                        success=True,
+                        data=GetRolesResponseData(roles=[]),
+                        timestamp="2024-01-01T00:00:00Z",
+                    )
+
+                    with patch.object(role_service.cache, "set", new_callable=AsyncMock):
+                        roles = await role_service.refresh_roles("token")
+
+                        assert roles == []
+
+    @pytest.mark.asyncio
+    async def test_has_role_with_empty_roles_list(self, role_service):
+        """Test has_role when user has no roles."""
+        with patch.object(role_service, "get_roles", new_callable=AsyncMock) as mock_get_roles:
+            mock_get_roles.return_value = []  # Empty roles
+
+            result = await role_service.has_role("token", "admin")
+
+            assert result is False
+
+    @pytest.mark.asyncio
+    async def test_has_any_role_with_empty_roles_list(self, role_service):
+        """Test has_any_role when user has no roles."""
+        with patch.object(role_service, "get_roles", new_callable=AsyncMock) as mock_get_roles:
+            mock_get_roles.return_value = []  # Empty roles
+
+            result = await role_service.has_any_role("token", ["admin", "user"])
+
+            assert result is False
+
+    @pytest.mark.asyncio
+    async def test_has_all_roles_with_empty_roles_list(self, role_service):
+        """Test has_all_roles when user has no roles."""
+        with patch.object(role_service, "get_roles", new_callable=AsyncMock) as mock_get_roles:
+            mock_get_roles.return_value = []  # Empty roles
+
+            result = await role_service.has_all_roles("token", ["admin", "user"])
+
+            assert result is False
+
+    @pytest.mark.asyncio
+    async def test_has_all_roles_with_empty_input_list(self, role_service):
+        """Test has_all_roles with empty input list (should return True)."""
+        with patch.object(role_service, "get_roles", new_callable=AsyncMock) as mock_get_roles:
+            mock_get_roles.return_value = ["admin", "user"]
+
+            # Empty list should return True (all of nothing is true)
+            result = await role_service.has_all_roles("token", [])
+
+            assert result is True
+
+    @pytest.mark.asyncio
+    async def test_clear_roles_cache_with_jwt_userid_direct(self, role_service):
+        """Test clear_roles_cache when userId is in JWT (should not call validate)."""
+        import jwt
+
+        token = jwt.encode({"sub": "user-789"}, "secret", algorithm="HS256")
+
+        with patch.object(role_service.cache, "delete", new_callable=AsyncMock) as mock_delete:
+            # Should not call validate_token_request when userId is in token
+            with patch(
+                "miso_client.services.role.validate_token_request", new_callable=AsyncMock
+            ) as mock_validate:
+                await role_service.clear_roles_cache(token)
+
+                # Should not call validate since userId is in token
+                mock_validate.assert_not_called()
+                # Should delete cache directly
+                mock_delete.assert_called_once_with("roles:user-789")
+
+
+# Additional comprehensive tests for PermissionService
+class TestPermissionServiceAdditional:
+    """Additional comprehensive test cases for PermissionService."""
+
+    @pytest.fixture
+    def permission_service(self, mock_http_client, mock_cache, mock_api_client):
+        """Test PermissionService instance."""
+        return PermissionService(mock_http_client, mock_cache, mock_api_client)
+
+    @pytest.mark.asyncio
+    async def test_get_permissions_from_controller_cache_miss(self, permission_service):
+        """Test getting permissions from controller when cache miss."""
+        import jwt
+
+        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+
+        with patch.object(
+            permission_service, "_get_app_context_service", return_value=MagicMock()
+        ) as mock_get_service:
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
+            mock_app_context_service = MagicMock()
+            mock_app_context_service.get_application_context_sync = MagicMock(
+                return_value=mock_app_context
+            )
+            mock_get_service.return_value = mock_app_context_service
+
+            with patch.object(permission_service.cache, "get", new_callable=AsyncMock) as mock_get:
+                mock_get.return_value = None  # Cache miss
+
+                with patch.object(
+                    permission_service.api_client.permissions,
+                    "get_permissions",
+                    new_callable=AsyncMock,
+                ) as mock_api_get_permissions:
+                    from miso_client.api.types.permissions_types import (
+                        GetPermissionsResponse,
+                        GetPermissionsResponseData,
+                    )
+
+                    mock_api_get_permissions.return_value = GetPermissionsResponse(
+                        success=True,
+                        data=GetPermissionsResponseData(permissions=["read", "write"]),
+                        timestamp="2024-01-01T00:00:00Z",
+                    )
+
+                    with patch.object(
+                        permission_service.cache, "set", new_callable=AsyncMock
+                    ) as mock_set:
+                        permissions = await permission_service.get_permissions(token)
+
+                        assert permissions == ["read", "write"]
+                        mock_set.assert_called_once()
+                        assert mock_set.call_args[0][0] == "permissions:user-123"
+                        mock_api_get_permissions.assert_called_once()
+                        call_kwargs = mock_api_get_permissions.call_args[1]
+                        assert call_kwargs.get("environment") == "miso"
+
+    @pytest.mark.asyncio
+    async def test_get_permissions_without_userid_in_token(self, permission_service):
+        """Test getting permissions when userId not in token."""
+        import jwt
+
+        token = jwt.encode({"name": "test"}, "secret", algorithm="HS256")
+
+        with patch.object(
+            permission_service, "_get_app_context_service", return_value=MagicMock()
+        ) as mock_get_service:
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
+            mock_app_context_service = MagicMock()
+            mock_app_context_service.get_application_context_sync = MagicMock(
+                return_value=mock_app_context
+            )
+            mock_get_service.return_value = mock_app_context_service
+
+            with patch.object(permission_service.cache, "get", new_callable=AsyncMock) as mock_get:
+                mock_get.return_value = None  # Cache miss
+
+                with patch(
+                    "miso_client.services.permission.validate_token_request",
+                    new_callable=AsyncMock,
+                ) as mock_validate:
+                    mock_validate.return_value = {"data": {"user": {"id": "user-123"}}}
+
+                    with patch.object(
+                        permission_service.api_client.permissions,
+                        "get_permissions",
+                        new_callable=AsyncMock,
+                    ) as mock_api_get_permissions:
+                        from miso_client.api.types.permissions_types import (
+                            GetPermissionsResponse,
+                            GetPermissionsResponseData,
+                        )
+
+                        mock_api_get_permissions.return_value = GetPermissionsResponse(
+                            success=True,
+                            data=GetPermissionsResponseData(permissions=["read"]),
+                            timestamp="2024-01-01T00:00:00Z",
+                        )
+
+                        with patch.object(permission_service.cache, "set", new_callable=AsyncMock):
+                            permissions = await permission_service.get_permissions(token)
+
+                            assert permissions == ["read"]
+                            assert "read" in permissions
+
+    @pytest.mark.asyncio
+    async def test_get_permissions_with_auth_strategy(self, permission_service):
+        """Test get_permissions with auth_strategy parameter."""
+        import jwt
+
+        from miso_client.models.config import AuthStrategy
+
+        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        auth_strategy = AuthStrategy(methods=["bearer", "client-token"])
+
+        with patch.object(
+            permission_service, "_get_app_context_service", return_value=MagicMock()
+        ) as mock_get_service:
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
+            mock_app_context_service = MagicMock()
+            mock_app_context_service.get_application_context_sync = MagicMock(
+                return_value=mock_app_context
+            )
+            mock_get_service.return_value = mock_app_context_service
+
+            with patch.object(permission_service.cache, "get", new_callable=AsyncMock) as mock_get:
+                mock_get.return_value = None  # Cache miss
+
+                with patch.object(
+                    permission_service.api_client.permissions,
+                    "get_permissions",
+                    new_callable=AsyncMock,
+                ) as mock_api_get_permissions:
+                    from miso_client.api.types.permissions_types import (
+                        GetPermissionsResponse,
+                        GetPermissionsResponseData,
+                    )
+
+                    mock_api_get_permissions.return_value = GetPermissionsResponse(
+                        success=True,
+                        data=GetPermissionsResponseData(permissions=["read"]),
+                        timestamp="2024-01-01T00:00:00Z",
+                    )
+
+                    with patch.object(permission_service.cache, "set", new_callable=AsyncMock):
+                        permissions = await permission_service.get_permissions(
+                            token, auth_strategy=auth_strategy
+                        )
+
+                        assert permissions == ["read"]
+                        # Verify auth_strategy was passed
+                        mock_api_get_permissions.assert_called_once()
+                        call_kwargs = mock_api_get_permissions.call_args[1]
+                        assert call_kwargs.get("auth_strategy") == auth_strategy
+
+    @pytest.mark.asyncio
+    async def test_get_permissions_error_handling(self, permission_service):
+        """Test get_permissions error handling returns empty list."""
+        import jwt
+
+        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+
+        with patch.object(
+            permission_service, "_get_app_context_service", return_value=MagicMock()
+        ) as mock_get_service:
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
+            mock_app_context_service = MagicMock()
+            mock_app_context_service.get_application_context_sync = MagicMock(
+                return_value=mock_app_context
+            )
+            mock_get_service.return_value = mock_app_context_service
+
+            with patch.object(permission_service.cache, "get", new_callable=AsyncMock) as mock_get:
+                mock_get.return_value = None  # Cache miss
+
+                with patch.object(
+                    permission_service.api_client.permissions,
+                    "get_permissions",
+                    new_callable=AsyncMock,
+                ) as mock_api_get_permissions:
+                    mock_api_get_permissions.side_effect = Exception("API error")
+
+                    permissions = await permission_service.get_permissions(token)
+
+                    # Should return empty list on error
+                    assert permissions == []
+
+    @pytest.mark.asyncio
+    async def test_get_permissions_with_empty_permissions_list(self, permission_service):
+        """Test get_permissions with empty permissions list from API."""
+        import jwt
+
+        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+
+        with patch.object(
+            permission_service, "_get_app_context_service", return_value=MagicMock()
+        ) as mock_get_service:
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
+            mock_app_context_service = MagicMock()
+            mock_app_context_service.get_application_context_sync = MagicMock(
+                return_value=mock_app_context
+            )
+            mock_get_service.return_value = mock_app_context_service
+
+            with patch.object(permission_service.cache, "get", new_callable=AsyncMock) as mock_get:
+                mock_get.return_value = None  # Cache miss
+
+                with patch.object(
+                    permission_service.api_client.permissions,
+                    "get_permissions",
+                    new_callable=AsyncMock,
+                ) as mock_api_get_permissions:
+                    from miso_client.api.types.permissions_types import (
+                        GetPermissionsResponse,
+                        GetPermissionsResponseData,
+                    )
+
+                    mock_api_get_permissions.return_value = GetPermissionsResponse(
+                        success=True,
+                        data=GetPermissionsResponseData(permissions=[]),
+                        timestamp="2024-01-01T00:00:00Z",
+                    )
+
+                    with patch.object(permission_service.cache, "set", new_callable=AsyncMock):
+                        permissions = await permission_service.get_permissions(token)
+
+                        assert permissions == []
+
+    @pytest.mark.asyncio
+    async def test_get_permissions_with_none_permissions_from_api(self, permission_service):
+        """Test get_permissions with None permissions from API (should return empty list)."""
+        import jwt
+
+        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+
+        with patch.object(
+            permission_service, "_get_app_context_service", return_value=MagicMock()
+        ) as mock_get_service:
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
+            mock_app_context_service = MagicMock()
+            mock_app_context_service.get_application_context_sync = MagicMock(
+                return_value=mock_app_context
+            )
+            mock_get_service.return_value = mock_app_context_service
+
+            with patch.object(permission_service.cache, "get", new_callable=AsyncMock) as mock_get:
+                mock_get.return_value = None  # Cache miss
+
+                with patch.object(
+                    permission_service.api_client.permissions,
+                    "get_permissions",
+                    new_callable=AsyncMock,
+                ) as mock_api_get_permissions:
+                    from miso_client.api.types.permissions_types import (
+                        GetPermissionsResponse,
+                        GetPermissionsResponseData,
+                    )
+
+                    mock_api_get_permissions.return_value = GetPermissionsResponse(
+                        success=True,
+                        data=GetPermissionsResponseData(permissions=[]),
+                        timestamp="2024-01-01T00:00:00Z",
+                    )
+
+                    with patch.object(permission_service.cache, "set", new_callable=AsyncMock):
+                        permissions = await permission_service.get_permissions(token)
+
+                        # Should return empty list when permissions is empty
+                        assert permissions == []
+
+    @pytest.mark.asyncio
+    async def test_get_permissions_with_http_client_fallback(
+        self, permission_service, mock_http_client, mock_cache
+    ):
+        """Test get_permissions with HttpClient fallback when api_client is None."""
+        import jwt
+
+        # Create permission service without api_client
+        permission_service_no_api = PermissionService(mock_http_client, mock_cache, None)
+
+        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+
+        with patch.object(
+            permission_service_no_api, "_get_app_context_service", return_value=MagicMock()
+        ) as mock_get_service:
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
+            mock_app_context_service = MagicMock()
+            mock_app_context_service.get_application_context_sync = MagicMock(
+                return_value=mock_app_context
+            )
+            mock_get_service.return_value = mock_app_context_service
+
+            with patch.object(
+                permission_service_no_api.cache, "get", new_callable=AsyncMock
+            ) as mock_get:
+                mock_get.return_value = None  # Cache miss
+
+                with patch.object(
+                    permission_service_no_api.http_client,
+                    "authenticated_request",
+                    new_callable=AsyncMock,
+                ) as mock_request:
+                    mock_request.return_value = {
+                        "userId": "user-123",
+                        "permissions": ["read", "write"],
+                        "environment": "miso",
+                        "application": "test-app",
+                    }
+
+                    with patch.object(
+                        permission_service_no_api.cache, "set", new_callable=AsyncMock
+                    ):
+                        permissions = await permission_service_no_api.get_permissions(token)
+
+                        assert permissions == ["read", "write"]
+                        # Verify HttpClient was used
+                        mock_request.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_permissions_with_different_jwt_userid_fields(self, permission_service):
+        """Test get_permissions with different JWT userId field names."""
+        import jwt
+
+        # Test with userId field
+        token_userid = jwt.encode({"userId": "user-456"}, "secret", algorithm="HS256")
+
+        with patch.object(
+            permission_service, "_get_app_context_service", return_value=MagicMock()
+        ) as mock_get_service:
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
+            mock_app_context_service = MagicMock()
+            mock_app_context_service.get_application_context_sync = MagicMock(
+                return_value=mock_app_context
+            )
+            mock_get_service.return_value = mock_app_context_service
+
+            with patch.object(permission_service.cache, "get", new_callable=AsyncMock) as mock_get:
+                mock_get.return_value = {"permissions": ["read"], "timestamp": 1234567890}
+
+                permissions = await permission_service.get_permissions(token_userid)
+
+                assert permissions == ["read"]
+                # Verify cache key uses userId
+                mock_get.assert_called_once_with("permissions:user-456")
+
+    @pytest.mark.asyncio
+    async def test_get_permissions_with_invalid_cache_data_format(self, permission_service):
+        """Test get_permissions with invalid cache data format (not a dict)."""
+        import jwt
+
+        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+
+        with patch.object(
+            permission_service, "_get_app_context_service", return_value=MagicMock()
+        ) as mock_get_service:
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
+            mock_app_context_service = MagicMock()
+            mock_app_context_service.get_application_context_sync = MagicMock(
+                return_value=mock_app_context
+            )
+            mock_get_service.return_value = mock_app_context_service
+
+            with patch.object(permission_service.cache, "get", new_callable=AsyncMock) as mock_get:
+                # Cache returns non-dict (invalid format)
+                mock_get.return_value = "invalid-cache-data"
+
+                with patch.object(
+                    permission_service.api_client.permissions,
+                    "get_permissions",
+                    new_callable=AsyncMock,
+                ) as mock_api_get_permissions:
+                    from miso_client.api.types.permissions_types import (
+                        GetPermissionsResponse,
+                        GetPermissionsResponseData,
+                    )
+
+                    mock_api_get_permissions.return_value = GetPermissionsResponse(
+                        success=True,
+                        data=GetPermissionsResponseData(permissions=["read"]),
+                        timestamp="2024-01-01T00:00:00Z",
+                    )
+
+                    with patch.object(permission_service.cache, "set", new_callable=AsyncMock):
+                        # Should fallback to controller when cache data is invalid
+                        permissions = await permission_service.get_permissions(token)
+
+                        assert permissions == ["read"]
+                        # Should have called API
+                        mock_api_get_permissions.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_permissions_with_application_context_unknown(self, permission_service):
+        """Test get_permissions with application context returning unknown environment."""
+        import jwt
+
+        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+
+        with patch.object(
+            permission_service, "_get_app_context_service", return_value=MagicMock()
+        ) as mock_get_service:
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="unknown", application_id=None, environment="unknown"
+            )
+            mock_app_context_service = MagicMock()
+            mock_app_context_service.get_application_context_sync = MagicMock(
+                return_value=mock_app_context
+            )
+            mock_get_service.return_value = mock_app_context_service
+
+            with patch.object(permission_service.cache, "get", new_callable=AsyncMock) as mock_get:
+                mock_get.return_value = None  # Cache miss
+
+                with patch.object(
+                    permission_service.api_client.permissions,
+                    "get_permissions",
+                    new_callable=AsyncMock,
+                ) as mock_api_get_permissions:
+                    from miso_client.api.types.permissions_types import (
+                        GetPermissionsResponse,
+                        GetPermissionsResponseData,
+                    )
+
+                    mock_api_get_permissions.return_value = GetPermissionsResponse(
+                        success=True,
+                        data=GetPermissionsResponseData(permissions=["read"]),
+                        timestamp="2024-01-01T00:00:00Z",
+                    )
+
+                    with patch.object(permission_service.cache, "set", new_callable=AsyncMock):
+                        permissions = await permission_service.get_permissions(token)
+
+                        assert permissions == ["read"]
+                        # Verify environment and application were not passed (None for unknown)
+                        mock_api_get_permissions.assert_called_once()
+                        call_kwargs = mock_api_get_permissions.call_args[1]
+                        assert call_kwargs.get("environment") is None
+                        assert call_kwargs.get("application") is None
+
+    @pytest.mark.asyncio
+    async def test_get_permissions_cache_hit_no_controller_calls(self, permission_service):
+        """Test that cache hits don't trigger controller calls."""
+        import jwt
+
+        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+
+        mock_app_context_service = MagicMock()
+        mock_app_context = MagicMock()
+        mock_app_context.environment = "miso"
+        mock_app_context.application = "test-app"
+        mock_app_context_service.get_application_context_sync = MagicMock(
+            return_value=mock_app_context
+        )
+
+        with patch.object(
+            permission_service, "_get_app_context_service", return_value=mock_app_context_service
+        ):
+            with patch.object(permission_service.cache, "get", new_callable=AsyncMock) as mock_get:
+                # Cache hit
+                mock_get.return_value = {
+                    "permissions": ["read", "write"],
+                    "timestamp": 1234567890,
+                }
+
+                permissions = await permission_service.get_permissions(token)
+
+                assert permissions == ["read", "write"]
+                # Verify cache was checked
+                mock_get.assert_called_once_with("permissions:user-123")
+                # Verify synchronous context method was NOT called (cache hit returns early)
+                mock_app_context_service.get_application_context_sync.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_get_permissions_cache_miss_only_one_controller_call(self, permission_service):
+        """Test that cache misses only trigger one controller call."""
+        import jwt
+
+        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+
+        mock_app_context_service = MagicMock()
+        mock_app_context = MagicMock()
+        mock_app_context.environment = "miso"
+        mock_app_context.application = "test-app"
+        mock_app_context_service.get_application_context_sync = MagicMock(
+            return_value=mock_app_context
+        )
+
+        with patch.object(
+            permission_service, "_get_app_context_service", return_value=mock_app_context_service
+        ):
+            with patch.object(permission_service.cache, "get", new_callable=AsyncMock) as mock_get:
+                # Cache miss
+                mock_get.return_value = None
+
+                with patch.object(
+                    permission_service.api_client.permissions,
+                    "get_permissions",
+                    new_callable=AsyncMock,
+                ) as mock_api_get_permissions:
+                    from miso_client.api.types.permissions_types import (
+                        GetPermissionsResponse,
+                        GetPermissionsResponseData,
+                    )
+
+                    mock_api_get_permissions.return_value = GetPermissionsResponse(
+                        success=True,
+                        data=GetPermissionsResponseData(permissions=["read", "write"]),
+                        timestamp="2024-01-01T00:00:00Z",
+                    )
+
+                    with patch.object(
+                        permission_service.cache, "set", new_callable=AsyncMock
+                    ) as mock_set:
+                        permissions = await permission_service.get_permissions(token)
+
+                        assert permissions == ["read", "write"]
+                        # Verify only one API call (for permissions)
+                        mock_api_get_permissions.assert_called_once()
+                        # Verify cache was set
+                        mock_set.assert_called_once()
+                        # Verify synchronous context method was used (no async call)
+                        mock_app_context_service.get_application_context_sync.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_refresh_permissions_with_http_client_fallback(
+        self, permission_service, mock_http_client, mock_cache
+    ):
+        """Test refresh_permissions with HttpClient fallback when api_client is None."""
+        # Create permission service without api_client
+        permission_service_no_api = PermissionService(mock_http_client, mock_cache, None)
+
+        with patch.object(
+            permission_service_no_api, "_get_app_context_service", return_value=MagicMock()
+        ) as mock_get_service:
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
+            mock_app_context_service = MagicMock()
+            mock_app_context_service.get_application_context_sync = MagicMock(
+                return_value=mock_app_context
+            )
+            mock_get_service.return_value = mock_app_context_service
+
+            with patch(
+                "miso_client.services.permission.validate_token_request",
+                new_callable=AsyncMock,
+            ) as mock_validate:
+                mock_validate.return_value = {"data": {"user": {"id": "user-123"}}}
+
+                with patch.object(
+                    permission_service_no_api.http_client,
+                    "authenticated_request",
+                    new_callable=AsyncMock,
+                ) as mock_request:
+                    mock_request.return_value = {
+                        "userId": "user-123",
+                        "permissions": ["read", "write"],
+                        "environment": "miso",
+                        "application": "test-app",
+                    }
+
+                    with patch.object(
+                        permission_service_no_api.cache, "set", new_callable=AsyncMock
+                    ):
+                        permissions = await permission_service_no_api.refresh_permissions("token")
+
+                        assert permissions == ["read", "write"]
+                        # Verify HttpClient was used
+                        mock_request.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_refresh_permissions_with_empty_permissions(self, permission_service):
+        """Test refresh_permissions with empty permissions list."""
+        with patch.object(
+            permission_service, "_get_app_context_service", return_value=MagicMock()
+        ) as mock_get_service:
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
+            mock_app_context_service = MagicMock()
+            mock_app_context_service.get_application_context_sync = MagicMock(
+                return_value=mock_app_context
+            )
+            mock_get_service.return_value = mock_app_context_service
+
+            with patch(
+                "miso_client.services.permission.validate_token_request",
+                new_callable=AsyncMock,
+            ) as mock_validate:
+                mock_validate.return_value = {"data": {"user": {"id": "user-123"}}}
+
+                with patch.object(
+                    permission_service.api_client.permissions,
+                    "refresh_permissions",
+                    new_callable=AsyncMock,
+                ) as mock_api_refresh:
+                    from miso_client.api.types.permissions_types import (
+                        GetPermissionsResponseData,
+                        RefreshPermissionsResponse,
+                    )
+
+                    mock_api_refresh.return_value = RefreshPermissionsResponse(
+                        success=True,
+                        data=GetPermissionsResponseData(permissions=[]),
+                        timestamp="2024-01-01T00:00:00Z",
+                    )
+
+                    with patch.object(permission_service.cache, "set", new_callable=AsyncMock):
+                        permissions = await permission_service.refresh_permissions("token")
+
+                        assert permissions == []
+
+    @pytest.mark.asyncio
+    async def test_has_permission_with_empty_permissions_list(self, permission_service):
+        """Test has_permission when user has no permissions."""
+        with patch.object(
+            permission_service, "get_permissions", new_callable=AsyncMock
+        ) as mock_get_permissions:
+            mock_get_permissions.return_value = []  # Empty permissions
+
+            result = await permission_service.has_permission("token", "read")
+
+            assert result is False
+
+    @pytest.mark.asyncio
+    async def test_has_any_permission_with_empty_permissions_list(self, permission_service):
+        """Test has_any_permission when user has no permissions."""
+        with patch.object(
+            permission_service, "get_permissions", new_callable=AsyncMock
+        ) as mock_get_permissions:
+            mock_get_permissions.return_value = []  # Empty permissions
+
+            result = await permission_service.has_any_permission("token", ["read", "write"])
+
+            assert result is False
+
+    @pytest.mark.asyncio
+    async def test_has_all_permissions_with_empty_permissions_list(self, permission_service):
+        """Test has_all_permissions when user has no permissions."""
+        with patch.object(
+            permission_service, "get_permissions", new_callable=AsyncMock
+        ) as mock_get_permissions:
+            mock_get_permissions.return_value = []  # Empty permissions
+
+            result = await permission_service.has_all_permissions("token", ["read", "write"])
+
+            assert result is False
+
+    @pytest.mark.asyncio
+    async def test_has_all_permissions_with_empty_input_list(self, permission_service):
+        """Test has_all_permissions with empty input list (should return True)."""
+        with patch.object(
+            permission_service, "get_permissions", new_callable=AsyncMock
+        ) as mock_get_permissions:
+            mock_get_permissions.return_value = ["read", "write"]
+
+            # Empty list should return True (all of nothing is true)
+            result = await permission_service.has_all_permissions("token", [])
+
+            assert result is True
+
+    @pytest.mark.asyncio
+    async def test_get_permissions_user_id_none_after_validate(
+        self, permission_service, mock_http_client, mock_cache
+    ):
+        """Test get_permissions when user_id is None after validate (line 113)."""
+        import jwt
+
+        from miso_client.services.permission import PermissionService
+
+        # Create permission service without api_client to test HttpClient path
+        permission_service_no_api = PermissionService(mock_http_client, mock_cache, None)
+
+        token = jwt.encode({}, "secret", algorithm="HS256")  # No userId in token
+
+        with patch.object(
+            permission_service_no_api, "_get_app_context_service", return_value=MagicMock()
+        ) as mock_get_service:
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
+            mock_app_context_service = MagicMock()
+            mock_app_context_service.get_application_context_sync = MagicMock(
+                return_value=mock_app_context
+            )
+            mock_get_service.return_value = mock_app_context_service
+
+            with patch.object(
+                permission_service_no_api.cache, "get", new_callable=AsyncMock
+            ) as mock_get:
+                mock_get.return_value = None  # Cache miss
+
+                with patch(
+                    "miso_client.services.permission.validate_token_request",
+                    new_callable=AsyncMock,
+                ) as mock_validate:
+                    # Return user info without id field
+                    mock_validate.return_value = {"data": {"user": {}}}  # No id
+
+                    permissions = await permission_service_no_api.get_permissions(token)
+
+                    # Should return empty list when user_id is None after validate
+                    assert permissions == []
+
+    @pytest.mark.asyncio
+    async def test_get_permissions_http_client_fallback_with_auth_strategy(
+        self, permission_service, mock_http_client, mock_cache
+    ):
+        """Test get_permissions with HttpClient fallback and auth_strategy (line 148)."""
+        import jwt
+
+        from miso_client.models.config import AuthStrategy
+        from miso_client.services.permission import PermissionService
+
+        # Create permission service without api_client
+        permission_service_no_api = PermissionService(mock_http_client, mock_cache, None)
+
+        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        auth_strategy = AuthStrategy(methods=["bearer", "client-token"])
+
+        with patch.object(
+            permission_service_no_api, "_get_app_context_service", return_value=MagicMock()
+        ) as mock_get_service:
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
+            mock_app_context_service = MagicMock()
+            mock_app_context_service.get_application_context_sync = MagicMock(
+                return_value=mock_app_context
+            )
+            mock_get_service.return_value = mock_app_context_service
+
+            with patch.object(
+                permission_service_no_api.cache, "get", new_callable=AsyncMock
+            ) as mock_get:
+                mock_get.return_value = None  # Cache miss
+
+                with patch.object(
+                    permission_service_no_api.http_client,
+                    "authenticated_request",
+                    new_callable=AsyncMock,
+                ) as mock_request:
+                    mock_request.return_value = {
+                        "userId": "user-123",
+                        "permissions": ["read", "write"],
+                        "environment": "miso",
+                        "application": "test-app",
+                    }
+
+                    with patch.object(
+                        permission_service_no_api.cache, "set", new_callable=AsyncMock
+                    ):
+                        permissions = await permission_service_no_api.get_permissions(
+                            token, auth_strategy=auth_strategy
+                        )
+
+                        assert permissions == ["read", "write"]
+                        # Verify HttpClient was called with auth_strategy
+                        mock_request.assert_called_once()
+                        call_kwargs = mock_request.call_args[1]
+                        assert call_kwargs.get("auth_strategy") == auth_strategy
+
+    @pytest.mark.asyncio
+    async def test_refresh_permissions_http_client_fallback_with_auth_strategy(
+        self, permission_service, mock_http_client, mock_cache
+    ):
+        """Test refresh_permissions with HttpClient fallback and auth_strategy (line 303)."""
+        from miso_client.models.config import AuthStrategy
+        from miso_client.services.permission import PermissionService
+
+        # Create permission service without api_client
+        permission_service_no_api = PermissionService(mock_http_client, mock_cache, None)
+
+        auth_strategy = AuthStrategy(methods=["bearer", "client-token"])
+
+        with patch.object(
+            permission_service_no_api, "_get_app_context_service", return_value=MagicMock()
+        ) as mock_get_service:
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
+            mock_app_context_service = MagicMock()
+            mock_app_context_service.get_application_context_sync = MagicMock(
+                return_value=mock_app_context
+            )
+            mock_get_service.return_value = mock_app_context_service
+
+            with patch(
+                "miso_client.services.permission.validate_token_request",
+                new_callable=AsyncMock,
+            ) as mock_validate:
+                mock_validate.return_value = {"data": {"user": {"id": "user-123"}}}
+
+                with patch.object(
+                    permission_service_no_api.http_client,
+                    "authenticated_request",
+                    new_callable=AsyncMock,
+                ) as mock_request:
+                    mock_request.return_value = {
+                        "userId": "user-123",
+                        "permissions": ["read", "write"],
+                        "environment": "miso",
+                        "application": "test-app",
+                    }
+
+                    with patch.object(
+                        permission_service_no_api.cache, "set", new_callable=AsyncMock
+                    ):
+                        permissions = await permission_service_no_api.refresh_permissions(
+                            "token", auth_strategy=auth_strategy
+                        )
+
+                        assert permissions == ["read", "write"]
+                        # Verify HttpClient was called with auth_strategy
+                        mock_request.assert_called_once()
+                        call_kwargs = mock_request.call_args[1]
+                        assert call_kwargs.get("auth_strategy") == auth_strategy
+
+    @pytest.mark.asyncio
+    async def test_get_permissions_http_client_permission_result_creation(
+        self, permission_service, mock_http_client, mock_cache
+    ):
+        """Test PermissionResult creation in get_permissions HttpClient path (line 161)."""
+        import jwt
+
+        from miso_client.services.permission import PermissionService
+
+        # Create permission service without api_client
+        permission_service_no_api = PermissionService(mock_http_client, mock_cache, None)
+
+        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+
+        with patch.object(
+            permission_service_no_api, "_get_app_context_service", return_value=MagicMock()
+        ) as mock_get_service:
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
+            mock_app_context_service = MagicMock()
+            mock_app_context_service.get_application_context_sync = MagicMock(
+                return_value=mock_app_context
+            )
+            mock_get_service.return_value = mock_app_context_service
+
+            with patch.object(
+                permission_service_no_api.cache, "get", new_callable=AsyncMock
+            ) as mock_get:
+                mock_get.return_value = None  # Cache miss
+
+                with patch.object(
+                    permission_service_no_api.http_client,
+                    "authenticated_request",
+                    new_callable=AsyncMock,
+                ) as mock_request:
+                    # Return response that will be converted to PermissionResult
+                    # PermissionResult requires: userId, permissions, environment, application
+                    mock_request.return_value = {
+                        "userId": "user-123",
+                        "permissions": ["read", "write"],
+                        "environment": "miso",
+                        "application": "test-app",
+                    }
+
+                    with patch.object(
+                        permission_service_no_api.cache, "set", new_callable=AsyncMock
+                    ):
+                        permissions = await permission_service_no_api.get_permissions(token)
+
+                        assert permissions == ["read", "write"]
+                        # Verify PermissionResult was created (line 161)
+                        mock_request.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_refresh_permissions_http_client_permission_result_creation(
+        self, permission_service, mock_http_client, mock_cache
+    ):
+        """Test PermissionResult creation in refresh_permissions HttpClient path (line 316)."""
+        from miso_client.services.permission import PermissionService
+
+        # Create permission service without api_client
+        permission_service_no_api = PermissionService(mock_http_client, mock_cache, None)
+
+        with patch.object(
+            permission_service_no_api, "_get_app_context_service", return_value=MagicMock()
+        ) as mock_get_service:
+            from miso_client.services.application_context import ApplicationContext
+
+            mock_app_context = ApplicationContext(
+                application="test-app", application_id=None, environment="miso"
+            )
+            mock_app_context_service = MagicMock()
+            mock_app_context_service.get_application_context_sync = MagicMock(
+                return_value=mock_app_context
+            )
+            mock_get_service.return_value = mock_app_context_service
+
+            with patch(
+                "miso_client.services.permission.validate_token_request",
+                new_callable=AsyncMock,
+            ) as mock_validate:
+                mock_validate.return_value = {"data": {"user": {"id": "user-123"}}}
+
+                with patch.object(
+                    permission_service_no_api.http_client,
+                    "authenticated_request",
+                    new_callable=AsyncMock,
+                ) as mock_request:
+                    # Return response that will be converted to PermissionResult
+                    # PermissionResult requires: userId, permissions, environment, application
+                    mock_request.return_value = {
+                        "userId": "user-123",
+                        "permissions": ["read", "write"],
+                        "environment": "miso",
+                        "application": "test-app",
+                    }
+
+                    with patch.object(
+                        permission_service_no_api.cache, "set", new_callable=AsyncMock
+                    ):
+                        permissions = await permission_service_no_api.refresh_permissions("token")
+
+                        assert permissions == ["read", "write"]
+                        # Verify PermissionResult was created (line 316)
+                        mock_request.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_app_context_service_initialization(
+        self, permission_service, mock_http_client
+    ):
+        """Test _get_app_context_service initialization when _app_context_service is None (lines 51-55)."""
+        from miso_client.utils.internal_http_client import InternalHttpClient
+
+        # Set up mock_http_client with internal_client
+        mock_internal_client = MagicMock(spec=InternalHttpClient)
+        # Mock config attribute that ApplicationContextService.__init__ accesses
+        mock_config = MagicMock()
+        mock_internal_client.config = mock_config
+        mock_http_client._internal_client = mock_internal_client
+
+        # Reset _app_context_service to None
+        permission_service._app_context_service = None
+
+        # Initially _app_context_service should be None
+        assert permission_service._app_context_service is None
+
+        # Call _get_app_context_service - should initialize it
+        app_context_service = permission_service._get_app_context_service()
+
+        # Should now be initialized
+        assert permission_service._app_context_service is not None
+        assert app_context_service is permission_service._app_context_service
+
+        # Second call should return same instance
+        app_context_service2 = permission_service._get_app_context_service()
+        assert app_context_service2 is app_context_service
+
+    @pytest.mark.asyncio
+    async def test_get_environment_from_context_exception(self, permission_service):
+        """Test _get_environment_from_context exception handling (line 73)."""
+        # Mock _get_app_context_service to raise exception
+        with patch.object(
+            permission_service, "_get_app_context_service", side_effect=Exception("Test error")
+        ):
+            result = permission_service._get_environment_from_context()
+            # Should return None on exception
+            assert result is None
+
+    @pytest.mark.asyncio
+    async def test_clear_permissions_cache_with_jwt_userid_direct(self, permission_service):
+        """Test clear_permissions_cache when userId is in JWT (should not call validate)."""
+        import jwt
+
+        token = jwt.encode({"sub": "user-789"}, "secret", algorithm="HS256")
+
+        with patch.object(
+            permission_service.cache, "delete", new_callable=AsyncMock
+        ) as mock_delete:
+            # Should not call validate_token_request when userId is in token
+            with patch(
+                "miso_client.services.permission.validate_token_request",
+                new_callable=AsyncMock,
+            ) as mock_validate:
+                await permission_service.clear_permissions_cache(token)
+
+                # Should not call validate since userId is in token
+                mock_validate.assert_not_called()
+                # Should delete cache directly
+                mock_delete.assert_called_once_with("permissions:user-789")

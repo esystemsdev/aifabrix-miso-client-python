@@ -61,6 +61,19 @@ class HttpClient:
 
     async def close(self):
         """Close the HTTP client."""
+        # Wait for all logging tasks to complete before closing
+        # This prevents "Event loop is closed" errors during teardown
+        try:
+            await self._wait_for_logging_tasks(timeout=1.0)
+        except (RuntimeError, asyncio.CancelledError):
+            # Event loop closed or cancelled - cancel remaining tasks
+            if hasattr(self, "_logging_tasks") and self._logging_tasks:
+                for task in list(self._logging_tasks):
+                    if not task.done():
+                        try:
+                            task.cancel()
+                        except Exception:
+                            pass
         await self._internal_client.close()
 
     async def __aenter__(self):

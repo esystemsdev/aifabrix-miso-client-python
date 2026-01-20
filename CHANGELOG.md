@@ -5,6 +5,32 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.2] - 2026-01-20
+
+### Fixed
+
+- **Caching Performance**: Fixed caching to avoid unnecessary controller calls on cache hits
+  - Added synchronous `get_application_context_sync()` method to `ApplicationContextService` that uses cached client token without triggering token refresh
+  - Updated `PermissionService.get_permissions()` and `PermissionService.refresh_permissions()` to use synchronous application context
+  - Updated `RoleService.get_roles()` and `RoleService.refresh_roles()` to use synchronous application context
+  - Application context is now cached and reused, preventing unnecessary controller calls when fetching roles/permissions from cache
+  - Matches TypeScript implementation behavior where `getApplicationContext()` is synchronous and doesn't trigger controller calls
+
+### Added
+
+- **API Test Coverage**: Added comprehensive integration tests for all API methods
+  - Added integration tests for `AuthApi.refresh_token()`, `AuthApi.initiate_device_code()`, `AuthApi.poll_device_code_token()`, and `AuthApi.refresh_device_code_token()`
+  - Added integration tests for `LogsApi.get_job_log()` and `LogsApi.export_logs()` (CSV and JSON formats)
+  - Refactored existing LogsApi tests to use API layer (`api_client.logs.*`) instead of direct HTTP calls
+  - Created `test_api_validation.py` script to validate API method test coverage
+  - All 27 API methods now have integration tests with 100% API layer coverage
+
+### Technical
+
+- Added 8 new unit tests for cache behavior validation
+- All tests use API layer methods instead of direct HTTP client calls
+- Improved test organization and maintainability
+
 ## [4.0.1] - 2026-01-20
 
 ### Fixed

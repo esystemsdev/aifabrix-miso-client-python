@@ -114,7 +114,8 @@ class PermissionService:
                 cache_key = f"permissions:{user_id}"
 
             # Extract environment and application from application context service (matching TypeScript)
-            context = await self._get_app_context_service().get_application_context()
+            # Use synchronous method to avoid triggering controller calls on cache hits
+            context = self._get_app_context_service().get_application_context_sync()
             environment = (
                 context.environment
                 if context.environment and context.environment != "unknown"
@@ -268,7 +269,8 @@ class PermissionService:
             cache_key = f"permissions:{user_id}"
 
             # Extract environment and application from application context service (matching TypeScript)
-            context = await self._get_app_context_service().get_application_context()
+            # Use synchronous method to avoid triggering controller calls on cache hits
+            context = self._get_app_context_service().get_application_context_sync()
             environment = (
                 context.environment
                 if context.environment and context.environment != "unknown"
@@ -343,14 +345,17 @@ class PermissionService:
             auth_strategy: Optional authentication strategy
         """
         try:
-            # Get user info to extract userId
-            user_info = await validate_token_request(
-                token, self.http_client, self.api_client, auth_strategy
-            )
-            # validate_token_request returns {"data": {"user": {...}}} format
-            user_id = user_info.get("data", {}).get("user", {}).get("id") if user_info else None
+            # Extract userId from token first (avoids API call if userId is in token)
+            user_id = extract_user_id(token)
             if not user_id:
-                return
+                # Fallback to validate endpoint if userId not in token
+                user_info = await validate_token_request(
+                    token, self.http_client, self.api_client, auth_strategy
+                )
+                # validate_token_request returns {"data": {"user": {...}}} format
+                user_id = user_info.get("data", {}).get("user", {}).get("id") if user_info else None
+                if not user_id:
+                    return
 
             cache_key = f"permissions:{user_id}"
 

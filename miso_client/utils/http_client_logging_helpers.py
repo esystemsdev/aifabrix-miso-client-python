@@ -19,6 +19,7 @@ def handle_logging_task_error(task: asyncio.Task) -> None:
     Handle errors in background logging tasks.
 
     Silently swallows all exceptions to prevent logging errors from breaking requests.
+    Handles closed event loops gracefully during test teardown.
 
     Args:
         task: The completed logging task
@@ -27,7 +28,11 @@ def handle_logging_task_error(task: asyncio.Task) -> None:
         exception = task.exception()
         if exception:
             # Silently swallow logging errors - never break HTTP requests
+            # This includes RuntimeError("Event loop is closed") during teardown
             pass
+    except (RuntimeError, asyncio.CancelledError):
+        # Event loop closed or task cancelled during teardown - this is expected
+        pass
     except Exception:
         # Task might not be done yet or other error - ignore
         pass
@@ -43,15 +48,27 @@ async def wait_for_logging_tasks(logging_tasks: set[asyncio.Task], timeout: floa
         logging_tasks: Set of logging tasks
         timeout: Maximum time to wait in seconds
     """
-    if logging_tasks:
-        try:
-            await asyncio.wait_for(
-                asyncio.gather(*logging_tasks, return_exceptions=True),
-                timeout=timeout,
-            )
-        except asyncio.TimeoutError:
-            # Some tasks might still be running, that's okay
-            pass
+    if not logging_tasks:
+        return
+
+    # Filter out completed tasks
+    active_tasks = [task for task in logging_tasks if not task.done()]
+    if not active_tasks:
+        return
+
+    try:
+        await asyncio.wait_for(
+            asyncio.gather(*active_tasks, return_exceptions=True),
+            timeout=timeout,
+        )
+    except (asyncio.TimeoutError, RuntimeError):
+        # Timeout or event loop closed - cancel remaining tasks
+        for task in active_tasks:
+            if not task.done():
+                try:
+                    task.cancel()
+                except Exception:
+                    pass
 
 
 def calculate_status_code(response: Optional[Any], error: Optional[Exception]) -> Optional[int]:
