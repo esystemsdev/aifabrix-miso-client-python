@@ -288,7 +288,11 @@ class LoggerService:
         """Get application context with option overwrites."""
         app_id = None
         if options and options.applicationId:
-            app_id = options.applicationId.id if isinstance(options.applicationId, ForeignKeyReference) else options.applicationId
+            app_id = (
+                options.applicationId.id
+                if isinstance(options.applicationId, ForeignKeyReference)
+                else options.applicationId
+            )
         ctx = await self.application_context_service.get_application_context(
             overwrite_application=options.application if options else None,
             overwrite_application_id=app_id,
@@ -305,12 +309,21 @@ class LoggerService:
         options: Optional[ClientLoggingOptions],
     ) -> LogEntry:
         """Build log entry with all context."""
-        correlation_id = (options.correlationId if options else None) or self._generate_correlation_id()
+        correlation_id = (
+            options.correlationId if options else None
+        ) or self._generate_correlation_id()
         return build_log_entry(
-            level=level, message=message, context=context, config_client_id=self.config.client_id,
-            correlation_id=correlation_id, jwt_token=options.token if options else None,
-            stack_trace=stack_trace, options=options, metadata=extract_metadata(),
-            mask_sensitive=self.mask_sensitive_data, application_context=await self._get_app_context(options),
+            level=level,
+            message=message,
+            context=context,
+            config_client_id=self.config.client_id,
+            correlation_id=correlation_id,
+            jwt_token=options.token if options else None,
+            stack_trace=stack_trace,
+            options=options,
+            metadata=extract_metadata(),
+            mask_sensitive=self.mask_sensitive_data,
+            application_context=await self._get_app_context(options),
         )
 
     async def _log(
@@ -351,7 +364,9 @@ class LoggerService:
                 ),
             )
 
-        log_type = cast(Literal["error", "general"], "error" if log_entry.level == "error" else "general")
+        log_type = cast(
+            Literal["error", "general"], "error" if log_entry.level == "error" else "general"
+        )
         return LogRequest(
             type=log_type,
             data=GeneralLogData(

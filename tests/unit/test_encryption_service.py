@@ -185,9 +185,7 @@ class TestEncrypt:
             "storage": "keyvault",
         }
 
-        result = await encryption_service.encrypt(
-            "p@ssw0rd!#$%^&*()", "db.password"
-        )
+        result = await encryption_service.encrypt("p@ssw0rd!#$%^&*()", "db.password")
 
         assert result.value == "kv://db.password"
         mock_http_client.post.assert_called_once_with(
@@ -248,9 +246,7 @@ class TestDecrypt:
     @pytest.mark.asyncio
     async def test_decrypt_not_found_error(self, encryption_service, mock_http_client):
         """Test decryption 404 error maps to PARAMETER_NOT_FOUND."""
-        mock_http_client.post.side_effect = MisoClientError(
-            "Parameter not found", status_code=404
-        )
+        mock_http_client.post.side_effect = MisoClientError("Parameter not found", status_code=404)
 
         with pytest.raises(EncryptionError) as exc_info:
             await encryption_service.decrypt("kv://missing", "missing")
@@ -262,9 +258,7 @@ class TestDecrypt:
     @pytest.mark.asyncio
     async def test_decrypt_access_denied_error(self, encryption_service, mock_http_client):
         """Test decryption 403 error maps to ACCESS_DENIED."""
-        mock_http_client.post.side_effect = MisoClientError(
-            "Access denied", status_code=403
-        )
+        mock_http_client.post.side_effect = MisoClientError("Access denied", status_code=403)
 
         with pytest.raises(EncryptionError) as exc_info:
             await encryption_service.decrypt("kv://forbidden", "forbidden")
@@ -276,9 +270,7 @@ class TestDecrypt:
     @pytest.mark.asyncio
     async def test_decrypt_general_error(self, encryption_service, mock_http_client):
         """Test decryption general error maps to DECRYPTION_FAILED."""
-        mock_http_client.post.side_effect = MisoClientError(
-            "Decryption failed", status_code=500
-        )
+        mock_http_client.post.side_effect = MisoClientError("Decryption failed", status_code=500)
 
         with pytest.raises(EncryptionError) as exc_info:
             await encryption_service.decrypt("kv://error", "error")
