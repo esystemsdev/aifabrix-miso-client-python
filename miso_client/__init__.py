@@ -113,8 +113,6 @@ from .utils.filter_schema import (
 from .utils.flask_endpoints import create_flask_client_token_endpoint
 from .utils.flask_logger_middleware import (
     logger_context_middleware as flask_logger_context_middleware,
-)
-from .utils.flask_logger_middleware import (
     register_logger_context_middleware,
 )
 from .utils.http_client import HttpClient
