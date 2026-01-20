@@ -45,6 +45,7 @@ class MisoClient:
         self.http_client = HttpClient(config, self.logger)
 
         from .api import ApiClient
+
         self.api_client = ApiClient(self.http_client)
 
         if config.audit and (config.audit.batchSize or config.audit.batchInterval):
@@ -52,6 +53,7 @@ class MisoClient:
         self.logger.api_client = self.api_client
 
         from .utils.unified_logger_factory import set_default_logger_service
+
         set_default_logger_service(self.logger)
 
         self.cache = CacheService(self.redis)
@@ -88,7 +90,9 @@ class MisoClient:
 
     def get_token(self, req: dict) -> str | None:
         """Extract Bearer token from request headers."""
-        headers_obj = req.get("headers", {}) if isinstance(req, dict) else getattr(req, "headers", {})
+        headers_obj = (
+            req.get("headers", {}) if isinstance(req, dict) else getattr(req, "headers", {})
+        )
         headers: dict[str, Any] = headers_obj if isinstance(headers_obj, dict) else {}
         auth_value = headers.get("authorization") or headers.get("Authorization")
         if not isinstance(auth_value, str):
@@ -103,19 +107,27 @@ class MisoClient:
         """Initiate login flow."""
         return await self.auth.login(redirect, state)
 
-    async def validate_token(self, token: str, auth_strategy: Optional[AuthStrategy] = None) -> bool:
+    async def validate_token(
+        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> bool:
         """Validate token with controller."""
         return await self.auth.validate_token(token, auth_strategy=auth_strategy)
 
-    async def get_user(self, token: str, auth_strategy: Optional[AuthStrategy] = None) -> UserInfo | None:
+    async def get_user(
+        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> UserInfo | None:
         """Get user information from token."""
         return await self.auth.get_user(token, auth_strategy=auth_strategy)
 
-    async def get_user_info(self, token: str, auth_strategy: Optional[AuthStrategy] = None) -> UserInfo | None:
+    async def get_user_info(
+        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> UserInfo | None:
         """Get user information from GET /api/v1/auth/user endpoint."""
         return await self.auth.get_user_info(token, auth_strategy=auth_strategy)
 
-    async def is_authenticated(self, token: str, auth_strategy: Optional[AuthStrategy] = None) -> bool:
+    async def is_authenticated(
+        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> bool:
         """Check if user is authenticated."""
         return await self.auth.is_authenticated(token, auth_strategy=auth_strategy)
 
@@ -146,47 +158,73 @@ class MisoClient:
 
     # ==================== AUTHORIZATION METHODS ====================
 
-    async def get_roles(self, token: str, auth_strategy: Optional[AuthStrategy] = None) -> list[str]:
+    async def get_roles(
+        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> list[str]:
         """Get user roles (cached in Redis if available)."""
         return await self.roles.get_roles(token, auth_strategy=auth_strategy)
 
-    async def has_role(self, token: str, role: str, auth_strategy: Optional[AuthStrategy] = None) -> bool:
+    async def has_role(
+        self, token: str, role: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> bool:
         """Check if user has specific role."""
         return await self.roles.has_role(token, role, auth_strategy=auth_strategy)
 
-    async def has_any_role(self, token: str, roles: list[str], auth_strategy: Optional[AuthStrategy] = None) -> bool:
+    async def has_any_role(
+        self, token: str, roles: list[str], auth_strategy: Optional[AuthStrategy] = None
+    ) -> bool:
         """Check if user has any of the specified roles."""
         return await self.roles.has_any_role(token, roles, auth_strategy=auth_strategy)
 
-    async def has_all_roles(self, token: str, roles: list[str], auth_strategy: Optional[AuthStrategy] = None) -> bool:
+    async def has_all_roles(
+        self, token: str, roles: list[str], auth_strategy: Optional[AuthStrategy] = None
+    ) -> bool:
         """Check if user has all of the specified roles."""
         return await self.roles.has_all_roles(token, roles, auth_strategy=auth_strategy)
 
-    async def refresh_roles(self, token: str, auth_strategy: Optional[AuthStrategy] = None) -> list[str]:
+    async def refresh_roles(
+        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> list[str]:
         """Force refresh roles from controller (bypass cache)."""
         return await self.roles.refresh_roles(token, auth_strategy=auth_strategy)
 
-    async def get_permissions(self, token: str, auth_strategy: Optional[AuthStrategy] = None) -> list[str]:
+    async def get_permissions(
+        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> list[str]:
         """Get user permissions (cached in Redis if available)."""
         return await self.permissions.get_permissions(token, auth_strategy=auth_strategy)
 
-    async def has_permission(self, token: str, permission: str, auth_strategy: Optional[AuthStrategy] = None) -> bool:
+    async def has_permission(
+        self, token: str, permission: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> bool:
         """Check if user has specific permission."""
         return await self.permissions.has_permission(token, permission, auth_strategy=auth_strategy)
 
-    async def has_any_permission(self, token: str, permissions: list[str], auth_strategy: Optional[AuthStrategy] = None) -> bool:
+    async def has_any_permission(
+        self, token: str, permissions: list[str], auth_strategy: Optional[AuthStrategy] = None
+    ) -> bool:
         """Check if user has any of the specified permissions."""
-        return await self.permissions.has_any_permission(token, permissions, auth_strategy=auth_strategy)
+        return await self.permissions.has_any_permission(
+            token, permissions, auth_strategy=auth_strategy
+        )
 
-    async def has_all_permissions(self, token: str, permissions: list[str], auth_strategy: Optional[AuthStrategy] = None) -> bool:
+    async def has_all_permissions(
+        self, token: str, permissions: list[str], auth_strategy: Optional[AuthStrategy] = None
+    ) -> bool:
         """Check if user has all of the specified permissions."""
-        return await self.permissions.has_all_permissions(token, permissions, auth_strategy=auth_strategy)
+        return await self.permissions.has_all_permissions(
+            token, permissions, auth_strategy=auth_strategy
+        )
 
-    async def refresh_permissions(self, token: str, auth_strategy: Optional[AuthStrategy] = None) -> list[str]:
+    async def refresh_permissions(
+        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> list[str]:
         """Force refresh permissions from controller (bypass cache)."""
         return await self.permissions.refresh_permissions(token, auth_strategy=auth_strategy)
 
-    async def clear_permissions_cache(self, token: str, auth_strategy: Optional[AuthStrategy] = None) -> None:
+    async def clear_permissions_cache(
+        self, token: str, auth_strategy: Optional[AuthStrategy] = None
+    ) -> None:
         """Clear cached permissions for a user."""
         return await self.permissions.clear_permissions_cache(token, auth_strategy=auth_strategy)
 
@@ -255,4 +293,6 @@ class MisoClient:
         **kwargs,
     ) -> Any:
         """Make request with authentication strategy (priority-based fallback)."""
-        return await self.http_client.request_with_auth_strategy(method, url, auth_strategy, data, **kwargs)
+        return await self.http_client.request_with_auth_strategy(
+            method, url, auth_strategy, data, **kwargs
+        )

@@ -112,7 +112,7 @@ class TestRolesApi:
         assert result.success is True
         assert result.data.roles == ["admin", "user", "viewer"]
         mock_http_client.authenticated_request.assert_called_once_with(
-            "GET", roles_api.ROLES_REFRESH_ENDPOINT, "test-token", auth_strategy=None
+            "GET", roles_api.ROLES_REFRESH_ENDPOINT, "test-token", params={}, auth_strategy=None
         )
 
     @pytest.mark.asyncio
@@ -129,7 +129,7 @@ class TestRolesApi:
 
         assert isinstance(result, RefreshRolesResponse)
         assert result.success is True
-        mock_http_client.get.assert_called_once_with(roles_api.ROLES_REFRESH_ENDPOINT)
+        mock_http_client.get.assert_called_once_with(roles_api.ROLES_REFRESH_ENDPOINT, params={})
 
     @pytest.mark.asyncio
     async def test_get_roles_error(self, roles_api, mock_http_client):

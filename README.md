@@ -278,6 +278,7 @@ result = await client.http_client.get('/api/users')
 **What happens:** The SDK provides a unified logging interface with minimal API (1-3 parameters maximum) and automatic context extraction. This eliminates the need to manually pass Request objects or context dictionaries.
 
 **Benefits:**
+
 - **Minimal API**: Maximum 1-3 parameters per logging call
 - **Automatic Context**: Context extracted automatically via contextvars
 - **Simple Usage**: `logger.info(message)`, `logger.error(message, error?)`, `logger.audit(action, resource, entity_id?, old_values?, new_values?)`
@@ -847,7 +848,7 @@ filter_query = FilterQuery(
     ],
     sort=['-updated_at', 'created_at'],
     page=1,
-    page_size=20,
+    pageSize=20,  # Note: camelCase for API compatibility
     fields=['id', 'name', 'status']
 )
 
@@ -942,8 +943,8 @@ response = await client.http_client.get_paginated(
 )
 
 # Response is automatically parsed as PaginatedListResponse
-print(response.meta.total_items)  # 120
-print(response.meta.current_page)  # 1
+print(response.meta.totalItems)  # 120
+print(response.meta.currentPage)  # 1
 print(len(response.data))  # 25
 ```
 

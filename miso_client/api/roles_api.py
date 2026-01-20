@@ -64,13 +64,19 @@ class RolesApi:
         return GetRolesResponse(**response)
 
     async def refresh_roles(
-        self, token: Optional[str] = None, auth_strategy: Optional[AuthStrategy] = None
+        self,
+        token: Optional[str] = None,
+        environment: Optional[str] = None,
+        application: Optional[str] = None,
+        auth_strategy: Optional[AuthStrategy] = None,
     ) -> RefreshRolesResponse:
         """
         Refresh user roles (GET).
 
         Args:
             token: Optional user token (if not provided, uses x-client-token)
+            environment: Optional environment key filter
+            application: Optional application key filter
             auth_strategy: Optional authentication strategy
 
         Returns:
@@ -79,10 +85,20 @@ class RolesApi:
         Raises:
             MisoClientError: If request fails
         """
+        params = {}
+        if environment:
+            params["environment"] = environment
+        if application:
+            params["application"] = application
+
         if token:
             response = await self.http_client.authenticated_request(
-                "GET", self.ROLES_REFRESH_ENDPOINT, token, auth_strategy=auth_strategy
+                "GET",
+                self.ROLES_REFRESH_ENDPOINT,
+                token,
+                params=params,
+                auth_strategy=auth_strategy,
             )
         else:
-            response = await self.http_client.get(self.ROLES_REFRESH_ENDPOINT)
+            response = await self.http_client.get(self.ROLES_REFRESH_ENDPOINT, params=params)
         return RefreshRolesResponse(**response)

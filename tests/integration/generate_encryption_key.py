@@ -6,7 +6,7 @@ Fernet requires a 32-byte URL-safe base64-encoded key. This script generates
 a valid key that can be used in your .env file.
 
 Usage:
-    python generate_encryption_key.py
+    python tests/integration/generate_encryption_key.py
 """
 
 from cryptography.fernet import Fernet
@@ -16,7 +16,7 @@ def main():
     """Generate and print a Fernet encryption key."""
     key = Fernet.generate_key()
     key_string = key.decode()
-    
+
     print("=" * 60)
     print("Fernet Encryption Key Generator")
     print("=" * 60)

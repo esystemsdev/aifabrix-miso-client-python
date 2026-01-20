@@ -5,9 +5,9 @@ This module provides utilities for validating filters against schemas,
 coercing values to appropriate types, and compiling filters to SQL.
 """
 
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple, cast
 
-from ..models.filter import FilterOption
+from ..models.filter import FilterOperator, FilterOption
 from ..models.filter_schema import (
     CompiledFilter,
     FilterError,
@@ -378,11 +378,16 @@ def create_filter_schema(
         field_type = field_def.get("type", "string")
 
         # Use provided operators or default based on type
-        operators = field_def.get("operators") or DEFAULT_OPERATORS_BY_TYPE.get(field_type, ["eq"])
+        operators_raw = field_def.get("operators") or DEFAULT_OPERATORS_BY_TYPE.get(
+            field_type, ["eq"]
+        )
+        operators = cast(List[FilterOperator], operators_raw)
 
         complete_fields[field_name] = FilterFieldDefinition(
             column=field_def["column"],
-            type=field_type,
+            type=cast(
+                Literal["string", "number", "boolean", "uuid", "timestamp", "enum"], field_type
+            ),
             operators=operators,
             enum=field_def.get("enum"),
             nullable=field_def.get("nullable"),

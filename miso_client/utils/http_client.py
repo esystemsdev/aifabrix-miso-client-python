@@ -118,8 +118,16 @@ class HttpClient:
         """Create non-blocking logging task."""
         task = asyncio.create_task(
             log_http_request(
-                self.logger, self.config, self._jwt_cache, method, url,
-                response, error, start_time, request_data, request_headers,
+                self.logger,
+                self.config,
+                self._jwt_cache,
+                method,
+                url,
+                response,
+                error,
+                start_time,
+                request_data,
+                request_headers,
             )
         )
         task.add_done_callback(self._handle_logging_task_error)
@@ -141,10 +149,14 @@ class HttpClient:
         request_headers = kwargs.get("headers", {})
         try:
             response = await request_func()
-            self._create_logging_task(method, url, response, None, start_time, request_data, request_headers)
+            self._create_logging_task(
+                method, url, response, None, start_time, request_data, request_headers
+            )
             return response
         except Exception as e:
-            self._create_logging_task(method, url, None, e, start_time, request_data, request_headers)
+            self._create_logging_task(
+                method, url, None, e, start_time, request_data, request_headers
+            )
             raise
 
     async def get(self, url: str, **kwargs) -> Any:
@@ -321,8 +333,16 @@ class HttpClient:
     ) -> Any:
         """Handle 401 error by refreshing token and retrying request."""
         return await handle_401_refresh(
-            self._internal_client, self._user_token_refresh, method, url, token,
-            data, auth_strategy, error, auto_refresh, **kwargs,
+            self._internal_client,
+            self._user_token_refresh,
+            method,
+            url,
+            token,
+            data,
+            auth_strategy,
+            error,
+            auto_refresh,
+            **kwargs,
         )
 
     async def authenticated_request(
@@ -381,7 +401,9 @@ class HttpClient:
 
         return await self._execute_with_logging(method, url, _request, data, **kwargs)
 
-    async def get_with_filters(self, url: str, filter_builder: Optional[Any] = None, **kwargs) -> Any:
+    async def get_with_filters(
+        self, url: str, filter_builder: Optional[Any] = None, **kwargs
+    ) -> Any:
         """Make GET request with filter builder support."""
         if filter_builder:
             from ..models.filter import FilterQuery
