@@ -284,6 +284,35 @@ class LoggerService:
             # Silently fail to avoid infinite logging loops
             pass
 
+    async def _get_app_context(self, options: Optional[ClientLoggingOptions]) -> Dict[str, Any]:
+        """Get application context with option overwrites."""
+        app_id = None
+        if options and options.applicationId:
+            app_id = options.applicationId.id if isinstance(options.applicationId, ForeignKeyReference) else options.applicationId
+        ctx = await self.application_context_service.get_application_context(
+            overwrite_application=options.application if options else None,
+            overwrite_application_id=app_id,
+            overwrite_environment=options.environment if options else None,
+        )
+        return ctx.to_dict()
+
+    async def _build_log_entry(
+        self,
+        level: Literal["error", "audit", "info", "debug"],
+        message: str,
+        context: Optional[Dict[str, Any]],
+        stack_trace: Optional[str],
+        options: Optional[ClientLoggingOptions],
+    ) -> LogEntry:
+        """Build log entry with all context."""
+        correlation_id = (options.correlationId if options else None) or self._generate_correlation_id()
+        return build_log_entry(
+            level=level, message=message, context=context, config_client_id=self.config.client_id,
+            correlation_id=correlation_id, jwt_token=options.token if options else None,
+            stack_trace=stack_trace, options=options, metadata=extract_metadata(),
+            mask_sensitive=self.mask_sensitive_data, application_context=await self._get_app_context(options),
+        )
+
     async def _log(
         self,
         level: Literal["error", "audit", "info", "debug"],
@@ -292,101 +321,46 @@ class LoggerService:
         stack_trace: Optional[str] = None,
         options: Optional[ClientLoggingOptions] = None,
     ) -> None:
-        """
-        Core logging method with Redis queuing and HTTP fallback.
+        """Core logging method with Redis queuing and HTTP fallback."""
+        log_entry = await self._build_log_entry(level, message, context, stack_trace, options)
 
-        Args:
-            level: Log level
-            message: Log message
-            context: Additional context data
-            stack_trace: Stack trace for errors
-            options: Logging options
-        """
-        # Build log entry
-        correlation_id = (
-            options.correlationId if options else None
-        ) or self._generate_correlation_id()
-
-        # Get application context (with overwrites from options)
-        application_id_str: Optional[str] = None
-        if options and options.applicationId:
-            if isinstance(options.applicationId, ForeignKeyReference):
-                application_id_str = options.applicationId.id
-            else:
-                application_id_str = options.applicationId
-        app_context = await self.application_context_service.get_application_context(
-            overwrite_application=options.application if options else None,
-            overwrite_application_id=application_id_str,
-            overwrite_environment=options.environment if options else None,
-        )
-
-        log_entry = build_log_entry(
-            level=level,
-            message=message,
-            context=context,
-            config_client_id=self.config.client_id,
-            correlation_id=correlation_id,
-            jwt_token=options.token if options else None,
-            stack_trace=stack_trace,
-            options=options,
-            metadata=extract_metadata(),
-            mask_sensitive=self.mask_sensitive_data,
-            application_context=app_context.to_dict(),
-        )
-
-        # Event emission mode: emit events instead of sending via HTTP/Redis
+        # Try backends in order: events -> audit queue -> redis -> http
         if await self._emit_log_event(log_entry):
             return
-
-        # Use batch queue for audit logs if available
         if await self._queue_audit_log(log_entry):
             return
-
-        # Try Redis first (if available)
         if await self._queue_redis_log(log_entry):
             return
-
-        # Fallback to HTTP logging
         await self._send_http_log(log_entry)
 
     def _transform_log_entry_to_request(self, log_entry: LogEntry) -> "LogRequest":
-        """
-        Transform LogEntry to LogRequest format for API layer.
-
-        Args:
-            log_entry: LogEntry to transform
-
-        Returns:
-            LogRequest with appropriate type and data
-        """
+        """Transform LogEntry to LogRequest format for API layer."""
         from ..api.types.logs_types import AuditLogData, GeneralLogData, LogRequest
 
-        context = log_entry.context or {}
-
+        ctx = log_entry.context or {}
         if log_entry.level == "audit":
-            # Transform to AuditLogData
-            audit_data = AuditLogData(
-                entityType=context.get("entityType", context.get("resource", "unknown")),
-                entityId=context.get("entityId", context.get("resourceId", "unknown")),
-                action=context.get("action", "unknown"),
-                oldValues=context.get("oldValues"),
-                newValues=context.get("newValues"),
-                correlationId=log_entry.correlationId,
+            return LogRequest(
+                type="audit",
+                data=AuditLogData(
+                    entityType=ctx.get("entityType", ctx.get("resource", "unknown")),
+                    entityId=ctx.get("entityId", ctx.get("resourceId", "unknown")),
+                    action=ctx.get("action", "unknown"),
+                    oldValues=ctx.get("oldValues"),
+                    newValues=ctx.get("newValues"),
+                    correlationId=log_entry.correlationId,
+                ),
             )
-            return LogRequest(type="audit", data=audit_data)
-        else:
-            # Transform to GeneralLogData
-            # Map level: "error" -> "error", others -> "general"
-            log_type = cast(
-                Literal["error", "general"], "error" if log_entry.level == "error" else "general"
-            )
-            general_data = GeneralLogData(
+
+        log_type = cast(Literal["error", "general"], "error" if log_entry.level == "error" else "general")
+        return LogRequest(
+            type=log_type,
+            data=GeneralLogData(
                 level=log_entry.level if log_entry.level != "error" else "error",  # type: ignore
                 message=log_entry.message,
-                context=context,
+                context=ctx,
                 correlationId=log_entry.correlationId,
-            )
-            return LogRequest(type=log_type, data=general_data)
+            ),
+        )
 
     def with_context(self, context: Dict[str, Any]) -> "LoggerChain":
         """Create logger chain with context."""
@@ -458,27 +432,14 @@ class LoggerService:
         options: Optional[ClientLoggingOptions] = None,
     ) -> LogEntry:
         """
-        Get LogEntry object with custom context.
-
-        Adds custom context and returns LogEntry object.
-        Allows projects to add their own context while leveraging MisoClient defaults.
+        Get LogEntry with custom context for use in custom logging tables.
 
         Args:
             context: Custom context data
             message: Log message
             level: Log level (default: "info")
-            stack_trace: Stack trace for errors (optional)
-            options: Optional logging options (optional)
-
-        Returns:
-            LogEntry object with custom context
-
-        Example:
-            >>> log_entry = logger.get_with_context(
-            ...     {"customField": "value"},
-            ...     "Custom log",
-            ...     level="info"
-            ... )
+            stack_trace: Stack trace for errors
+            options: Optional logging options
         """
         return await get_with_context(self, context, message, level, stack_trace, options)
 
@@ -491,27 +452,14 @@ class LoggerService:
         stack_trace: Optional[str] = None,
     ) -> LogEntry:
         """
-        Get LogEntry object with JWT token context extracted.
-
-        Extracts userId, sessionId from JWT token.
-        Returns LogEntry with user context extracted.
+        Get LogEntry with JWT token context (userId, sessionId) extracted.
 
         Args:
             token: JWT token string
             message: Log message
             level: Log level (default: "info")
-            context: Additional context data (optional)
-            stack_trace: Stack trace for errors (optional)
-
-        Returns:
-            LogEntry object with user context extracted
-
-        Example:
-            >>> log_entry = logger.get_with_token(
-            ...     "jwt-token",
-            ...     "User action",
-            ...     level="audit"
-            ... )
+            context: Additional context data
+            stack_trace: Stack trace for errors
         """
         return await get_with_token(self, token, message, level, context, stack_trace)
 

@@ -822,7 +822,7 @@ class TestAuthService:
         assert result.id == "123"
         # Should call authenticated_request for OAuth2 validation
         mock_http_client.authenticated_request.assert_called_once_with(
-            "GET", "/api/v1/auth/user", "different-token"
+            "GET", "/api/v1/auth/user", "different-token", auth_strategy=None
         )
 
 

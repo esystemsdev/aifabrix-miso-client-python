@@ -4,10 +4,19 @@ SDK exceptions and error handling.
 This module defines custom exceptions for the MisoClient SDK.
 """
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, Optional
 
 if TYPE_CHECKING:
     from ..models.error_response import ErrorResponse
+
+# Error codes for encryption operations (aligned with TypeScript SDK)
+EncryptionErrorCode = Literal[
+    "ENCRYPTION_FAILED",
+    "DECRYPTION_FAILED",
+    "INVALID_PARAMETER_NAME",
+    "ACCESS_DENIED",
+    "PARAMETER_NOT_FOUND",
+]
 
 
 class MisoClientError(Exception):
@@ -68,3 +77,27 @@ class ConfigurationError(MisoClientError):
     """Raised when configuration is invalid."""
 
     pass
+
+
+class EncryptionError(MisoClientError):
+    """Raised when encryption/decryption operations fail."""
+
+    def __init__(
+        self,
+        message: str,
+        code: Optional[EncryptionErrorCode] = None,
+        parameter_name: Optional[str] = None,
+        status_code: Optional[int] = None,
+    ):
+        """
+        Initialize encryption error.
+
+        Args:
+            message: Error message
+            code: Error code for programmatic handling
+            parameter_name: The parameter name that caused the error
+            status_code: HTTP status code if applicable
+        """
+        super().__init__(message, status_code=status_code)
+        self.code = code
+        self.parameter_name = parameter_name

@@ -105,6 +105,29 @@ class HttpClient:
         if hasattr(self, "_logging_tasks") and self._logging_tasks:
             await wait_for_logging_tasks(self._logging_tasks, timeout)
 
+    def _create_logging_task(
+        self,
+        method: str,
+        url: str,
+        response: Any,
+        error: Optional[Exception],
+        start_time: float,
+        request_data: Optional[Dict[str, Any]],
+        request_headers: Dict[str, Any],
+    ) -> None:
+        """Create non-blocking logging task."""
+        task = asyncio.create_task(
+            log_http_request(
+                self.logger, self.config, self._jwt_cache, method, url,
+                response, error, start_time, request_data, request_headers,
+            )
+        )
+        task.add_done_callback(self._handle_logging_task_error)
+        if not hasattr(self, "_logging_tasks"):
+            self._logging_tasks = set()
+        self._logging_tasks.add(task)
+        task.add_done_callback(lambda t: self._logging_tasks.discard(t))
+
     async def _execute_with_logging(
         self,
         method: str,
@@ -113,70 +136,15 @@ class HttpClient:
         request_data: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> Any:
-        """
-        Execute HTTP request with automatic audit and debug logging.
-
-        Args:
-            method: HTTP method name
-            url: Request URL
-            request_func: Async function to execute the request
-            request_data: Request body data (optional)
-            **kwargs: Additional httpx request parameters
-
-        Returns:
-            Response data (JSON parsed)
-
-        Raises:
-            Exception: If request fails
-        """
+        """Execute HTTP request with automatic audit and debug logging."""
         start_time = time.perf_counter()
         request_headers = kwargs.get("headers", {})
         try:
             response = await request_func()
-            # Create logging task but don't await it (non-blocking)
-            # Store task reference to allow tests to await if needed
-            logging_task = asyncio.create_task(
-                log_http_request(
-                    self.logger,
-                    self.config,
-                    self._jwt_cache,
-                    method,
-                    url,
-                    response,
-                    None,
-                    start_time,
-                    request_data,
-                    request_headers,
-                )
-            )
-            logging_task.add_done_callback(self._handle_logging_task_error)
-            # Store task for potential cleanup (optional)
-            if not hasattr(self, "_logging_tasks"):
-                self._logging_tasks = set()
-            self._logging_tasks.add(logging_task)
-            logging_task.add_done_callback(lambda t: self._logging_tasks.discard(t))
+            self._create_logging_task(method, url, response, None, start_time, request_data, request_headers)
             return response
         except Exception as e:
-            # Create logging task for error case
-            logging_task = asyncio.create_task(
-                log_http_request(
-                    self.logger,
-                    self.config,
-                    self._jwt_cache,
-                    method,
-                    url,
-                    None,
-                    e,
-                    start_time,
-                    request_data,
-                    request_headers,
-                )
-            )
-            logging_task.add_done_callback(self._handle_logging_task_error)
-            if not hasattr(self, "_logging_tasks"):
-                self._logging_tasks = set()
-            self._logging_tasks.add(logging_task)
-            logging_task.add_done_callback(lambda t: self._logging_tasks.discard(t))
+            self._create_logging_task(method, url, None, e, start_time, request_data, request_headers)
             raise
 
     async def get(self, url: str, **kwargs) -> Any:
@@ -351,36 +319,10 @@ class HttpClient:
         auto_refresh: bool,
         **kwargs,
     ) -> Any:
-        """
-        Handle 401 error by refreshing token and retrying request.
-
-        Args:
-            method: HTTP method
-            url: Request URL
-            token: Current token
-            data: Request data
-            auth_strategy: Authentication strategy
-            error: HTTPStatusError with 401 status
-            auto_refresh: Whether to refresh token
-            **kwargs: Request kwargs
-
-        Returns:
-            Response data from retried request
-
-        Raises:
-            httpx.HTTPStatusError: If refresh fails or retry fails
-        """
+        """Handle 401 error by refreshing token and retrying request."""
         return await handle_401_refresh(
-            self._internal_client,
-            self._user_token_refresh,
-            method,
-            url,
-            token,
-            data,
-            auth_strategy,
-            error,
-            auto_refresh,
-            **kwargs,
+            self._internal_client, self._user_token_refresh, method, url, token,
+            data, auth_strategy, error, auto_refresh, **kwargs,
         )
 
     async def authenticated_request(
@@ -396,29 +338,18 @@ class HttpClient:
         """
         Make authenticated request with Bearer token and automatic refresh.
 
-        IMPORTANT: Client token is sent as x-client-token header (via InternalHttpClient)
-        User token is sent as Authorization: Bearer header (this method parameter)
-        These are two separate tokens for different purposes.
+        Client token sent as x-client-token (via InternalHttpClient), user token as Bearer.
 
         Args:
             method: HTTP method
             url: Request URL
-            token: User authentication token (sent as Bearer token)
+            token: User authentication token (sent as Bearer)
             data: Request data (for POST/PUT)
-            auth_strategy: Optional authentication strategy (defaults to bearer + client-token)
-            auto_refresh: Whether to automatically refresh token on 401 (default: True)
-            **kwargs: Additional httpx request parameters
-
-        Returns:
-            Response data (JSON parsed)
-
-        Raises:
-            MisoClientError: If request fails
+            auth_strategy: Optional authentication strategy
+            auto_refresh: Whether to refresh token on 401 (default: True)
         """
-        # Prepare token and headers
         valid_token = await self._prepare_authenticated_request(token, auto_refresh, **kwargs)
 
-        # Execute request with 401 handling
         async def _authenticated_request():
             try:
                 return await self._internal_client.authenticated_request(
@@ -441,107 +372,33 @@ class HttpClient:
         data: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> Any:
-        """
-        Make request with authentication strategy and automatic audit/debug logging.
+        """Make request with auth strategy, trying methods in priority order on 401."""
 
-        Tries authentication methods in priority order until one succeeds.
-        If a method returns 401, automatically tries the next method in the strategy.
-
-        Args:
-            method: HTTP method
-            url: Request URL
-            auth_strategy: Authentication strategy configuration
-            data: Request data (for POST/PUT)
-            **kwargs: Additional httpx request parameters
-
-        Returns:
-            Response data (JSON parsed)
-
-        Raises:
-            MisoClientError: If all authentication methods fail
-        """
-
-        async def _request_with_auth_strategy():
+        async def _request():
             return await self._internal_client.request_with_auth_strategy(
                 method, url, auth_strategy, data, **kwargs
             )
 
-        return await self._execute_with_logging(
-            method, url, _request_with_auth_strategy, data, **kwargs
-        )
+        return await self._execute_with_logging(method, url, _request, data, **kwargs)
 
-    async def get_with_filters(
-        self,
-        url: str,
-        filter_builder: Optional[Any] = None,
-        **kwargs,
-    ) -> Any:
-        """
-        Make GET request with filter builder support.
-
-        Args:
-            url: Request URL
-            filter_builder: Optional FilterBuilder instance with filters
-            **kwargs: Additional httpx request parameters
-
-        Returns:
-            Response data (JSON parsed)
-
-        Raises:
-            MisoClientError: If request fails
-
-        Examples:
-            >>> from miso_client.models.filter import FilterBuilder
-            >>> filter_builder = FilterBuilder().add('status', 'eq', 'active')
-            >>> response = await client.http_client.get_with_filters('/api/items', filter_builder)
-        """
+    async def get_with_filters(self, url: str, filter_builder: Optional[Any] = None, **kwargs) -> Any:
+        """Make GET request with filter builder support."""
         if filter_builder:
             from ..models.filter import FilterQuery
             from ..utils.filter import build_query_string
 
-            filter_query = FilterQuery(filters=filter_builder.build())
-            query_string = build_query_string(filter_query)
-
+            query_string = build_query_string(FilterQuery(filters=filter_builder.build()))
             if query_string:
-                filter_params = parse_filter_query_string(query_string)
-                merge_filter_params(kwargs, filter_params)
+                merge_filter_params(kwargs, parse_filter_query_string(query_string))
 
         return await self.get(url, **kwargs)
 
     async def get_paginated(
-        self,
-        url: str,
-        page: Optional[int] = None,
-        page_size: Optional[int] = None,
-        **kwargs,
+        self, url: str, page: Optional[int] = None, page_size: Optional[int] = None, **kwargs
     ) -> Any:
-        """
-        Make GET request with pagination support.
-
-        Args:
-            url: Request URL
-            page: Optional page number (1-based)
-            page_size: Optional number of items per page
-            **kwargs: Additional httpx request parameters
-
-        Returns:
-            PaginatedListResponse with meta and data (or raw response if format doesn't match)
-
-        Raises:
-            MisoClientError: If request fails
-
-        Examples:
-            >>> response = await client.http_client.get_paginated(
-            ...     '/api/items', page=1, page_size=25
-            ... )
-            >>> response.meta.totalItems
-            120
-            >>> len(response.data)
-            25
-        """
+        """Make GET request with pagination support (returns PaginatedListResponse)."""
         add_pagination_params(kwargs, page, page_size)
-        response_data = await self.get(url, **kwargs)
-        return parse_paginated_response(response_data)
+        return parse_paginated_response(await self.get(url, **kwargs))
 
     def clear_user_token(self, token: str) -> None:
         """
@@ -559,33 +416,6 @@ class HttpClient:
         json_body: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> Any:
-        """
-        Make POST request with JSON filter support.
-
-        Args:
-            url: Request URL
-            json_filter: Optional JsonFilter or FilterQuery instance
-            json_body: Optional JSON body (filters will be merged into this)
-            **kwargs: Additional httpx request parameters
-
-        Returns:
-            Response data (JSON parsed)
-
-        Raises:
-            MisoClientError: If request fails
-
-        Examples:
-            >>> from miso_client.models.filter import JsonFilter, FilterOption
-            >>> json_filter = JsonFilter(
-            ...     filters=[FilterOption(field='status', op='eq', value='active')]
-            ... )
-            >>> response = await client.http_client.post_with_filters(
-            ...     '/api/items/search',
-            ...     json_filter=json_filter
-            ... )
-        """
-        # Prepare JSON body with filter data
+        """Make POST request with JSON filter support (filters merged into body)."""
         request_body = prepare_json_filter_body(json_filter, json_body)
-
-        # Use post method with merged body
         return await self.post(url, data=request_body if request_body else None, **kwargs)
