@@ -24,6 +24,7 @@ def load_config() -> MisoClientConfig:
     - MISO_LOG_LEVEL (debug, info, warn, error)
     - API_KEY (for testing - bypasses OAuth2 authentication)
     - MISO_API_KEY (alternative to API_KEY)
+    - MISO_ENCRYPTION_KEY (encryption key for encrypt/decrypt operations)
     - MISO_AUTH_STRATEGY (comma-separated list: bearer,client-token,api-key)
     - MISO_CLIENT_TOKEN_URI (custom client token endpoint URI)
     - MISO_ALLOWED_ORIGINS (comma-separated list of allowed origins, supports wildcard ports)
@@ -78,6 +79,9 @@ def load_config() -> MisoClientConfig:
     # Optional API_KEY for testing (support both API_KEY and MISO_API_KEY)
     api_key = os.environ.get("API_KEY") or os.environ.get("MISO_API_KEY")
 
+    # Optional encryption key for security parameter operations
+    encryption_key = os.environ.get("MISO_ENCRYPTION_KEY")
+
     # Optional auth strategy
     auth_strategy = None
     auth_strategy_str = os.environ.get("MISO_AUTH_STRATEGY")
@@ -127,6 +131,7 @@ def load_config() -> MisoClientConfig:
         client_secret=client_secret,
         log_level=log_level,
         api_key=api_key,
+        encryption_key=encryption_key,
         authStrategy=auth_strategy,
         clientTokenUri=client_token_uri,
         allowedOrigins=allowed_origins,

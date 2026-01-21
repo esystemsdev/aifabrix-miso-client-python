@@ -29,9 +29,16 @@ class TestParameterNameValidation:
         return client
 
     @pytest.fixture
-    def encryption_service(self, mock_http_client):
+    def mock_config(self):
+        """Create mock config with encryption key."""
+        config = MagicMock()
+        config.encryption_key = "test-encryption-key"
+        return config
+
+    @pytest.fixture
+    def encryption_service(self, mock_http_client, mock_config):
         """Create EncryptionService instance."""
-        return EncryptionService(mock_http_client)
+        return EncryptionService(mock_http_client, mock_config)
 
     def test_parameter_name_pattern_valid_simple(self):
         """Test valid simple parameter name."""
@@ -125,9 +132,16 @@ class TestEncrypt:
         return client
 
     @pytest.fixture
-    def encryption_service(self, mock_http_client):
+    def mock_config(self):
+        """Create mock config with encryption key."""
+        config = MagicMock()
+        config.encryption_key = "test-encryption-key"
+        return config
+
+    @pytest.fixture
+    def encryption_service(self, mock_http_client, mock_config):
         """Create EncryptionService instance."""
-        return EncryptionService(mock_http_client)
+        return EncryptionService(mock_http_client, mock_config)
 
     @pytest.mark.asyncio
     async def test_encrypt_success_keyvault(self, encryption_service, mock_http_client):
@@ -144,7 +158,11 @@ class TestEncrypt:
         assert result.storage == "keyvault"
         mock_http_client.post.assert_called_once_with(
             ENCRYPT_ENDPOINT,
-            data={"plaintext": "secret-data", "parameterName": "my-param"},
+            data={
+                "plaintext": "secret-data",
+                "parameterName": "my-param",
+                "encryptionKey": "test-encryption-key",
+            },
         )
 
     @pytest.mark.asyncio
@@ -190,7 +208,11 @@ class TestEncrypt:
         assert result.value == "kv://db.password"
         mock_http_client.post.assert_called_once_with(
             ENCRYPT_ENDPOINT,
-            data={"plaintext": "p@ssw0rd!#$%^&*()", "parameterName": "db.password"},
+            data={
+                "plaintext": "p@ssw0rd!#$%^&*()",
+                "parameterName": "db.password",
+                "encryptionKey": "test-encryption-key",
+            },
         )
 
     @pytest.mark.asyncio
@@ -217,9 +239,16 @@ class TestDecrypt:
         return client
 
     @pytest.fixture
-    def encryption_service(self, mock_http_client):
+    def mock_config(self):
+        """Create mock config with encryption key."""
+        config = MagicMock()
+        config.encryption_key = "test-encryption-key"
+        return config
+
+    @pytest.fixture
+    def encryption_service(self, mock_http_client, mock_config):
         """Create EncryptionService instance."""
-        return EncryptionService(mock_http_client)
+        return EncryptionService(mock_http_client, mock_config)
 
     @pytest.mark.asyncio
     async def test_decrypt_success_keyvault(self, encryption_service, mock_http_client):
@@ -231,7 +260,11 @@ class TestDecrypt:
         assert result == "secret-data"
         mock_http_client.post.assert_called_once_with(
             DECRYPT_ENDPOINT,
-            data={"value": "kv://my-param", "parameterName": "my-param"},
+            data={
+                "value": "kv://my-param",
+                "parameterName": "my-param",
+                "encryptionKey": "test-encryption-key",
+            },
         )
 
     @pytest.mark.asyncio
@@ -294,9 +327,29 @@ class TestEncryptionServiceInit:
     def test_init_stores_http_client(self):
         """Test that init stores the HTTP client."""
         mock_client = MagicMock()
-        service = EncryptionService(mock_client)
+        mock_config = MagicMock()
+        mock_config.encryption_key = "test-key"
+        service = EncryptionService(mock_client, mock_config)
 
         assert service.http_client is mock_client
+
+    def test_init_stores_encryption_key(self):
+        """Test that init stores the encryption key from config."""
+        mock_client = MagicMock()
+        mock_config = MagicMock()
+        mock_config.encryption_key = "my-encryption-key"
+        service = EncryptionService(mock_client, mock_config)
+
+        assert service._encryption_key == "my-encryption-key"
+
+    def test_init_handles_none_encryption_key(self):
+        """Test that init handles None encryption key."""
+        mock_client = MagicMock()
+        mock_config = MagicMock()
+        mock_config.encryption_key = None
+        service = EncryptionService(mock_client, mock_config)
+
+        assert service._encryption_key is None
 
 
 class TestEncryptionErrorModel:
@@ -347,3 +400,101 @@ class TestEncryptResultModel:
 
         assert result.value == "enc://v1:abc"
         assert result.storage == "local"
+
+
+class TestEncryptionKeyValidation:
+    """Test cases for encryption key validation."""
+
+    @pytest.fixture
+    def mock_http_client(self):
+        """Create mock HTTP client."""
+        client = MagicMock()
+        client.post = AsyncMock()
+        return client
+
+    @pytest.fixture
+    def mock_config_no_key(self):
+        """Create mock config without encryption key."""
+        config = MagicMock()
+        config.encryption_key = None
+        return config
+
+    @pytest.fixture
+    def mock_config_with_key(self):
+        """Create mock config with encryption key."""
+        config = MagicMock()
+        config.encryption_key = "test-encryption-key"
+        return config
+
+    @pytest.mark.asyncio
+    async def test_encrypt_raises_error_when_key_missing(
+        self, mock_http_client, mock_config_no_key
+    ):
+        """Test encrypt raises ENCRYPTION_KEY_REQUIRED when key is missing."""
+        service = EncryptionService(mock_http_client, mock_config_no_key)
+
+        with pytest.raises(EncryptionError) as exc_info:
+            await service.encrypt("secret", "my-param")
+
+        assert exc_info.value.code == "ENCRYPTION_KEY_REQUIRED"
+        assert "MISO_ENCRYPTION_KEY" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_decrypt_raises_error_when_key_missing(
+        self, mock_http_client, mock_config_no_key
+    ):
+        """Test decrypt raises ENCRYPTION_KEY_REQUIRED when key is missing."""
+        service = EncryptionService(mock_http_client, mock_config_no_key)
+
+        with pytest.raises(EncryptionError) as exc_info:
+            await service.decrypt("kv://test", "my-param")
+
+        assert exc_info.value.code == "ENCRYPTION_KEY_REQUIRED"
+        assert "MISO_ENCRYPTION_KEY" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_encrypt_includes_encryption_key_in_request(
+        self, mock_http_client, mock_config_with_key
+    ):
+        """Test encrypt includes encryptionKey in request body."""
+        mock_http_client.post.return_value = {
+            "value": "kv://my-param",
+            "storage": "keyvault",
+        }
+        service = EncryptionService(mock_http_client, mock_config_with_key)
+
+        await service.encrypt("secret-data", "my-param")
+
+        mock_http_client.post.assert_called_once()
+        call_args = mock_http_client.post.call_args
+        assert call_args[1]["data"]["encryptionKey"] == "test-encryption-key"
+
+    @pytest.mark.asyncio
+    async def test_decrypt_includes_encryption_key_in_request(
+        self, mock_http_client, mock_config_with_key
+    ):
+        """Test decrypt includes encryptionKey in request body."""
+        mock_http_client.post.return_value = {"plaintext": "secret-data"}
+        service = EncryptionService(mock_http_client, mock_config_with_key)
+
+        await service.decrypt("kv://my-param", "my-param")
+
+        mock_http_client.post.assert_called_once()
+        call_args = mock_http_client.post.call_args
+        assert call_args[1]["data"]["encryptionKey"] == "test-encryption-key"
+
+    @pytest.mark.asyncio
+    async def test_decrypt_401_maps_to_access_denied(
+        self, mock_http_client, mock_config_with_key
+    ):
+        """Test decryption 401 error maps to ACCESS_DENIED."""
+        mock_http_client.post.side_effect = MisoClientError(
+            "Unauthorized", status_code=401
+        )
+        service = EncryptionService(mock_http_client, mock_config_with_key)
+
+        with pytest.raises(EncryptionError) as exc_info:
+            await service.decrypt("kv://forbidden", "forbidden")
+
+        assert exc_info.value.code == "ACCESS_DENIED"
+        assert exc_info.value.status_code == 401

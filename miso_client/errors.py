@@ -16,6 +16,7 @@ EncryptionErrorCode = Literal[
     "INVALID_PARAMETER_NAME",
     "ACCESS_DENIED",
     "PARAMETER_NOT_FOUND",
+    "ENCRYPTION_KEY_REQUIRED",
 ]
 
 

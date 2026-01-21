@@ -11,6 +11,37 @@ The encryption service calls miso-controller API endpoints to:
 
 The storage backend (Key Vault or local) is determined by the controller's configuration, not by the client.
 
+## Configuration
+
+### ENCRYPTION_KEY Requirement
+
+The `MISO_ENCRYPTION_KEY` environment variable is **required** for encrypt/decrypt operations. This key provides a second factor of authorization beyond client credentials.
+
+### Where to Obtain the Key
+
+- Contact your environment administrator or DevOps team
+- The key is environment-specific (different for production, staging, development)
+- The key may be stored in:
+  - **Azure Key Vault** (production) - administrator retrieves from Key Vault
+  - **Environment configuration** (development) - administrator provides directly
+
+### Security Model
+
+- SDK reads `MISO_ENCRYPTION_KEY` from your `.env` file
+- SDK sends `encryptionKey` parameter to miso-controller with each request
+- Controller validates against its configured source (Key Vault or .env)
+- Provides two-level authorization: client credentials alone are insufficient
+- `encryptionKey` is never logged, stored, or returned
+
+### Example .env
+
+```env
+MISO_CONTROLLER_URL=https://controller.example.com
+MISO_CLIENTID=your-client-id
+MISO_CLIENTSECRET=your-client-secret
+MISO_ENCRYPTION_KEY=obtain-from-your-environment-administrator
+```
+
 ## Usage
 
 ### Encrypting Data
@@ -18,7 +49,7 @@ The storage backend (Key Vault or local) is determined by the controller's confi
 ```python
 from miso_client import MisoClient, EncryptResult, EncryptionError
 
-# Initialize client (no ENCRYPTION_KEY needed)
+# Initialize client (MISO_ENCRYPTION_KEY required in .env)
 client = MisoClient(config)
 await client.initialize()
 
@@ -77,10 +108,11 @@ except EncryptionError as e:
 
 | Code | Description | HTTP Status |
 |------|-------------|-------------|
+| `ENCRYPTION_KEY_REQUIRED` | `MISO_ENCRYPTION_KEY` not configured | N/A (client-side) |
 | `INVALID_PARAMETER_NAME` | Parameter name doesn't match pattern `^[a-zA-Z0-9._-]{1,128}$` | N/A (client-side) |
 | `ENCRYPTION_FAILED` | Controller encryption failed | 500 |
 | `DECRYPTION_FAILED` | Controller decryption failed (general) | 500 |
-| `ACCESS_DENIED` | App doesn't have access to the parameter | 403 |
+| `ACCESS_DENIED` | App doesn't have access or invalid encryption key | 401 or 403 |
 | `PARAMETER_NOT_FOUND` | Parameter doesn't exist (Key Vault mode) | 404 |
 
 ## Parameter Naming
@@ -187,10 +219,10 @@ encrypted = client.encrypt("secret")  # Returns base64 string
 decrypted = client.decrypt(encrypted)
 ```
 
-### After (v4.0.0)
+### After (v4.0.0+)
 
 ```python
-# No ENCRYPTION_KEY needed
+# MISO_ENCRYPTION_KEY required in .env for encryption operations
 client = MisoClient(config)
 await client.initialize()
 
@@ -201,7 +233,7 @@ decrypted = await client.decrypt(result.value, "my-param")
 
 ### Migration Steps
 
-1. Remove `ENCRYPTION_KEY` from environment variables
+1. Replace `ENCRYPTION_KEY` with `MISO_ENCRYPTION_KEY` (obtain from your environment administrator)
 2. Update all `encrypt()` calls to be async and add `parameter_name`
 3. Update all `decrypt()` calls to be async and add `parameter_name`
 4. Update code to handle `EncryptResult` object instead of string

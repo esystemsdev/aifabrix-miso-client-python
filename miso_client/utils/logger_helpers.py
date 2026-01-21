@@ -226,3 +226,44 @@ def build_log_entry(
     log_entry_data = {k: v for k, v in log_entry_data.items() if v is not None}
 
     return LogEntry(**log_entry_data)
+
+
+def transform_log_entry_to_request(log_entry: LogEntry) -> Any:
+    """
+    Transform LogEntry to LogRequest format for API layer.
+
+    Args:
+        log_entry: LogEntry to transform
+
+    Returns:
+        LogRequest object for API layer
+    """
+    # Import here to avoid circular dependency
+    from ..api.types.logs_types import AuditLogData, GeneralLogData, LogRequest
+
+    ctx = log_entry.context or {}
+    if log_entry.level == "audit":
+        return LogRequest(
+            type="audit",
+            data=AuditLogData(
+                entityType=ctx.get("entityType", ctx.get("resource", "unknown")),
+                entityId=ctx.get("entityId", ctx.get("resourceId", "unknown")),
+                action=ctx.get("action", "unknown"),
+                oldValues=ctx.get("oldValues"),
+                newValues=ctx.get("newValues"),
+                correlationId=log_entry.correlationId,
+            ),
+        )
+
+    log_type: Literal["error", "general"] = (
+        "error" if log_entry.level == "error" else "general"
+    )
+    return LogRequest(
+        type=log_type,
+        data=GeneralLogData(
+            level=log_entry.level if log_entry.level != "error" else "error",  # type: ignore
+            message=log_entry.message,
+            context=ctx,
+            correlationId=log_entry.correlationId,
+        ),
+    )

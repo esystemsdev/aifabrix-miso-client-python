@@ -5,6 +5,34 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.0] - 2026-01-21
+
+### Changed
+
+- **Encryption Key Required** - `encryptionKey` is now a required parameter for encryption operations
+  - Load from `MISO_ENCRYPTION_KEY` environment variable
+  - Or provide `encryption_key` in `MisoClientConfig`
+  - Throws `ENCRYPTION_KEY_REQUIRED` error if not configured when calling encrypt/decrypt
+  - Provides two-level authorization: client credentials + encryption key
+  - `encryptionKey` is never logged (added to sensitive fields config)
+
+### Added
+
+- `ENCRYPTION_KEY_REQUIRED` error code for missing encryption key
+- `encryption_key` field to `MisoClientConfig`
+- `MISO_ENCRYPTION_KEY` environment variable support in config loader
+- `encryptionKey` to sensitive fields config for data masking
+
+### Fixed
+
+- `ACCESS_DENIED` error now also maps from 401 status (in addition to 403)
+
+### Technical
+
+- Extracted `transform_log_entry_to_request` to `logger_helpers.py` to reduce `logger.py` file size
+- Updated encryption service tests with new fixtures and validation test cases
+- Updated config loader tests for `MISO_ENCRYPTION_KEY` environment variable
+
 ## [4.0.2] - 2026-01-20
 
 ### Fixed

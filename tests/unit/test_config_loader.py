@@ -403,3 +403,49 @@ class TestConfigLoader:
                     config = load_config()
 
                 assert config.allowedOrigins is None
+
+    def test_load_config_with_encryption_key(self):
+        """Test loading config with MISO_ENCRYPTION_KEY."""
+        with patch.dict(
+            os.environ,
+            {
+                "MISO_CLIENTID": "test-client",
+                "MISO_CLIENTSECRET": "test-secret",
+                "MISO_ENCRYPTION_KEY": "test-encryption-key-12345",
+            },
+            clear=False,
+        ):
+            # Remove conflicting variables
+            os.environ.pop("MISO_CONTROLLER_URL", None)
+            os.environ.pop("REDIS_HOST", None)
+            os.environ.pop("API_KEY", None)
+            os.environ.pop("MISO_API_KEY", None)
+            # Mock load_dotenv to prevent loading from .env file
+            with patch("dotenv.load_dotenv"):
+                with patch("miso_client.utils.config_loader.load_dotenv", create=True):
+                    config = load_config()
+
+                assert config.encryption_key == "test-encryption-key-12345"
+
+    def test_load_config_without_encryption_key(self):
+        """Test loading config without MISO_ENCRYPTION_KEY (should be None)."""
+        with patch.dict(
+            os.environ,
+            {
+                "MISO_CLIENTID": "test-client",
+                "MISO_CLIENTSECRET": "test-secret",
+            },
+            clear=False,
+        ):
+            # Remove conflicting variables
+            os.environ.pop("MISO_CONTROLLER_URL", None)
+            os.environ.pop("REDIS_HOST", None)
+            os.environ.pop("API_KEY", None)
+            os.environ.pop("MISO_API_KEY", None)
+            os.environ.pop("MISO_ENCRYPTION_KEY", None)
+            # Mock load_dotenv to prevent loading from .env file
+            with patch("dotenv.load_dotenv"):
+                with patch("miso_client.utils.config_loader.load_dotenv", create=True):
+                    config = load_config()
+
+                assert config.encryption_key is None

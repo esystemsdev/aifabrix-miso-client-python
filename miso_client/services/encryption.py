@@ -14,6 +14,7 @@ from ..errors import EncryptionError, MisoClientError
 from ..models.encryption import EncryptResult
 
 if TYPE_CHECKING:
+    from ..models.config import MisoClientConfig
     from ..utils.http_client import HttpClient
 
 logger = logging.getLogger(__name__)
@@ -34,14 +35,16 @@ class EncryptionService:
     validation before calling the controller API endpoints.
     """
 
-    def __init__(self, http_client: "HttpClient"):
+    def __init__(self, http_client: "HttpClient", config: "MisoClientConfig"):
         """
-        Initialize encryption service with HTTP client.
+        Initialize encryption service.
 
         Args:
-            http_client: HTTP client instance for controller API calls
+            http_client: HTTP client for controller API calls
+            config: Client configuration containing encryption_key
         """
         self.http_client = http_client
+        self._encryption_key = config.encryption_key
 
     def _validate_parameter_name(self, parameter_name: str) -> None:
         """
@@ -59,6 +62,20 @@ class EncryptionService:
                 "Must be 1-128 chars, alphanumeric with ._-",
                 code="INVALID_PARAMETER_NAME",
                 parameter_name=parameter_name,
+            )
+
+    def _validate_encryption_key(self) -> None:
+        """
+        Validate that encryption key is configured.
+
+        Raises:
+            EncryptionError: If encryption key is not configured
+        """
+        if not self._encryption_key:
+            raise EncryptionError(
+                "Encryption key is required. Set MISO_ENCRYPTION_KEY environment "
+                "variable or provide encryption_key in config.",
+                code="ENCRYPTION_KEY_REQUIRED",
             )
 
     async def encrypt(self, plaintext: str, parameter_name: str) -> EncryptResult:
@@ -79,10 +96,15 @@ class EncryptionService:
             EncryptionError: If validation fails or encryption fails
         """
         self._validate_parameter_name(parameter_name)
+        self._validate_encryption_key()
         try:
             response = await self.http_client.post(
                 ENCRYPT_ENDPOINT,
-                data={"plaintext": plaintext, "parameterName": parameter_name},
+                data={
+                    "plaintext": plaintext,
+                    "parameterName": parameter_name,
+                    "encryptionKey": self._encryption_key,
+                },
             )
             return EncryptResult(value=response["value"], storage=response["storage"])
         except MisoClientError as e:
@@ -112,10 +134,15 @@ class EncryptionService:
             EncryptionError: If validation fails or decryption fails
         """
         self._validate_parameter_name(parameter_name)
+        self._validate_encryption_key()
         try:
             response = await self.http_client.post(
                 DECRYPT_ENDPOINT,
-                data={"value": value, "parameterName": parameter_name},
+                data={
+                    "value": value,
+                    "parameterName": parameter_name,
+                    "encryptionKey": self._encryption_key,
+                },
             )
             return cast(str, response["plaintext"])
         except MisoClientError as e:
@@ -125,7 +152,7 @@ class EncryptionService:
             code: EncryptionErrorCode = "DECRYPTION_FAILED"
             if e.status_code == 404:
                 code = "PARAMETER_NOT_FOUND"
-            elif e.status_code == 403:
+            elif e.status_code in (401, 403):
                 code = "ACCESS_DENIED"
             logger.error(f"Decryption failed for parameter '{parameter_name}'")
             raise EncryptionError(

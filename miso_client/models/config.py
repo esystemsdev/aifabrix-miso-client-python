@@ -128,6 +128,10 @@ class MisoClientConfig(BaseModel):
         default=None,
         description="Private controller URL for server environments (internal network access)",
     )
+    encryption_key: Optional[str] = Field(
+        default=None,
+        description="Encryption key for encrypt/decrypt operations. Required if using encryption methods. Set via MISO_ENCRYPTION_KEY env var.",
+    )
 
     @property
     def role_ttl(self) -> int:

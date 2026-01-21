@@ -25,7 +25,9 @@
       "privatekey",
       "secretkey",
       "cookie",
-      "session"
+      "session",
+      "encryptionkey",
+      "encryptionKey"
     ]
   },
   "fieldPatterns": []

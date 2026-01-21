@@ -191,6 +191,7 @@ class TestLoggerServiceTransformLogEntry:
     def test_transform_audit_log_entry(self, logger_service, config):
         """Test transforming audit log entry to AuditLogData."""
         from miso_client.api.types.logs_types import AuditLogData, LogRequest
+        from miso_client.utils.logger_helpers import transform_log_entry_to_request
 
         log_entry = LogEntry(
             timestamp=datetime.utcnow().isoformat(),
@@ -209,7 +210,7 @@ class TestLoggerServiceTransformLogEntry:
             },
         )
 
-        log_request = logger_service._transform_log_entry_to_request(log_entry)
+        log_request = transform_log_entry_to_request(log_entry)
 
         assert isinstance(log_request, LogRequest)
         assert log_request.type == "audit"
@@ -222,6 +223,7 @@ class TestLoggerServiceTransformLogEntry:
     def test_transform_audit_log_entry_with_defaults(self, logger_service, config):
         """Test transforming audit log entry with missing context fields."""
         from miso_client.api.types.logs_types import AuditLogData, LogRequest
+        from miso_client.utils.logger_helpers import transform_log_entry_to_request
 
         log_entry = LogEntry(
             timestamp=datetime.utcnow().isoformat(),
@@ -233,7 +235,7 @@ class TestLoggerServiceTransformLogEntry:
             context={"action": "user.login"},  # Missing entityType, entityId
         )
 
-        log_request = logger_service._transform_log_entry_to_request(log_entry)
+        log_request = transform_log_entry_to_request(log_entry)
 
         assert isinstance(log_request, LogRequest)
         assert log_request.type == "audit"
@@ -245,6 +247,7 @@ class TestLoggerServiceTransformLogEntry:
     def test_transform_error_log_entry(self, logger_service, config):
         """Test transforming error log entry to GeneralLogData."""
         from miso_client.api.types.logs_types import GeneralLogData, LogRequest
+        from miso_client.utils.logger_helpers import transform_log_entry_to_request
 
         log_entry = LogEntry(
             timestamp=datetime.utcnow().isoformat(),
@@ -256,7 +259,7 @@ class TestLoggerServiceTransformLogEntry:
             context={"error": "test"},
         )
 
-        log_request = logger_service._transform_log_entry_to_request(log_entry)
+        log_request = transform_log_entry_to_request(log_entry)
 
         assert isinstance(log_request, LogRequest)
         assert log_request.type == "error"
@@ -268,6 +271,7 @@ class TestLoggerServiceTransformLogEntry:
     def test_transform_info_log_entry(self, logger_service, config):
         """Test transforming info log entry to GeneralLogData."""
         from miso_client.api.types.logs_types import GeneralLogData, LogRequest
+        from miso_client.utils.logger_helpers import transform_log_entry_to_request
 
         log_entry = LogEntry(
             timestamp=datetime.utcnow().isoformat(),
@@ -279,7 +283,7 @@ class TestLoggerServiceTransformLogEntry:
             context={"key": "value"},
         )
 
-        log_request = logger_service._transform_log_entry_to_request(log_entry)
+        log_request = transform_log_entry_to_request(log_entry)
 
         assert isinstance(log_request, LogRequest)
         assert log_request.type == "general"
@@ -290,6 +294,7 @@ class TestLoggerServiceTransformLogEntry:
     def test_transform_debug_log_entry(self, logger_service, config):
         """Test transforming debug log entry to GeneralLogData."""
         from miso_client.api.types.logs_types import GeneralLogData, LogRequest
+        from miso_client.utils.logger_helpers import transform_log_entry_to_request
 
         log_entry = LogEntry(
             timestamp=datetime.utcnow().isoformat(),
@@ -300,7 +305,7 @@ class TestLoggerServiceTransformLogEntry:
             correlationId="corr-123",
         )
 
-        log_request = logger_service._transform_log_entry_to_request(log_entry)
+        log_request = transform_log_entry_to_request(log_entry)
 
         assert isinstance(log_request, LogRequest)
         assert log_request.type == "general"
