@@ -40,11 +40,8 @@ When the `/tag-and-push-release` command is used, the agent must create a git ta
 
 7. **Final Summary:**
    - Display success message with tag name and commit hash
-   - Remind user to create GitHub Release manually to trigger PyPI publish:
-     - Go to: https://github.com/<owner>/<repo>/releases/new
-     - Select the tag `vX.Y.Z`
-     - Copy release notes from CHANGELOG.md
-     - Publish release to trigger `publish.yml` workflow
+   - Note that pushing the tag automatically triggers `publish.yml` workflow
+   - PyPI publish will run automatically (no manual GitHub Release needed)
 
 **Critical Requirements:**
 
@@ -72,7 +69,7 @@ git add -A
 git commit -m "Release version 4.1.0"
 # User runs /tag-and-push-release
 # Agent creates tag v4.1.0 and pushes everything
-# User creates GitHub Release manually to trigger PyPI publish
+# Tag push automatically triggers publish.yml -> PyPI publish
 ```
 
 **Work is only complete when:**
@@ -82,4 +79,4 @@ git commit -m "Release version 4.1.0"
 - ✅ Commits pushed to origin
 - ✅ Tag pushed to origin
 - ✅ Tag verified on remote
-- ✅ Summary displayed with next steps for GitHub Release
+- ✅ Summary displayed (PyPI publish triggered automatically)
