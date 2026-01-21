@@ -5,6 +5,24 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.1] - 2026-01-21
+
+### Changed
+
+- **CI/CD Workflow Improvements** - Updated `publish.yml` to prevent duplicate PyPI uploads
+  - Removed auto-trigger on push to main branch
+  - Added pre-publish check to verify version doesn't already exist on PyPI
+  - Added build verification and publication confirmation steps
+  - Release now triggers only on GitHub Release publish or manual workflow dispatch
+
+### Added
+
+- New `/tag-and-push-release` Cursor command for streamlined release process
+  - Automatically creates git tag from version in `pyproject.toml`
+  - Extracts release notes from CHANGELOG.md
+  - Creates GitHub Release with extracted notes
+  - Triggers PyPI publish workflow
+
 ## [4.1.0] - 2026-01-21
 
 ### Changed
