@@ -1,18 +1,22 @@
 name: Publish to PyPI
 
 on:
-  push:
-    branches: [ main ]
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (leave empty to use current version)'
+        required: false
+        type: string
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
     
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -34,6 +38,30 @@ jobs:
         pip install -r requirements-test.txt
         pip install build twine
 
+    - name: Get version
+      id: get_version
+      run: |
+        if [ -n "${{ inputs.version }}" ]; then
+          VERSION="${{ inputs.version }}"
+        else
+          VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+        fi
+        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+        echo "Publishing version: $VERSION"
+
+    - name: Check if version already published
+      run: |
+        VERSION="${{ steps.get_version.outputs.VERSION }}"
+        
+        # Check if version exists on PyPI
+        HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://pypi.org/pypi/miso-client/$VERSION/json")
+        
+        if [ "$HTTP_STATUS" = "200" ]; then
+          echo "⚠️  Version $VERSION already published on PyPI!"
+          exit 1
+        fi
+        echo "✅ Version $VERSION not yet published, proceeding..."
+
     - name: Run tests
       run: |
         pytest tests/ -v --cov=miso_client --cov-report=xml --cov-report=term
@@ -41,6 +69,15 @@ jobs:
     - name: Build package
       run: |
         python -m build
+
+    - name: Verify build output
+      run: |
+        if [ ! -d "dist" ]; then
+          echo "❌ Build failed: dist directory not found"
+          exit 1
+        fi
+        ls -la dist/
+        echo "✅ Build output verified"
     
     - name: Check package
       run: |
@@ -52,3 +89,50 @@ jobs:
         TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
       run: |
         twine upload dist/*
+
+    - name: Verify publication
+      run: |
+        VERSION="${{ steps.get_version.outputs.VERSION }}"
+        
+        echo "Waiting for PyPI to update..."
+        sleep 30
+        
+        HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://pypi.org/pypi/miso-client/$VERSION/json")
+        
+        if [ "$HTTP_STATUS" = "200" ]; then
+          echo "✅ Successfully verified: miso-client==$VERSION"
+        else
+          echo "⚠️  Could not verify (PyPI registry may take time to update)"
+        fi
+
+    - name: Summary
+      run: |
+        VERSION="${{ steps.get_version.outputs.VERSION }}"
+        
+        echo "✅ Successfully published to PyPI!"
+        echo "📦 Package: miso-client"
+        echo "🔖 Version: $VERSION"
+        echo "🌐 Registry: https://pypi.org"
+        echo ""
+        echo "Installation: pip install miso-client==$VERSION"
+
+    - name: Update GitHub Release
+      if: github.event_name == 'release'
+      run: |
+        VERSION="${{ steps.get_version.outputs.VERSION }}"
+        
+        gh release edit "v$VERSION" \
+          --notes "## miso-client v$VERSION
+        
+        ✅ **Published to PyPI**: \`miso-client==$VERSION\`
+        
+        ### Installation
+        \`\`\`bash
+        pip install miso-client==$VERSION
+        \`\`\`
+        
+        ### Package Information
+        - **Registry**: https://pypi.org
+        - **Package URL**: https://pypi.org/project/miso-client/$VERSION/"
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
