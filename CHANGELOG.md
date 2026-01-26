@@ -5,6 +5,43 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.2.0] - 2026-01-26
+
+### Added
+
+- **User Info Caching** - Added caching for `get_user_info()` API calls to reduce controller load
+  - Results cached using userId from JWT token with configurable TTL (default 5 minutes)
+  - Added `user_ttl` configuration option in `MisoClientConfig` (default: 300 seconds)
+  - Added `clear_user_cache()` method to manually clear cached user info
+  - Cache automatically cleared on logout
+- **Auth Token Cache Helpers** - Extracted token validation caching to `auth_token_cache.py`
+  - `check_cache_for_token()` - Check cache for validation result
+  - `cache_validation_result()` - Cache successful validation
+- **Auth User Cache Helpers** - Extracted user info caching to `auth_user_cache.py`
+  - `get_user_cache_key()` - Generate cache key for user info
+  - `check_user_info_cache()` - Check cache for user info
+  - `cache_user_info()` - Cache user info result
+  - `clear_user_cache()` - Clear cached user info
+- **LogsStatsApi** - Extracted log statistics and export endpoints to `logs_stats_api.py`
+  - `get_stats_summary()`, `get_stats_errors()`, `get_stats_users()`, `get_stats_applications()`
+  - `export_logs()` - Export logs in CSV or JSON format
+- **ApplicationContextMixin** - Added mixin for shared application context logic
+  - `_get_app_context_service()` - Get or create application context service
+  - `_get_environment_from_context()` - Get environment from cached context
+
+### Changed
+
+- **Code Organization** - Refactored large files to comply with 500-line limit
+  - `auth.py` reduced from 538 to 489 lines (extracted caching helpers)
+  - `logs_api.py` reduced from 671 to 482 lines (extracted stats API)
+  - `role.py` and `permission.py` now use `ApplicationContextMixin` (removed duplicate methods)
+
+### Technical
+
+- Added 16 new unit tests for user info caching (`test_auth_service_caching.py`)
+- All 1234 unit tests pass with 93% coverage
+- Improved code maintainability by extracting shared functionality into mixins and helpers
+
 ## [4.1.2] - 2026-01-21
 
 ### Changed

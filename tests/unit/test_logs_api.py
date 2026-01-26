@@ -596,7 +596,7 @@ class TestLogsApi:
         assert result.data.byLevel["error"] == 100
         mock_http_client.authenticated_request.assert_called_once()
         call_args = mock_http_client.authenticated_request.call_args
-        assert call_args[0][1] == logs_api.LOGS_STATS_SUMMARY_ENDPOINT
+        assert call_args[0][1] == logs_api._stats.LOGS_STATS_SUMMARY_ENDPOINT
 
     @pytest.mark.asyncio
     async def test_get_stats_summary_with_filters(self, logs_api, mock_http_client):
@@ -657,7 +657,7 @@ class TestLogsApi:
         assert len(result.data.topErrors) == 2
         mock_http_client.authenticated_request.assert_called_once()
         call_args = mock_http_client.authenticated_request.call_args
-        assert call_args[0][1] == logs_api.LOGS_STATS_ERRORS_ENDPOINT
+        assert call_args[0][1] == logs_api._stats.LOGS_STATS_ERRORS_ENDPOINT
 
     @pytest.mark.asyncio
     async def test_get_stats_errors_with_filters(self, logs_api, mock_http_client):
@@ -717,7 +717,7 @@ class TestLogsApi:
         assert len(result.data.topUsers) == 2
         mock_http_client.authenticated_request.assert_called_once()
         call_args = mock_http_client.authenticated_request.call_args
-        assert call_args[0][1] == logs_api.LOGS_STATS_USERS_ENDPOINT
+        assert call_args[0][1] == logs_api._stats.LOGS_STATS_USERS_ENDPOINT
 
     @pytest.mark.asyncio
     async def test_get_stats_users_with_filters(self, logs_api, mock_http_client):
@@ -777,7 +777,7 @@ class TestLogsApi:
         assert len(result.data.applications) == 3
         mock_http_client.authenticated_request.assert_called_once()
         call_args = mock_http_client.authenticated_request.call_args
-        assert call_args[0][1] == logs_api.LOGS_STATS_APPLICATIONS_ENDPOINT
+        assert call_args[0][1] == logs_api._stats.LOGS_STATS_APPLICATIONS_ENDPOINT
 
     @pytest.mark.asyncio
     async def test_get_stats_applications_with_filters(self, logs_api, mock_http_client):
@@ -844,7 +844,7 @@ class TestLogsApi:
         assert result.meta.type == "general"
         mock_http_client.authenticated_request.assert_called_once()
         call_args = mock_http_client.authenticated_request.call_args
-        assert call_args[0][1] == logs_api.LOGS_EXPORT_ENDPOINT
+        assert call_args[0][1] == logs_api._stats.LOGS_EXPORT_ENDPOINT
 
     @pytest.mark.asyncio
     async def test_export_logs_csv(self, logs_api, mock_http_client):
@@ -974,13 +974,13 @@ class TestLogsApi:
 
     def test_build_stats_params_minimal(self, logs_api):
         """Test _build_stats_params with minimal parameters."""
-        params = logs_api._build_stats_params()
+        params = logs_api._stats._build_stats_params()
 
         assert len(params) == 0
 
     def test_build_stats_params_all(self, logs_api):
         """Test _build_stats_params with all parameters."""
-        params = logs_api._build_stats_params(
+        params = logs_api._stats._build_stats_params(
             environment="pro",
             application="app1",
             user_id="user-123",
@@ -998,7 +998,7 @@ class TestLogsApi:
 
     def test_build_stats_params_optional_none(self, logs_api):
         """Test _build_stats_params with None optional parameters."""
-        params = logs_api._build_stats_params(
+        params = logs_api._stats._build_stats_params(
             environment=None,
             application=None,
             user_id=None,

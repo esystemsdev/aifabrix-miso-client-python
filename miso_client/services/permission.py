@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, List, Optional, cast
 
 from ..models.config import AuthStrategy, PermissionResult
 from ..services.application_context import ApplicationContextService
+from ..services.authorization_mixin import ApplicationContextMixin
 from ..services.cache import CacheService
 from ..utils.auth_utils import validate_token_request
 from ..utils.error_utils import extract_correlation_id_from_error
@@ -24,7 +25,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class PermissionService:
+class PermissionService(ApplicationContextMixin):
     """Permission service for user authorization with caching."""
 
     def __init__(
@@ -45,32 +46,6 @@ class PermissionService:
         self.permission_ttl = self.config.permission_ttl
         # Initialize application context service for automatic environment detection
         self._app_context_service: Optional[ApplicationContextService] = None
-
-    def _get_app_context_service(self) -> ApplicationContextService:
-        """Get or create application context service."""
-        if self._app_context_service is None:
-            # Access internal HTTP client from http_client
-            internal_client = self.http_client._internal_client
-            self._app_context_service = ApplicationContextService(internal_client)
-        return self._app_context_service
-
-    def _get_environment_from_context(self) -> Optional[str]:
-        """
-        Get environment from application context (synchronous, uses cached value).
-
-        Returns:
-            Environment string if found, None otherwise
-        """
-        try:
-            app_context_service = self._get_app_context_service()
-            # If context is cached, use it synchronously (matching TypeScript behavior)
-            if app_context_service._cached_context is not None:
-                env = app_context_service._cached_context.environment
-                return env if env and env != "unknown" else None
-            # If not cached, return None (will be fetched async on first use)
-            return None
-        except Exception:
-            return None
 
     async def get_permissions(
         self,

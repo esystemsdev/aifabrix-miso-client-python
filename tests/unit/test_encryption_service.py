@@ -484,13 +484,9 @@ class TestEncryptionKeyValidation:
         assert call_args[1]["data"]["encryptionKey"] == "test-encryption-key"
 
     @pytest.mark.asyncio
-    async def test_decrypt_401_maps_to_access_denied(
-        self, mock_http_client, mock_config_with_key
-    ):
+    async def test_decrypt_401_maps_to_access_denied(self, mock_http_client, mock_config_with_key):
         """Test decryption 401 error maps to ACCESS_DENIED."""
-        mock_http_client.post.side_effect = MisoClientError(
-            "Unauthorized", status_code=401
-        )
+        mock_http_client.post.side_effect = MisoClientError("Unauthorized", status_code=401)
         service = EncryptionService(mock_http_client, mock_config_with_key)
 
         with pytest.raises(EncryptionError) as exc_info:

@@ -4,7 +4,7 @@ Logs API implementation.
 Provides typed interfaces for logging endpoints including:
 - Log ingestion (POST /api/v1/logs, POST /api/v1/logs/batch)
 - Log listing (GET /api/v1/logs/general, /api/v1/logs/audit, /api/v1/logs/jobs)
-- Log statistics (GET /api/v1/logs/stats/*)
+- Log statistics (GET /api/v1/logs/stats/*) - delegated to LogsStatsApi
 - Log export (GET /api/v1/logs/export)
 """
 
@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Literal, Optional
 
 from ..models.config import AuthStrategy, LogEntry
 from ..utils.http_client import HttpClient
+from .logs_stats_api import LogsStatsApi
 from .response_utils import normalize_api_response
 from .types.logs_types import (
     BatchLogRequest,
@@ -39,11 +40,6 @@ class LogsApi:
     LOGS_GENERAL_ENDPOINT = "/api/v1/logs/general"
     LOGS_AUDIT_ENDPOINT = "/api/v1/logs/audit"
     LOGS_JOBS_ENDPOINT = "/api/v1/logs/jobs"
-    LOGS_STATS_SUMMARY_ENDPOINT = "/api/v1/logs/stats/summary"
-    LOGS_STATS_ERRORS_ENDPOINT = "/api/v1/logs/stats/errors"
-    LOGS_STATS_USERS_ENDPOINT = "/api/v1/logs/stats/users"
-    LOGS_STATS_APPLICATIONS_ENDPOINT = "/api/v1/logs/stats/applications"
-    LOGS_EXPORT_ENDPOINT = "/api/v1/logs/export"
 
     def __init__(self, http_client: HttpClient):
         """
@@ -53,6 +49,7 @@ class LogsApi:
             http_client: HttpClient instance
         """
         self.http_client = http_client
+        self._stats = LogsStatsApi(http_client)
 
     # =========================================================================
     # Log Ingestion Endpoints
@@ -355,7 +352,7 @@ class LogsApi:
         return GetJobLogResponse(**response)
 
     # =========================================================================
-    # Log Statistics Endpoints
+    # Log Statistics Endpoints (delegated to LogsStatsApi)
     # =========================================================================
 
     async def get_stats_summary(
@@ -368,40 +365,10 @@ class LogsApi:
         end_date: Optional[str] = None,
         auth_strategy: Optional[AuthStrategy] = None,
     ) -> LogStatsSummaryResponse:
-        """
-        Get log statistics summary (GET /api/v1/logs/stats/summary).
-
-        Args:
-            token: User authentication token
-            environment: Filter by environment
-            application: Filter by application
-            user_id: Filter by user ID
-            start_date: Start date (ISO 8601)
-            end_date: End date (ISO 8601)
-            auth_strategy: Optional authentication strategy
-
-        Returns:
-            LogStatsSummaryResponse with aggregated statistics
-
-        Raises:
-            MisoClientError: If request fails
-        """
-        params = self._build_stats_params(
-            environment=environment,
-            application=application,
-            user_id=user_id,
-            start_date=start_date,
-            end_date=end_date,
+        """Get log statistics summary. See LogsStatsApi.get_stats_summary for details."""
+        return await self._stats.get_stats_summary(
+            token, environment, application, user_id, start_date, end_date, auth_strategy
         )
-        response = await self.http_client.authenticated_request(
-            "GET",
-            self.LOGS_STATS_SUMMARY_ENDPOINT,
-            token,
-            params=params,
-            auth_strategy=auth_strategy,
-        )
-        response = normalize_api_response(response)
-        return LogStatsSummaryResponse(**response)
 
     async def get_stats_errors(
         self,
@@ -414,42 +381,10 @@ class LogsApi:
         end_date: Optional[str] = None,
         auth_strategy: Optional[AuthStrategy] = None,
     ) -> LogStatsErrorsResponse:
-        """
-        Get error statistics (GET /api/v1/logs/stats/errors).
-
-        Args:
-            token: User authentication token
-            environment: Filter by environment
-            application: Filter by application
-            user_id: Filter by user ID
-            limit: Number of top errors to return (default 10, max 100)
-            start_date: Start date (ISO 8601)
-            end_date: End date (ISO 8601)
-            auth_strategy: Optional authentication strategy
-
-        Returns:
-            LogStatsErrorsResponse with error statistics
-
-        Raises:
-            MisoClientError: If request fails
-        """
-        params = self._build_stats_params(
-            environment=environment,
-            application=application,
-            user_id=user_id,
-            start_date=start_date,
-            end_date=end_date,
-            limit=limit,
+        """Get error statistics. See LogsStatsApi.get_stats_errors for details."""
+        return await self._stats.get_stats_errors(
+            token, environment, application, user_id, limit, start_date, end_date, auth_strategy
         )
-        response = await self.http_client.authenticated_request(
-            "GET",
-            self.LOGS_STATS_ERRORS_ENDPOINT,
-            token,
-            params=params,
-            auth_strategy=auth_strategy,
-        )
-        response = normalize_api_response(response)
-        return LogStatsErrorsResponse(**response)
 
     async def get_stats_users(
         self,
@@ -461,40 +396,10 @@ class LogsApi:
         end_date: Optional[str] = None,
         auth_strategy: Optional[AuthStrategy] = None,
     ) -> LogStatsUsersResponse:
-        """
-        Get user activity statistics (GET /api/v1/logs/stats/users).
-
-        Args:
-            token: User authentication token
-            environment: Filter by environment
-            application: Filter by application
-            limit: Number of top users to return (default 10, max 100)
-            start_date: Start date (ISO 8601)
-            end_date: End date (ISO 8601)
-            auth_strategy: Optional authentication strategy
-
-        Returns:
-            LogStatsUsersResponse with user activity statistics
-
-        Raises:
-            MisoClientError: If request fails
-        """
-        params = self._build_stats_params(
-            environment=environment,
-            application=application,
-            start_date=start_date,
-            end_date=end_date,
-            limit=limit,
+        """Get user activity statistics. See LogsStatsApi.get_stats_users for details."""
+        return await self._stats.get_stats_users(
+            token, environment, application, limit, start_date, end_date, auth_strategy
         )
-        response = await self.http_client.authenticated_request(
-            "GET",
-            self.LOGS_STATS_USERS_ENDPOINT,
-            token,
-            params=params,
-            auth_strategy=auth_strategy,
-        )
-        response = normalize_api_response(response)
-        return LogStatsUsersResponse(**response)
 
     async def get_stats_applications(
         self,
@@ -504,39 +409,13 @@ class LogsApi:
         end_date: Optional[str] = None,
         auth_strategy: Optional[AuthStrategy] = None,
     ) -> LogStatsApplicationsResponse:
-        """
-        Get application statistics (GET /api/v1/logs/stats/applications).
-
-        Args:
-            token: User authentication token
-            environment: Filter by environment
-            start_date: Start date (ISO 8601)
-            end_date: End date (ISO 8601)
-            auth_strategy: Optional authentication strategy
-
-        Returns:
-            LogStatsApplicationsResponse with application statistics
-
-        Raises:
-            MisoClientError: If request fails
-        """
-        params = self._build_stats_params(
-            environment=environment,
-            start_date=start_date,
-            end_date=end_date,
+        """Get application statistics. See LogsStatsApi.get_stats_applications for details."""
+        return await self._stats.get_stats_applications(
+            token, environment, start_date, end_date, auth_strategy
         )
-        response = await self.http_client.authenticated_request(
-            "GET",
-            self.LOGS_STATS_APPLICATIONS_ENDPOINT,
-            token,
-            params=params,
-            auth_strategy=auth_strategy,
-        )
-        response = normalize_api_response(response)
-        return LogStatsApplicationsResponse(**response)
 
     # =========================================================================
-    # Log Export Endpoint
+    # Log Export Endpoint (delegated to LogsStatsApi)
     # =========================================================================
 
     async def export_logs(
@@ -552,55 +431,19 @@ class LogsApi:
         limit: int = 1000,
         auth_strategy: Optional[AuthStrategy] = None,
     ) -> LogExportResponse:
-        """
-        Export logs (GET /api/v1/logs/export).
-
-        Note: CSV format returns raw text, JSON format returns LogExportResponse.
-
-        Args:
-            token: User authentication token
-            log_type: Type of logs to export (general, audit, jobs)
-            format: Export format (csv, json)
-            environment: Filter by environment
-            application: Filter by application
-            user_id: Filter by user ID
-            start_date: Start date (ISO 8601)
-            end_date: End date (ISO 8601)
-            limit: Maximum entries to export (default 1000, max 10000)
-            auth_strategy: Optional authentication strategy
-
-        Returns:
-            LogExportResponse with exported data (JSON format only)
-
-        Raises:
-            MisoClientError: If request fails
-        """
-        params: Dict[str, Any] = {
-            "type": log_type,
-            "format": format,
-        }
-        if environment:
-            params["environment"] = environment
-        if application:
-            params["application"] = application
-        if user_id:
-            params["userId"] = user_id
-        if start_date:
-            params["startDate"] = start_date
-        if end_date:
-            params["endDate"] = end_date
-        if limit:
-            params["limit"] = limit
-
-        response = await self.http_client.authenticated_request(
-            "GET",
-            self.LOGS_EXPORT_ENDPOINT,
+        """Export logs. See LogsStatsApi.export_logs for details."""
+        return await self._stats.export_logs(
             token,
-            params=params,
-            auth_strategy=auth_strategy,
+            log_type,
+            format,
+            environment,
+            application,
+            user_id,
+            start_date,
+            end_date,
+            limit,
+            auth_strategy,
         )
-        response = normalize_api_response(response)
-        return LogExportResponse(**response)
 
     # =========================================================================
     # Helper Methods
@@ -643,29 +486,4 @@ class LogsApi:
             params["endDate"] = end_date
         if search:
             params["search"] = search
-        return params
-
-    def _build_stats_params(
-        self,
-        environment: Optional[str] = None,
-        application: Optional[str] = None,
-        user_id: Optional[str] = None,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-        limit: Optional[int] = None,
-    ) -> Dict[str, Any]:
-        """Build query parameters for stats endpoints."""
-        params: Dict[str, Any] = {}
-        if environment:
-            params["environment"] = environment
-        if application:
-            params["application"] = application
-        if user_id:
-            params["userId"] = user_id
-        if start_date:
-            params["startDate"] = start_date
-        if end_date:
-            params["endDate"] = end_date
-        if limit:
-            params["limit"] = limit
         return params

@@ -94,7 +94,7 @@ class MisoClientConfig(BaseModel):
     )
     cache: Optional[Dict[str, int]] = Field(
         default=None,
-        description="Cache TTL settings: permission_ttl, role_ttl (default: 900 seconds)",
+        description="Cache TTL settings: permission_ttl, role_ttl, user_ttl, validation_ttl (defaults: 900s, 900s, 300s, 120s)",
     )
     api_key: Optional[str] = Field(
         default=None,
@@ -153,6 +153,13 @@ class MisoClientConfig(BaseModel):
         if self.cache and "validation_ttl" in self.cache:
             return self.cache["validation_ttl"]
         return self.cache.get("validationTTL", 120) if self.cache else 120  # 2 minutes default
+
+    @property
+    def user_ttl(self) -> int:
+        """Get user info cache TTL in seconds."""
+        if self.cache and "user_ttl" in self.cache:
+            return self.cache["user_ttl"]
+        return self.cache.get("userTTL", 300) if self.cache else 300  # 5 minutes default
 
 
 class ForeignKeyReference(BaseModel):

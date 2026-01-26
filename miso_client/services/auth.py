@@ -9,6 +9,16 @@ import logging
 from typing import TYPE_CHECKING, Any, Dict, Optional, cast
 
 from ..models.config import AuthResult, AuthStrategy, UserInfo
+from ..services.auth_token_cache import (
+    cache_validation_result,
+    check_cache_for_token,
+)
+from ..services.auth_user_cache import (
+    cache_user_info,
+    check_user_info_cache,
+    clear_user_cache,
+    get_user_cache_key,
+)
 from ..services.cache import CacheService
 from ..services.redis import RedisService
 from ..utils.auth_cache_helpers import get_cache_ttl_from_token, get_token_cache_key
@@ -46,6 +56,7 @@ class AuthService:
         self.cache = cache
         self.api_client = api_client
         self.validation_ttl = self.config.validation_ttl
+        self.user_ttl = self.config.user_ttl
 
     def _get_token_cache_key(self, token: str) -> str:
         """
@@ -76,6 +87,18 @@ class AuthService:
         """
         return get_cache_ttl_from_token(token, self.validation_ttl)
 
+    def _get_user_cache_key(self, user_id: str) -> str:
+        """
+        Generate cache key for user info.
+
+        Args:
+            user_id: User ID string
+
+        Returns:
+            Cache key string in format: user:{userId}
+        """
+        return get_user_cache_key(user_id)
+
     async def get_environment_token(self) -> str:
         """
         Get environment token using client credentials.
@@ -100,16 +123,8 @@ class AuthService:
         Returns:
             Cached validation result if found, None otherwise
         """
-        if not self.cache:
-            return None
-
         cache_key = self._get_token_cache_key(token)
-        cached_result = await self.cache.get(cache_key)
-        if cached_result and isinstance(cached_result, dict):
-            logger.debug("Token validation cache hit")
-            return cast(Dict[str, Any], cached_result)
-
-        return None
+        return await check_cache_for_token(self.cache, cache_key)
 
     async def _fetch_validation_from_api_client(
         self, token: str, auth_strategy: Optional[AuthStrategy] = None
@@ -190,20 +205,9 @@ class AuthService:
             token: JWT token that was validated
             result: Validation result dictionary
         """
-        if not self.cache:
-            return
-
-        result_dict: Dict[str, Any] = result
-        if result_dict.get("data", {}).get("authenticated") is not True:
-            return
-
         cache_key = self._get_token_cache_key(token)
         ttl = self._get_cache_ttl_from_token(token)
-        try:
-            await self.cache.set(cache_key, result_dict, ttl)
-            logger.debug(f"Token validation cached with TTL: {ttl}s")
-        except Exception as error:
-            logger.warning("Failed to cache validation result", exc_info=error)
+        await cache_validation_result(self.cache, cache_key, result, ttl)
 
     async def _validate_token_request(
         self, token: str, auth_strategy: Optional[AuthStrategy] = None
@@ -317,11 +321,35 @@ class AuthService:
             self._log_error("Failed to get user info", error)
             return None
 
+    async def _check_user_info_cache(self, token: str) -> Optional[UserInfo]:
+        """
+        Check cache for user info.
+
+        Args:
+            token: JWT token to extract userId from
+
+        Returns:
+            Cached UserInfo if found, None otherwise
+        """
+        return await check_user_info_cache(self.cache, token)
+
+    async def _cache_user_info(self, token: str, user_info: UserInfo) -> None:
+        """
+        Cache user info result.
+
+        Args:
+            token: JWT token to extract userId from
+            user_info: UserInfo to cache
+        """
+        await cache_user_info(self.cache, token, user_info, self.user_ttl)
+
     async def get_user_info(
         self, token: str, auth_strategy: Optional[AuthStrategy] = None
     ) -> Optional[UserInfo]:
         """
         Get user information from GET /api/v1/auth/user endpoint.
+
+        Results are cached using userId from token with configurable TTL (default 5 min).
 
         Args:
             token: JWT token (or API_KEY for testing)
@@ -334,31 +362,56 @@ class AuthService:
             return None
 
         try:
+            # Check cache first
+            cached_user = await self._check_user_info_cache(token)
+            if cached_user:
+                return cached_user
+
+            # Cache miss - fetch from controller
             if self.api_client:
                 response = await self.api_client.auth.get_user(token, auth_strategy=auth_strategy)
-                return response.data.user
+                user_info = response.data.user
+            else:
+                user_data = await self.http_client.authenticated_request(
+                    "GET", "/api/v1/auth/user", token, auth_strategy=auth_strategy
+                )
+                user_info = UserInfo(**user_data)
 
-            user_data = await self.http_client.authenticated_request(
-                "GET", "/api/v1/auth/user", token, auth_strategy=auth_strategy
-            )
-            return UserInfo(**user_data)
+            # Cache the result
+            if user_info:
+                await self._cache_user_info(token, user_info)
+
+            return user_info
         except Exception as error:
             self._log_error("Failed to get user info", error)
             return None
 
+    async def clear_user_cache(self, token: str) -> None:
+        """
+        Clear cached user info for a user.
+
+        Args:
+            token: JWT token to extract userId from
+        """
+        await clear_user_cache(self.cache, token)
+
     async def _clear_logout_caches(self, token: str) -> None:
-        """Clear token caches after logout."""
+        """Clear token and user caches after logout."""
         try:
             self.http_client.clear_user_token(token)
         except Exception:
             pass  # Silently continue if cache clearing fails
 
         if self.cache:
+            # Clear token validation cache
             try:
                 await self.cache.delete(self._get_token_cache_key(token))
                 logger.debug("Token validation cache cleared on logout")
             except Exception as error:
                 logger.warning("Failed to clear validation cache on logout", exc_info=error)
+
+            # Clear user info cache
+            await self.clear_user_cache(token)
 
     async def logout(self, token: str) -> Dict[str, Any]:
         """

@@ -255,9 +255,7 @@ def transform_log_entry_to_request(log_entry: LogEntry) -> Any:
             ),
         )
 
-    log_type: Literal["error", "general"] = (
-        "error" if log_entry.level == "error" else "general"
-    )
+    log_type: Literal["error", "general"] = "error" if log_entry.level == "error" else "general"
     return LogRequest(
         type=log_type,
         data=GeneralLogData(

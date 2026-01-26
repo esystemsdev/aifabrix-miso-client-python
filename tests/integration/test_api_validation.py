@@ -201,9 +201,9 @@ def test_api_coverage():
     print("=" * 80)
 
     # Assert 100% coverage
-    assert (
-        coverage_percentage == 100.0
-    ), f"API test coverage is {coverage_percentage:.1f}%, expected 100%. Untested methods: {len(untested_methods)}"
+    assert coverage_percentage == 100.0, (
+        f"API test coverage is {coverage_percentage:.1f}%, expected 100%. Untested methods: {len(untested_methods)}"
+    )
 
 
 if __name__ == "__main__":
