@@ -5,6 +5,33 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.3.0] - 2026-01-27
+
+### Added
+
+- **AuthMethod Error Tracking** - Added `authMethod` field to track authentication method on 401 errors
+  - New `authMethod` field in `ErrorResponse` model (Literal: "bearer", "client-token", "client-credentials", "api-key")
+  - New `auth_method` property in `MisoClientError` exception
+  - New `detect_auth_method_from_headers()` utility for client-side fallback detection
+  - New `AuthMethod` type export from `miso_client`
+  - Helps identify which authentication mechanism failed (bearer token, client token, client credentials, or API key)
+
+### Changed
+
+- **Error Response Enhancement** - `ErrorResponse` now includes optional `authMethod` field for 401 errors
+- **MisoClientError Enhancement** - Exception now exposes `auth_method` property extracted from error response or fallback detection
+- **InternalHttpClient** - Added centralized `_create_error_from_http_status()` method for consistent 401 error handling
+- **ClientTokenManager** - Now includes `auth_method="client-credentials"` when raising `AuthenticationError`
+
+### Technical
+
+- Added 28 new unit tests in `test_http_error_handler.py` for auth method detection and error parsing
+- Added 10 new unit tests in `test_errors.py` for auth_method functionality
+- Improved docstring formatting across all modules (742 style fixes)
+- Fixed 21 line-too-long errors in source code
+- Fixed 17 line-too-long errors in test files
+- All 1270 unit tests pass with 93% coverage
+
 ## [4.2.0] - 2026-01-26
 
 ### Added

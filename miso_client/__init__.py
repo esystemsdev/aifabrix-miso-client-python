@@ -135,7 +135,7 @@ from .utils.token_utils import extract_client_token_info
 from .utils.unified_logger_factory import clear_logger_context, get_logger, set_logger_context
 from .utils.url_validator import validate_url
 
-__version__ = "4.2.0"
+__version__ = "4.3.0"
 __author__ = "AI Fabrix Team"
 __license__ = "MIT"
 
