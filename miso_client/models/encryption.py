@@ -1,5 +1,4 @@
-"""
-Encryption API request and response type definitions.
+"""Encryption API request and response type definitions.
 
 This module defines Pydantic models for the encryption/decryption API endpoints
 provided by miso-controller. All field names use camelCase to match API conventions.

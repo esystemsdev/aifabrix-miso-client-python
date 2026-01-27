@@ -30,8 +30,7 @@ class RequestURL(Protocol):
 
 @runtime_checkable
 class HttpRequest(Protocol):
-    """
-    Protocol for HTTP request objects.
+    """Protocol for HTTP request objects.
 
     Supports:
     - FastAPI/Starlette Request
@@ -79,8 +78,7 @@ class RequestContext:
 
 
 def extract_request_context(request: Any) -> RequestContext:
-    """
-    Extract logging context from HTTP request object.
+    """Extract logging context from HTTP request object.
 
     Supports multiple Python web frameworks:
     - FastAPI/Starlette Request
@@ -97,6 +95,7 @@ def extract_request_context(request: Any) -> RequestContext:
         >>> from fastapi import Request
         >>> ctx = extract_request_context(request)
         >>> await logger.with_request(request).info("Processing")
+
     """
     # Extract IP address (handle proxies)
     ip_address = _extract_ip_address(request)
@@ -251,14 +250,14 @@ def _extract_path(request: Any) -> Optional[str]:
 
 
 def _extract_user_from_auth_header(request: Any) -> Tuple[Optional[str], Optional[str]]:
-    """
-    Extract user ID and session ID from Authorization header JWT.
+    """Extract user ID and session ID from Authorization header JWT.
 
     Args:
         request: HTTP request object
 
     Returns:
         Tuple of (user_id, session_id)
+
     """
     headers = _get_headers(request)
     auth_header = headers.get("authorization")

@@ -1,5 +1,4 @@
-"""
-Logger service for application logging and audit events.
+"""Logger service for application logging and audit events.
 
 This module provides structured logging with Redis queuing and HTTP fallback.
 Includes JWT context extraction, data masking, and correlation IDs.
@@ -50,14 +49,14 @@ class LoggerService:
         http_client: Optional[Any] = None,
         api_client: Optional["ApiClient"] = None,
     ):
-        """
-        Initialize logger service.
+        """Initialize logger service.
 
         Args:
             internal_http_client: Internal HTTP client instance (used for log sending)
             redis: Redis service instance
             http_client: Optional HttpClient instance for audit log queue (if available)
-            api_client: Optional API client instance (for typed API calls, use with caution to avoid circular dependency)
+            api_client: Optional API client instance (for typed API calls, avoid circular deps)
+
         """
         self.config = internal_http_client.config
         self.internal_http_client = internal_http_client
@@ -82,17 +81,16 @@ class LoggerService:
         # This avoids circular dependency issues
 
     def set_masking(self, enabled: bool) -> None:
-        """
-        Enable or disable sensitive data masking.
+        """Enable or disable sensitive data masking.
 
         Args:
             enabled: Whether to enable data masking
+
         """
         self.mask_sensitive_data = enabled
 
     def on(self, callback: Callable[[LogEntry], None]) -> None:
-        """
-        Register an event listener for log events.
+        """Register an event listener for log events.
 
         When `emit_events=True` in config, logs are emitted as events instead of
         being sent via HTTP/Redis. Registered callbacks receive LogEntry objects.
@@ -104,28 +102,29 @@ class LoggerService:
             >>> async def log_handler(log_entry: LogEntry):
             ...     print(f"Log: {log_entry.level} - {log_entry.message}")
             >>> logger.on(log_handler)
+
         """
         if callback not in self._event_listeners:
             self._event_listeners.append(callback)
 
     def off(self, callback: Callable[[LogEntry], None]) -> None:
-        """
-        Unregister an event listener.
+        """Unregister an event listener.
 
         Args:
             callback: Callback function to remove from listeners
+
         """
         if callback in self._event_listeners:
             self._event_listeners.remove(callback)
 
     def _generate_correlation_id(self) -> str:
-        """
-        Generate unique correlation ID for request tracking.
+        """Generate unique correlation ID for request tracking.
 
         Format: {clientId[0:10]}-{timestamp}-{counter}-{random}
 
         Returns:
             Correlation ID string
+
         """
         self.correlation_counter = (self.correlation_counter + 1) % 10000
         timestamp = int(datetime.now().timestamp() * 1000)
@@ -142,14 +141,14 @@ class LoggerService:
         stack_trace: Optional[str] = None,
         options: Optional[ClientLoggingOptions] = None,
     ) -> None:
-        """
-        Log error message with optional stack trace and enhanced options.
+        """Log error message with optional stack trace and enhanced options.
 
         Args:
             message: Error message
             context: Additional context data
             stack_trace: Stack trace string
             options: Logging options
+
         """
         await self._log("error", message, context, stack_trace, options)
 
@@ -160,14 +159,14 @@ class LoggerService:
         context: Optional[Dict[str, Any]] = None,
         options: Optional[ClientLoggingOptions] = None,
     ) -> None:
-        """
-        Log audit event with enhanced options.
+        """Log audit event with enhanced options.
 
         Args:
             action: Action performed
             resource: Resource affected
             context: Additional context data
             options: Logging options
+
         """
         audit_context = {"action": action, "resource": resource, **(context or {})}
         await self._log("audit", f"Audit: {action} on {resource}", audit_context, None, options)
@@ -178,13 +177,13 @@ class LoggerService:
         context: Optional[Dict[str, Any]] = None,
         options: Optional[ClientLoggingOptions] = None,
     ) -> None:
-        """
-        Log info message with enhanced options.
+        """Log info message with enhanced options.
 
         Args:
             message: Info message
             context: Additional context data
             options: Logging options
+
         """
         await self._log("info", message, context, None, options)
 
@@ -194,26 +193,26 @@ class LoggerService:
         context: Optional[Dict[str, Any]] = None,
         options: Optional[ClientLoggingOptions] = None,
     ) -> None:
-        """
-        Log debug message with enhanced options.
+        """Log debug message with enhanced options.
 
         Args:
             message: Debug message
             context: Additional context data
             options: Logging options
+
         """
         if self.config.log_level == "debug":
             await self._log("debug", message, context, None, options)
 
     async def _emit_log_event(self, log_entry: LogEntry) -> bool:
-        """
-        Emit log entry as event if event emission is enabled.
+        """Emit log entry as event if event emission is enabled.
 
         Args:
             log_entry: LogEntry to emit
 
         Returns:
             True if event was emitted, False otherwise
+
         """
         if not (self.config.emit_events and self._event_listeners):
             return False
@@ -230,14 +229,14 @@ class LoggerService:
         return True
 
     async def _queue_audit_log(self, log_entry: LogEntry) -> bool:
-        """
-        Queue audit log entry if audit queue is available.
+        """Queue audit log entry if audit queue is available.
 
         Args:
             log_entry: LogEntry to queue
 
         Returns:
             True if queued, False otherwise
+
         """
         if log_entry.level == "audit" and self.audit_log_queue:
             await self.audit_log_queue.add(log_entry)
@@ -245,14 +244,14 @@ class LoggerService:
         return False
 
     async def _queue_redis_log(self, log_entry: LogEntry) -> bool:
-        """
-        Queue log entry in Redis if available.
+        """Queue log entry in Redis if available.
 
         Args:
             log_entry: LogEntry to queue
 
         Returns:
             True if queued, False otherwise
+
         """
         if not self.redis.is_connected():
             return False
@@ -262,11 +261,11 @@ class LoggerService:
         return success
 
     async def _send_http_log(self, log_entry: LogEntry) -> None:
-        """
-        Send log entry via HTTP to controller.
+        """Send log entry via HTTP to controller.
 
         Args:
             log_entry: LogEntry to send
+
         """
         # Check circuit breaker before attempting HTTP logging
         if self.circuit_breaker.is_open():
@@ -377,8 +376,7 @@ class LoggerService:
         return LoggerChain(self, {}, opts)
 
     def for_request(self, request: Any) -> "LoggerChain":
-        """
-        Create logger chain with request context pre-populated.
+        """Create logger chain with request context pre-populated.
 
         Shortcut for: logger.with_context({}).with_request(request)
 
@@ -390,6 +388,7 @@ class LoggerService:
 
         Example:
             >>> await logger.for_request(request).info("Processing")
+
         """
         return LoggerChain(self, {}, ClientLoggingOptions()).with_request(request)
 
@@ -401,8 +400,7 @@ class LoggerService:
         context: Optional[Dict[str, Any]] = None,
         stack_trace: Optional[str] = None,
     ) -> LogEntry:
-        """
-        Get LogEntry object with auto-extracted request context.
+        """Get LogEntry object with auto-extracted request context.
 
         Extracts IP, method, path, userAgent, correlationId, userId from request.
         Returns LogEntry object ready for use in other projects' logger tables.
@@ -420,6 +418,7 @@ class LoggerService:
         Example:
             >>> log_entry = logger.get_log_with_request(request, "Processing request")
             >>> # Use log_entry in your own logger table
+
         """
         return await get_log_with_request(self, request, message, level, context, stack_trace)
 
@@ -431,8 +430,7 @@ class LoggerService:
         stack_trace: Optional[str] = None,
         options: Optional[ClientLoggingOptions] = None,
     ) -> LogEntry:
-        """
-        Get LogEntry with custom context for use in custom logging tables.
+        """Get LogEntry with custom context for use in custom logging tables.
 
         Args:
             context: Custom context data
@@ -440,6 +438,7 @@ class LoggerService:
             level: Log level (default: "info")
             stack_trace: Stack trace for errors
             options: Optional logging options
+
         """
         return await get_with_context(self, context, message, level, stack_trace, options)
 
@@ -451,8 +450,7 @@ class LoggerService:
         context: Optional[Dict[str, Any]] = None,
         stack_trace: Optional[str] = None,
     ) -> LogEntry:
-        """
-        Get LogEntry with JWT token context (userId, sessionId) extracted.
+        """Get LogEntry with JWT token context (userId, sessionId) extracted.
 
         Args:
             token: JWT token string
@@ -460,6 +458,7 @@ class LoggerService:
             level: Log level (default: "info")
             context: Additional context data
             stack_trace: Stack trace for errors
+
         """
         return await get_with_token(self, token, message, level, context, stack_trace)
 
@@ -471,8 +470,7 @@ class LoggerService:
         context: Optional[Dict[str, Any]] = None,
         stack_trace: Optional[str] = None,
     ) -> LogEntry:
-        """
-        Get LogEntry object with request context (alias for get_log_with_request).
+        """Get LogEntry object with request context (alias for get_log_with_request).
 
         Same functionality as get_log_with_request() for convenience.
 
@@ -488,5 +486,6 @@ class LoggerService:
 
         Example:
             >>> log_entry = await logger.get_for_request(request, "Request processed")
+
         """
         return await get_for_request(self, request, message, level, context, stack_trace)

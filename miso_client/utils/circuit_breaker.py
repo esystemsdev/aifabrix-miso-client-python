@@ -1,5 +1,4 @@
-"""
-Circuit breaker implementation for HTTP logging.
+"""Circuit breaker implementation for HTTP logging.
 
 Prevents infinite retry loops when logging service is unavailable by opening
 the circuit after consecutive failures and resetting after a timeout period.
@@ -21,8 +20,7 @@ class CircuitState(Enum):
 
 
 class CircuitBreaker:
-    """
-    Circuit breaker for HTTP logging.
+    """Circuit breaker for HTTP logging.
 
     Prevents infinite retry loops when logging service is unavailable.
     Opens circuit after consecutive failures and resets after timeout period.
@@ -34,14 +32,15 @@ class CircuitBreaker:
         failure_count: Current consecutive failure count
         last_failure_time: Timestamp of last failure
         opened_at: Timestamp when circuit was opened
+
     """
 
     def __init__(self, config: Optional[CircuitBreakerConfig] = None):
-        """
-        Initialize circuit breaker with configuration.
+        """Initialize circuit breaker with configuration.
 
         Args:
             config: Circuit breaker configuration (optional)
+
         """
         if config:
             self.failure_threshold = config.failureThreshold or 3
@@ -56,13 +55,13 @@ class CircuitBreaker:
         self.opened_at: Optional[float] = None
 
     def is_open(self) -> bool:
-        """
-        Check if circuit is open (requests should be blocked).
+        """Check if circuit is open (requests should be blocked).
 
         Automatically transitions from OPEN to HALF_OPEN after reset timeout.
 
         Returns:
             True if circuit is open, False otherwise
+
         """
         if self.state == CircuitState.CLOSED:
             return False
@@ -80,8 +79,7 @@ class CircuitBreaker:
         return False
 
     def record_success(self) -> None:
-        """
-        Record successful request.
+        """Record successful request.
 
         Resets failure count and closes circuit if it was open.
         """
@@ -95,8 +93,7 @@ class CircuitBreaker:
             self.failure_count = 0
 
     def record_failure(self) -> None:
-        """
-        Record failed request.
+        """Record failed request.
 
         Increments failure count and opens circuit if threshold reached.
         """
@@ -116,10 +113,10 @@ class CircuitBreaker:
         self.opened_at = None
 
     def get_state(self) -> CircuitState:
-        """
-        Get current circuit state.
+        """Get current circuit state.
 
         Returns:
             Current circuit state
+
         """
         return self.state

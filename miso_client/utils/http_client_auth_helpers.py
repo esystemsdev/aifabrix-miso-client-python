@@ -1,5 +1,4 @@
-"""
-HTTP client authentication helper functions.
+"""HTTP client authentication helper functions.
 
 This module provides helper functions for handling authentication in HTTP requests,
 including token refresh and 401 error handling.
@@ -23,8 +22,7 @@ async def prepare_authenticated_request(
     auto_refresh: bool,
     **kwargs,
 ) -> str:
-    """
-    Prepare authenticated request by getting valid token and setting headers.
+    """Prepare authenticated request by getting valid token and setting headers.
 
     Args:
         user_token_refresh: UserTokenRefreshManager instance
@@ -34,6 +32,7 @@ async def prepare_authenticated_request(
 
     Returns:
         Valid token to use for request
+
     """
     # Get valid token (refresh if expired)
     valid_token = await user_token_refresh.get_valid_token(token, refresh_if_needed=auto_refresh)
@@ -60,8 +59,7 @@ async def handle_401_refresh(
     auto_refresh: bool,
     **kwargs,
 ) -> Any:
-    """
-    Handle 401 error by refreshing token and retrying request.
+    """Handle 401 error by refreshing token and retrying request.
 
     Args:
         internal_client: InternalHttpClient instance
@@ -80,6 +78,7 @@ async def handle_401_refresh(
 
     Raises:
         httpx.HTTPStatusError: If refresh fails or retry fails
+
     """
     if not auto_refresh:
         raise error

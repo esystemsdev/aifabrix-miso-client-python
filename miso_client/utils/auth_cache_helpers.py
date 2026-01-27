@@ -1,5 +1,4 @@
-"""
-Authentication cache helper functions.
+"""Authentication cache helper functions.
 
 This module provides helper functions for token validation caching,
 including cache key generation and TTL calculation.
@@ -15,8 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_token_cache_key(token: str) -> str:
-    """
-    Generate cache key for token validation using SHA-256 hash.
+    """Generate cache key for token validation using SHA-256 hash.
 
     Uses token hash instead of full token for security.
 
@@ -25,14 +23,14 @@ def get_token_cache_key(token: str) -> str:
 
     Returns:
         Cache key string in format: token_validation:{sha256_hash}
+
     """
     token_hash = hashlib.sha256(token.encode()).hexdigest()
     return f"token_validation:{token_hash}"
 
 
 def get_cache_ttl_from_token(token: str, validation_ttl: int) -> int:
-    """
-    Calculate smart TTL based on token expiration.
+    """Calculate smart TTL based on token expiration.
 
     If token has expiration claim, cache until token_exp - 30s buffer.
     Minimum: 60 seconds, Maximum: validation_ttl.
@@ -43,6 +41,7 @@ def get_cache_ttl_from_token(token: str, validation_ttl: int) -> int:
 
     Returns:
         TTL in seconds
+
     """
     try:
         decoded = decode_token(token)

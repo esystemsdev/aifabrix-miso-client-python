@@ -1,5 +1,4 @@
-"""
-HTTP client logging helper functions.
+"""HTTP client logging helper functions.
 
 Extracted from http_client.py to reduce file size and improve maintainability.
 """
@@ -15,14 +14,14 @@ from .http_client_logging import log_http_request_audit, log_http_request_debug
 
 
 def handle_logging_task_error(task: asyncio.Task) -> None:
-    """
-    Handle errors in background logging tasks.
+    """Handle errors in background logging tasks.
 
     Silently swallows all exceptions to prevent logging errors from breaking requests.
     Handles closed event loops gracefully during test teardown.
 
     Args:
         task: The completed logging task
+
     """
     try:
         exception = task.exception()
@@ -39,14 +38,14 @@ def handle_logging_task_error(task: asyncio.Task) -> None:
 
 
 async def wait_for_logging_tasks(logging_tasks: set[asyncio.Task], timeout: float = 0.5) -> None:
-    """
-    Wait for all pending logging tasks to complete.
+    """Wait for all pending logging tasks to complete.
 
     Useful for tests to ensure logging has finished before assertions.
 
     Args:
         logging_tasks: Set of logging tasks
         timeout: Maximum time to wait in seconds
+
     """
     if not logging_tasks:
         return
@@ -72,8 +71,7 @@ async def wait_for_logging_tasks(logging_tasks: set[asyncio.Task], timeout: floa
 
 
 def calculate_status_code(response: Optional[Any], error: Optional[Exception]) -> Optional[int]:
-    """
-    Calculate HTTP status code from response or error.
+    """Calculate HTTP status code from response or error.
 
     Args:
         response: Response data (if successful)
@@ -81,6 +79,7 @@ def calculate_status_code(response: Optional[Any], error: Optional[Exception]) -
 
     Returns:
         HTTP status code, or None if cannot determine
+
     """
     if response is not None:
         return 200
@@ -96,8 +95,7 @@ def calculate_status_code(response: Optional[Any], error: Optional[Exception]) -
 def extract_user_id_from_headers(
     request_headers: Optional[Dict[str, Any]], jwt_cache: JwtTokenCache
 ) -> Optional[str]:
-    """
-    Extract user ID from request headers.
+    """Extract user ID from request headers.
 
     Args:
         request_headers: Request headers dictionary
@@ -105,6 +103,7 @@ def extract_user_id_from_headers(
 
     Returns:
         User ID if found, None otherwise
+
     """
     if request_headers:
         return jwt_cache.extract_user_id_from_headers(request_headers)
@@ -123,8 +122,7 @@ async def log_debug_if_enabled(
     request_data: Optional[Dict[str, Any]],
     request_headers: Optional[Dict[str, Any]],
 ) -> None:
-    """
-    Log debug details if debug logging is enabled.
+    """Log debug details if debug logging is enabled.
 
     Args:
         logger: LoggerService instance
@@ -137,6 +135,7 @@ async def log_debug_if_enabled(
         user_id: User ID if available
         request_data: Request body data
         request_headers: Request headers
+
     """
     if config.log_level != "debug":
         return
@@ -170,8 +169,7 @@ async def log_http_request(
     request_data: Optional[Dict[str, Any]],
     request_headers: Optional[Dict[str, Any]],
 ) -> None:
-    """
-    Log HTTP request with audit and optional debug logging.
+    """Log HTTP request with audit and optional debug logging.
 
     Args:
         logger: LoggerService instance
@@ -184,6 +182,7 @@ async def log_http_request(
         start_time: Request start time
         request_data: Request body data
         request_headers: Request headers
+
     """
     user_id = extract_user_id_from_headers(request_headers, jwt_cache)
 

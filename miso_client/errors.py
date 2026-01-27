@@ -1,5 +1,4 @@
-"""
-SDK exceptions and error handling.
+"""SDK exceptions and error handling.
 
 This module defines custom exceptions for the MisoClient SDK.
 """
@@ -7,7 +6,10 @@ This module defines custom exceptions for the MisoClient SDK.
 from typing import TYPE_CHECKING, Literal, Optional
 
 if TYPE_CHECKING:
-    from ..models.error_response import ErrorResponse
+    from .models.error_response import ErrorResponse
+
+# Authentication method type for error tracking (aligned with config.py and error_response.py)
+AuthMethod = Literal["bearer", "client-token", "client-credentials", "api-key"]
 
 # Error codes for encryption operations (aligned with TypeScript SDK)
 EncryptionErrorCode = Literal[
@@ -29,21 +31,28 @@ class MisoClientError(Exception):
         status_code: int | None = None,
         error_body: dict | None = None,
         error_response: "ErrorResponse | None" = None,
+        auth_method: Optional[AuthMethod] = None,
     ):
-        """
-        Initialize MisoClient error.
+        """Initialize MisoClient error.
 
         Args:
             message: Error message
             status_code: HTTP status code if applicable
             error_body: Sanitized error response body (secrets masked)
             error_response: Structured error response object (RFC 7807-style)
+            auth_method: Authentication method that failed (for 401 errors)
+
         """
         super().__init__(message)
         self.message = message
         self.status_code = status_code
         self.error_body = error_body if error_body is not None else None
         self.error_response = error_response
+
+        # Set auth_method from parameter or extract from error_response
+        self.auth_method: Optional[AuthMethod] = auth_method
+        if self.auth_method is None and error_response is not None:
+            self.auth_method = error_response.authMethod
 
         # Enhance message with structured error information if available
         if error_response and error_response.errors:
@@ -90,14 +99,14 @@ class EncryptionError(MisoClientError):
         parameter_name: Optional[str] = None,
         status_code: Optional[int] = None,
     ):
-        """
-        Initialize encryption error.
+        """Initialize encryption error.
 
         Args:
             message: Error message
             code: Error code for programmatic handling
             parameter_name: The parameter name that caused the error
             status_code: HTTP status code if applicable
+
         """
         super().__init__(message, status_code=status_code)
         self.code = code

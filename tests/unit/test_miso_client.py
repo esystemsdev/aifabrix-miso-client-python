@@ -638,7 +638,7 @@ class TestAuthService:
 
     @pytest.mark.asyncio
     async def test_fetch_validation_from_api_client_no_api_client(self, auth_service):
-        """Test _fetch_validation_from_api_client raises ValueError when api_client is None (line 128)."""
+        """Test _fetch_validation_from_api_client raises ValueError when api_client is None."""
         auth_service.api_client = None
 
         with pytest.raises(ValueError, match="ApiClient is required"):
@@ -1913,7 +1913,7 @@ class TestPermissionService:
 
     @pytest.mark.asyncio
     async def test_get_permissions_cache_miss_only_one_controller_call(self, permission_service):
-        """Test that cache misses only trigger one controller call (for permissions, not context)."""
+        """Test that cache misses only trigger one controller call (for permissions)."""
         import jwt
 
         token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
@@ -4440,7 +4440,7 @@ class TestPermissionServiceAdditional:
     async def test_get_app_context_service_initialization(
         self, permission_service, mock_http_client
     ):
-        """Test _get_app_context_service initialization when _app_context_service is None (lines 51-55)."""
+        """Test _get_app_context_service initialization when _app_context_service is None."""
         from miso_client.utils.internal_http_client import InternalHttpClient
 
         # Set up mock_http_client with internal_client

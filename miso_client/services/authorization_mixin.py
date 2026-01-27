@@ -1,5 +1,4 @@
-"""
-Authorization mixin providing shared application context functionality.
+"""Authorization mixin providing shared application context functionality.
 
 This mixin provides common methods for role and permission services
 to access application context for environment/application detection.
@@ -20,11 +19,11 @@ class ApplicationContextMixin:
     _app_context_service: Optional["ApplicationContextService"]
 
     def _get_app_context_service(self) -> "ApplicationContextService":
-        """
-        Get or create application context service.
+        """Get or create application context service.
 
         Returns:
             ApplicationContextService instance (cached after first creation)
+
         """
         from ..services.application_context import ApplicationContextService
 
@@ -35,11 +34,11 @@ class ApplicationContextMixin:
         return self._app_context_service
 
     def _get_environment_from_context(self) -> Optional[str]:
-        """
-        Get environment from application context (synchronous, uses cached value).
+        """Get environment from application context (synchronous, uses cached value).
 
         Returns:
             Environment string if found, None otherwise
+
         """
         try:
             app_context_service = self._get_app_context_service()

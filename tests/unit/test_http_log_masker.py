@@ -464,7 +464,7 @@ class TestMaskResponseData:
         assert result == ""
 
     def test_mask_response_data_truncated_dict_long_string_result(self):
-        """Test mask_response_data with truncated dict that produces long string result (>1000 chars)."""
+        """Test mask_response_data with truncated dict producing long string (>1000 chars)."""
         # Create a dict that will be truncated (estimated size > max_size but <= max_masking_size)
         large_dict = {"key" + str(i): "x" * 100 for i in range(20)}
 

@@ -1,5 +1,4 @@
-"""
-JWT token utilities for safe decoding without verification.
+"""JWT token utilities for safe decoding without verification.
 
 This module provides utilities for extracting information from JWT tokens
 without verification, used for cache optimization and context extraction.
@@ -13,8 +12,7 @@ import jwt
 
 
 def decode_token(token: str) -> Optional[Dict[str, Any]]:
-    """
-    Safely decode JWT token without verification.
+    """Safely decode JWT token without verification.
 
     This is used for extracting user information (like userId) from tokens
     for cache optimization. The token is NOT verified - it should only be
@@ -25,6 +23,7 @@ def decode_token(token: str) -> Optional[Dict[str, Any]]:
 
     Returns:
         Decoded token payload as dictionary, or None if decoding fails
+
     """
     try:
         # Decode without verification (no secret key needed)
@@ -36,8 +35,7 @@ def decode_token(token: str) -> Optional[Dict[str, Any]]:
 
 
 def extract_user_id(token: str) -> Optional[str]:
-    """
-    Extract user ID from JWT token.
+    """Extract user ID from JWT token.
 
     Tries common JWT claim fields: sub, userId, user_id, id
 
@@ -46,6 +44,7 @@ def extract_user_id(token: str) -> Optional[str]:
 
     Returns:
         User ID string if found, None otherwise
+
     """
     decoded = decode_token(token)
     if not decoded:
@@ -60,14 +59,14 @@ def extract_user_id(token: str) -> Optional[str]:
 
 
 def extract_session_id(token: str) -> Optional[str]:
-    """
-    Extract session ID from JWT token.
+    """Extract session ID from JWT token.
 
     Args:
         token: JWT token string
 
     Returns:
         Session ID string if found, None otherwise
+
     """
     decoded = decode_token(token)
     if not decoded:
@@ -78,25 +77,23 @@ def extract_session_id(token: str) -> Optional[str]:
 
 
 class JwtTokenCache:
-    """
-    JWT token cache with expiration tracking.
+    """JWT token cache with expiration tracking.
 
     Caches decoded JWT tokens to avoid repeated decoding operations.
     """
 
     def __init__(self, max_size: int = 1000):
-        """
-        Initialize JWT token cache.
+        """Initialize JWT token cache.
 
         Args:
             max_size: Maximum cache size to prevent memory leaks
+
         """
         self._cache: Dict[str, Tuple[Dict[str, Any], datetime]] = {}
         self._max_size = max_size
 
     def get_decoded_token(self, token: str) -> Optional[Dict[str, Any]]:
-        """
-        Get decoded JWT token with caching for performance optimization.
+        """Get decoded JWT token with caching for performance optimization.
 
         Tokens are cached with expiration tracking to avoid repeated decoding.
 
@@ -105,6 +102,7 @@ class JwtTokenCache:
 
         Returns:
             Decoded token payload as dictionary, or None if decoding fails
+
         """
         now = datetime.now()
 
@@ -148,14 +146,14 @@ class JwtTokenCache:
             return None
 
     def extract_user_id_from_headers(self, headers: Dict[str, Any]) -> Optional[str]:
-        """
-        Extract user ID from JWT token in Authorization header with caching.
+        """Extract user ID from JWT token in Authorization header with caching.
 
         Args:
             headers: Request headers dictionary
 
         Returns:
             User ID if found, None otherwise
+
         """
         auth_header = headers.get("authorization") or headers.get("Authorization")
         if not auth_header or not isinstance(auth_header, str):
@@ -177,11 +175,11 @@ class JwtTokenCache:
         return None
 
     def clear_token(self, token: str) -> None:
-        """
-        Clear a specific token from cache.
+        """Clear a specific token from cache.
 
         Args:
             token: JWT token string to remove from cache
+
         """
         if token in self._cache:
             del self._cache[token]

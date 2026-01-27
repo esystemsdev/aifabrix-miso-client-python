@@ -1,5 +1,4 @@
-"""
-Error utilities for MisoClient SDK.
+"""Error utilities for MisoClient SDK.
 
 This module provides error transformation utilities for handling
 camelCase error responses from the API.
@@ -12,18 +11,17 @@ from ..models.error_response import ErrorResponse
 
 
 class ApiErrorException(Exception):
-    """
-    Exception class for camelCase error responses.
+    """Exception class for camelCase error responses.
 
     Used with camelCase ErrorResponse format matching TypeScript SDK.
     """
 
     def __init__(self, error: ErrorResponse):
-        """
-        Initialize ApiErrorException.
+        """Initialize ApiErrorException.
 
         Args:
             error: ErrorResponse object with camelCase properties
+
         """
         super().__init__(error.title or "API Error")
         self.name = "ApiErrorException"
@@ -35,8 +33,7 @@ class ApiErrorException(Exception):
 
 
 def transformError(error_data: dict) -> ErrorResponse:
-    """
-    Transform arbitrary error into standardized camelCase ErrorResponse.
+    """Transform arbitrary error into standardized camelCase ErrorResponse.
 
     Converts error data dictionary to ErrorResponse object with camelCase field names.
 
@@ -57,6 +54,7 @@ def transformError(error_data: dict) -> ErrorResponse:
         >>> error_response = transformError(error_data)
         >>> error_response.statusCode
         400
+
     """
     return ErrorResponse(**error_data)
 
@@ -64,8 +62,7 @@ def transformError(error_data: dict) -> ErrorResponse:
 def handleApiError(
     response_data: dict, status_code: int, instance: Optional[str] = None
 ) -> ApiErrorException:
-    """
-    Handle API error and raise camelCase ApiErrorException.
+    """Handle API error and raise camelCase ApiErrorException.
 
     Creates ApiErrorException from camelCase API response.
 
@@ -92,6 +89,7 @@ def handleApiError(
         ... except ApiErrorException as e:
         ...     e.statusCode
         422
+
     """
     # Create a copy to avoid mutating the original
     data = response_data.copy()
@@ -115,8 +113,7 @@ def handleApiError(
 
 
 def extract_correlation_id_from_error(error: Exception) -> Optional[str]:
-    """
-    Extract correlation ID from exception if available.
+    """Extract correlation ID from exception if available.
 
     Checks MisoClientError.error_response.correlationId and ApiErrorException.correlationId.
 
@@ -133,6 +130,7 @@ def extract_correlation_id_from_error(error: Exception) -> Optional[str]:
         ... ))
         >>> extract_correlation_id_from_error(error)
         'req-123'
+
     """
     # Check MisoClientError with error_response
     if isinstance(error, MisoClientError) and error.error_response:

@@ -1,5 +1,4 @@
-"""
-Filter value coercion functions.
+"""Filter value coercion functions.
 
 This module provides functions for coercing filter values to appropriate types
 based on field definitions, including string, number, boolean, uuid, timestamp, and enum types.
@@ -21,8 +20,7 @@ ERROR_TYPE_INVALID_ENUM = "/Errors/FilterValidation/InvalidEnum"
 def coerce_single_value(
     value: Any, field_type: str, enum_values: Optional[List[str]]
 ) -> Tuple[Any, Optional[FilterError]]:
-    """
-    Coerce a single value based on field type.
+    """Coerce a single value based on field type.
 
     Args:
         value: Value to coerce
@@ -31,6 +29,7 @@ def coerce_single_value(
 
     Returns:
         Tuple of (coerced_value, error)
+
     """
     if field_type == "string":
         return str(value), None

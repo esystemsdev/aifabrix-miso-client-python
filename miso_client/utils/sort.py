@@ -1,5 +1,4 @@
-"""
-Sort utilities for MisoClient SDK.
+"""Sort utilities for MisoClient SDK.
 
 This module provides reusable sort utilities for parsing sort parameters
 and building sort query strings.
@@ -12,15 +11,14 @@ from ..models.sort import SortOption, SortOrder
 
 
 def parse_sort_params(params: dict) -> List[SortOption]:
-    """
-    Parse sort query parameters into SortOption list.
+    """Parse sort query parameters into SortOption list.
 
     Parses `?sort=-field` format into SortOption objects.
     Supports multiple sort parameters (array of sort strings).
     Prefix with '-' for descending order, otherwise ascending.
 
     Args:
-        params: Dictionary with query parameters (e.g., {'sort': '-updated_at'} or {'sort': ['-updated_at', 'created_at']})
+        params: Query parameters dict (e.g., {'sort': '-updated_at'} or list of fields)
 
     Returns:
         List of SortOption objects
@@ -30,6 +28,7 @@ def parse_sort_params(params: dict) -> List[SortOption]:
         [SortOption(field='updated_at', order='desc')]
         >>> parse_sort_params({'sort': ['-updated_at', 'created_at']})
         [SortOption(field='updated_at', order='desc'), SortOption(field='created_at', order='asc')]
+
     """
     sort_options: List[SortOption] = []
 
@@ -70,8 +69,7 @@ def parse_sort_params(params: dict) -> List[SortOption]:
 
 
 def build_sort_string(sort_options: List[SortOption]) -> str:
-    """
-    Convert SortOption list to query string format.
+    """Convert SortOption list to query string format.
 
     Converts SortOption objects to sort query string format.
     Descending order fields are prefixed with '-'.
@@ -93,6 +91,7 @@ def build_sort_string(sort_options: List[SortOption]) -> str:
         ... ]
         >>> build_sort_string(sort_options)
         '-updated_at,created_at'
+
     """
     if not sort_options:
         return ""

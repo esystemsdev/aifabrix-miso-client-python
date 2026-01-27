@@ -25,8 +25,7 @@ def extract_logging_context(
     record: Optional[HasKey] = None,
     external_system: Optional[HasKey] = None,
 ) -> Dict[str, Any]:
-    """
-    Extract indexed fields for logging.
+    """Extract indexed fields for logging.
 
     Indexed fields:
     - sourceKey, sourceDisplayName
@@ -45,6 +44,7 @@ def extract_logging_context(
     - No DB access
     - Explicit context passing
     - Safe to use in hot paths
+
     """
     context: Dict[str, Any] = {}
 

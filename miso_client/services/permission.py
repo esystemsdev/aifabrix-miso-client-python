@@ -1,5 +1,4 @@
-"""
-Permission service for user authorization with caching.
+"""Permission service for user authorization with caching.
 
 This module handles permission-based access control with caching support.
 Permissions are cached with Redis and in-memory fallback using CacheService.
@@ -31,13 +30,13 @@ class PermissionService(ApplicationContextMixin):
     def __init__(
         self, http_client: HttpClient, cache: CacheService, api_client: Optional["ApiClient"] = None
     ):
-        """
-        Initialize permission service.
+        """Initialize permission service.
 
         Args:
             http_client: HTTP client instance (for backward compatibility)
             cache: Cache service instance (handles Redis + in-memory fallback)
             api_client: Optional API client instance (for typed API calls)
+
         """
         self.config = http_client.config
         self.http_client = http_client
@@ -52,8 +51,7 @@ class PermissionService(ApplicationContextMixin):
         token: str,
         auth_strategy: Optional[AuthStrategy] = None,
     ) -> List[str]:
-        """
-        Get user permissions with Redis caching.
+        """Get user permissions with Redis caching.
 
         Optimized to extract userId from token first to check cache before API call.
 
@@ -63,6 +61,7 @@ class PermissionService(ApplicationContextMixin):
 
         Returns:
             List of user permissions
+
         """
         try:
             # Extract userId from token to check cache first (avoids API call on cache hit)
@@ -88,8 +87,8 @@ class PermissionService(ApplicationContextMixin):
                     return []
                 cache_key = f"permissions:{user_id}"
 
-            # Extract environment and application from application context service (matching TypeScript)
-            # Use synchronous method to avoid triggering controller calls on cache hits
+            # Extract environment and application from application context service
+            # Use synchronous method to avoid controller calls on cache hits
             context = self._get_app_context_service().get_application_context_sync()
             environment = (
                 context.environment
@@ -161,8 +160,7 @@ class PermissionService(ApplicationContextMixin):
         permission: str,
         auth_strategy: Optional[AuthStrategy] = None,
     ) -> bool:
-        """
-        Check if user has specific permission.
+        """Check if user has specific permission.
 
         Args:
             token: JWT token
@@ -171,6 +169,7 @@ class PermissionService(ApplicationContextMixin):
 
         Returns:
             True if user has the permission, False otherwise
+
         """
         permissions = await self.get_permissions(token, auth_strategy=auth_strategy)
         return permission in permissions
@@ -181,8 +180,7 @@ class PermissionService(ApplicationContextMixin):
         permissions: List[str],
         auth_strategy: Optional[AuthStrategy] = None,
     ) -> bool:
-        """
-        Check if user has any of the specified permissions.
+        """Check if user has any of the specified permissions.
 
         Args:
             token: JWT token
@@ -191,6 +189,7 @@ class PermissionService(ApplicationContextMixin):
 
         Returns:
             True if user has any of the permissions, False otherwise
+
         """
         user_permissions = await self.get_permissions(token, auth_strategy=auth_strategy)
         return any(permission in user_permissions for permission in permissions)
@@ -201,8 +200,7 @@ class PermissionService(ApplicationContextMixin):
         permissions: List[str],
         auth_strategy: Optional[AuthStrategy] = None,
     ) -> bool:
-        """
-        Check if user has all of the specified permissions.
+        """Check if user has all of the specified permissions.
 
         Args:
             token: JWT token
@@ -211,6 +209,7 @@ class PermissionService(ApplicationContextMixin):
 
         Returns:
             True if user has all permissions, False otherwise
+
         """
         user_permissions = await self.get_permissions(token, auth_strategy=auth_strategy)
         return all(permission in user_permissions for permission in permissions)
@@ -220,8 +219,7 @@ class PermissionService(ApplicationContextMixin):
         token: str,
         auth_strategy: Optional[AuthStrategy] = None,
     ) -> List[str]:
-        """
-        Force refresh permissions from controller (bypass cache).
+        """Force refresh permissions from controller (bypass cache).
 
         Args:
             token: JWT token
@@ -229,6 +227,7 @@ class PermissionService(ApplicationContextMixin):
 
         Returns:
             Fresh list of user permissions
+
         """
         try:
             # Get user info to extract userId
@@ -243,8 +242,8 @@ class PermissionService(ApplicationContextMixin):
             # Cache key does NOT include environment (matching TypeScript)
             cache_key = f"permissions:{user_id}"
 
-            # Extract environment and application from application context service (matching TypeScript)
-            # Use synchronous method to avoid triggering controller calls on cache hits
+            # Extract environment and application from application context service
+            # Use synchronous method to avoid controller calls on cache hits
             context = self._get_app_context_service().get_application_context_sync()
             environment = (
                 context.environment
@@ -312,12 +311,12 @@ class PermissionService(ApplicationContextMixin):
     async def clear_permissions_cache(
         self, token: str, auth_strategy: Optional[AuthStrategy] = None
     ) -> None:
-        """
-        Clear cached permissions for a user.
+        """Clear cached permissions for a user.
 
         Args:
             token: JWT token
             auth_strategy: Optional authentication strategy
+
         """
         try:
             # Extract userId from token first (avoids API call if userId is in token)

@@ -1,5 +1,4 @@
-"""
-Sensitive fields configuration loader for ISO 27001 compliance.
+"""Sensitive fields configuration loader for ISO 27001 compliance.
 
 This module provides utilities to load and merge sensitive fields configuration
 from JSON files, supporting custom configuration paths and environment variables.
@@ -17,8 +16,7 @@ _DEFAULT_CONFIG_PATH = Path(__file__).parent / "sensitive_fields_config.json"
 def load_sensitive_fields_config(
     config_path: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    Load sensitive fields configuration from JSON file.
+    """Load sensitive fields configuration from JSON file.
 
     Supports custom path via:
     1. config_path parameter
@@ -35,6 +33,7 @@ def load_sensitive_fields_config(
     Example:
         >>> config = load_sensitive_fields_config()
         >>> fields = config.get('fields', {})
+
     """
     # Priority: parameter > environment variable > default
     if config_path:
@@ -60,8 +59,7 @@ def load_sensitive_fields_config(
 def get_sensitive_fields_array(
     config_path: Optional[str] = None,
 ) -> List[str]:
-    """
-    Get flattened array of all sensitive field names from configuration.
+    """Get flattened array of all sensitive field names from configuration.
 
     Args:
         config_path: Optional custom path to JSON config file
@@ -74,6 +72,7 @@ def get_sensitive_fields_array(
         >>> fields = get_sensitive_fields_array()
         >>> assert 'password' in fields
         >>> assert 'token' in fields
+
     """
     config = load_sensitive_fields_config(config_path)
     fields_dict = config.get("fields", {})
@@ -97,8 +96,7 @@ def get_sensitive_fields_array(
 
 
 def get_field_patterns(config_path: Optional[str] = None) -> List[str]:
-    """
-    Get field pattern matching rules from configuration.
+    """Get field pattern matching rules from configuration.
 
     Args:
         config_path: Optional custom path to JSON config file
@@ -110,6 +108,7 @@ def get_field_patterns(config_path: Optional[str] = None) -> List[str]:
     Example:
         >>> patterns = get_field_patterns()
         >>> # Patterns can be regex patterns or simple matching rules
+
     """
     config = load_sensitive_fields_config(config_path)
     patterns = config.get("fieldPatterns", [])

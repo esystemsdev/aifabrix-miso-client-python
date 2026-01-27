@@ -1,5 +1,4 @@
-"""
-MisoClient SDK - Python client for AI Fabrix authentication, authorization, and logging.
+"""MisoClient SDK - Python client for AI Fabrix authentication, authorization, and logging.
 
 This package provides a reusable client SDK for integrating with the Miso Controller
 for authentication, role-based access control, permission management, and logging.
@@ -20,6 +19,7 @@ from .errors import (
 
 # Config models
 from .models.config import (
+    AuthMethod,
     AuthResult,
     AuthStrategy,
     CircuitBreakerConfig,
@@ -83,6 +83,7 @@ from .utils.config_loader import load_config
 from .utils.controller_url_resolver import is_browser, resolve_controller_url
 from .utils.environment_token import get_environment_token
 from .utils.error_utils import ApiErrorException, handleApiError, transformError
+from .utils.http_error_handler import detect_auth_method_from_headers
 from .utils.fastapi_endpoints import create_fastapi_client_token_endpoint
 from .utils.fastapi_logger_middleware import (
     logger_context_middleware as fastapi_logger_context_middleware,
@@ -150,6 +151,7 @@ __all__ = [
     "UserInfo",
     "AuthResult",
     "AuthStrategy",
+    "AuthMethod",
     "LogEntry",
     "RoleResult",
     "PermissionResult",
@@ -215,6 +217,7 @@ __all__ = [
     "transformError",
     "handleApiError",
     "ApiErrorException",
+    "detect_auth_method_from_headers",
     # Services
     "AuthService",
     "RoleService",

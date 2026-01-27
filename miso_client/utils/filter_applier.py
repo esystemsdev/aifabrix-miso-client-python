@@ -1,5 +1,4 @@
-"""
-Filter application utilities for MisoClient SDK.
+"""Filter application utilities for MisoClient SDK.
 
 This module provides utilities for applying filters to arrays locally,
 useful for testing and mocking scenarios.
@@ -11,8 +10,7 @@ from ..models.filter import FilterOption
 
 
 def apply_filters(items: List[Dict[str, Any]], filters: List[FilterOption]) -> List[Dict[str, Any]]:
-    """
-    Apply filters to array locally (for testing/mocks).
+    """Apply filters to array locally (for testing/mocks).
 
     Args:
         items: Array of dictionaries to filter
@@ -26,6 +24,7 @@ def apply_filters(items: List[Dict[str, Any]], filters: List[FilterOption]) -> L
         >>> filters = [FilterOption(field='status', op='eq', value='active')]
         >>> apply_filters(items, filters)
         [{'status': 'active', 'region': 'eu'}]
+
     """
     if not filters:
         return items
@@ -102,7 +101,7 @@ def apply_filters(items: List[Dict[str, Any]], filters: List[FilterOption]) -> L
             ]
         elif op == "contains":
             if isinstance(value, str):
-                # For string values, check both string fields (substring) and list fields (membership)
+                # For strings, check both string fields (substring) and list fields
                 filtered_items = [
                     item
                     for item in filtered_items

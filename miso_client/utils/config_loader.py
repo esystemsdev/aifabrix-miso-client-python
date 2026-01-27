@@ -1,5 +1,4 @@
-"""
-Configuration loader utility.
+"""Configuration loader utility.
 
 Automatically loads environment variables with sensible defaults.
 """
@@ -12,8 +11,7 @@ from ..models.config import AuthMethod, AuthStrategy, MisoClientConfig, RedisCon
 
 
 def load_config() -> MisoClientConfig:
-    """
-    Load configuration from environment variables with defaults.
+    """Load configuration from environment variables with defaults.
 
     Required environment variables:
     - MISO_CONTROLLER_URL (or default to https://controller.aifabrix.ai)
@@ -28,7 +26,7 @@ def load_config() -> MisoClientConfig:
     - MISO_AUTH_STRATEGY (comma-separated list: bearer,client-token,api-key)
     - MISO_CLIENT_TOKEN_URI (custom client token endpoint URI)
     - MISO_ALLOWED_ORIGINS (comma-separated list of allowed origins, supports wildcard ports)
-    - MISO_CONTROLLER_URL (maps to controllerPrivateUrl and controller_url for backward compatibility)
+    - MISO_CONTROLLER_URL (maps to controllerPrivateUrl and controller_url)
     - MISO_WEB_SERVER_URL (maps to controllerPublicUrl for browser/public access)
     - REDIS_HOST (if Redis is used)
     - REDIS_PORT (default: 6379)
@@ -41,6 +39,7 @@ def load_config() -> MisoClientConfig:
 
     Raises:
         ConfigurationError: If required environment variables are missing
+
     """
     # Load dotenv if available (similar to TypeScript dotenv/config)
     try:
@@ -50,7 +49,7 @@ def load_config() -> MisoClientConfig:
     except ImportError:
         pass  # dotenv not installed, continue without it
 
-    # MISO_CONTROLLER_URL maps to controllerPrivateUrl (server/internal) and controller_url (backward compatibility)
+    # MISO_CONTROLLER_URL maps to controllerPrivateUrl and controller_url
     controller_url = os.environ.get("MISO_CONTROLLER_URL") or "https://controller.aifabrix.ai"
     controller_private_url = os.environ.get(
         "MISO_CONTROLLER_URL"

@@ -35,7 +35,7 @@ async def test_permissions(token: str) -> None:
     except Exception as e:
         print(f"✗ Failed to load configuration: {e}")
         print(
-            "  Make sure .env file exists with MISO_CLIENTID, MISO_CLIENTSECRET, MISO_CONTROLLER_URL"
+            "  Make sure .env file exists with MISO_CLIENTID, MISO_CLIENTSECRET"
         )
         sys.exit(1)
 
@@ -173,7 +173,25 @@ async def test_permissions(token: str) -> None:
 async def main():
     """Main entry point."""
     # Your new token
-    token = "eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJ6UHAzQUdwYjVNRV84bGNnbVlwdm54MlJZd2JLcGJiUXA1WG1pVWVuY2dJIn0.eyJleHAiOjE3Njg5MzExNDMsImlhdCI6MTc2ODkyOTM0MywianRpIjoib25ydGFjOjBmODkxNTVlLTY0N2YtNWMzNi0zNzg3LTI2MjVmNjQ2MGUwMiIsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6ODE4Mi9yZWFsbXMvYWlmYWJyaXgiLCJhdWQiOiJhY2NvdW50IiwidHlwIjoiQmVhcmVyIiwiYXpwIjoibWlzby1jb250cm9sbGVyIiwic2lkIjoiNzdiZmUyMDEtZDE2MC1mMTA0LWU3YzQtOTIyOGQ5OGI1ZTI5IiwiYWxsb3dlZC1vcmlnaW5zIjpbIioiXSwicmVhbG1fYWNjZXNzIjp7InJvbGVzIjpbIm9mZmxpbmVfYWNjZXNzIiwiZGVmYXVsdC1yb2xlcy1haWZhYnJpeCIsInVtYV9hdXRob3JpemF0aW9uIl19LCJyZXNvdXJjZV9hY2Nlc3MiOnsiYWNjb3VudCI6eyJyb2xlcyI6WyJtYW5hZ2UtYWNjb3VudCIsIm1hbmFnZS1hY2NvdW50LWxpbmtzIiwidmlldy1wcm9maWxlIl19fSwic2NvcGUiOiJlbWFpbCBwcm9maWxlIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsIm5hbWUiOiJBZG1pbiBVc2VyIiwicHJlZmVycmVkX3VzZXJuYW1lIjoiYWRtaW4iLCJnaXZlbl9uYW1lIjoiQWRtaW4iLCJmYW1pbHlfbmFtZSI6IlVzZXIiLCJlbWFpbCI6ImFkbWluQGFpZmFicml4LmFpIn0.mt1Yb4SWHP_YDNqst2On0Vsv2UtnmMCytY4MkFXelN1lB0eO6Ag-kU97gjosA74C5q873Aa_wby6J3Cyy5PJkP1tFjaqbReWcDUNWSHFqfHLTrEr91T-cO7Wj4eBrNknNvc_HUID9z2cXOQBxmMdWqXaOA6IfJv-fMSi3eUVn1HA5E7oyjuN9ofqD_0rgXPiFHFIGc0jKTs4Z1qsRhNGQfy7Ye7ndnApG2Xt7_zztJ2syEJZlOxGSwVOu9UfqgrvIh_3EZe7GjrTZ6j7Ht9oRF2Oh1n5EAXo7EUo8QDiCVZwFlwc_TDpXUhm1g-LghazCaFX_LltxKq8ddDXGsNnMg"
+    # Long JWT token - broken into parts for readability
+    token = (
+        "eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJ6UHAzQUdwYjVNRV84bGNnbVlwdm54"
+        "MlJZd2JLcGJiUXA1WG1pVWVuY2dJIn0.eyJleHAiOjE3Njg5MzExNDMsImlhdCI6MTc2ODkyOTM0Mywi"
+        "anRpIjoib25ydGFjOjBmODkxNTVlLTY0N2YtNWMzNi0zNzg3LTI2MjVmNjQ2MGUwMiIsImlzcyI6Imh0"
+        "dHA6Ly9sb2NhbGhvc3Q6ODE4Mi9yZWFsbXMvYWlmYWJyaXgiLCJhdWQiOiJhY2NvdW50IiwidHlwIjoi"
+        "QmVhcmVyIiwiYXpwIjoibWlzby1jb250cm9sbGVyIiwic2lkIjoiNzdiZmUyMDEtZDE2MC1mMTA0LWU3"
+        "YzQtOTIyOGQ5OGI1ZTI5IiwiYWxsb3dlZC1vcmlnaW5zIjpbIioiXSwicmVhbG1fYWNjZXNzIjp7InJv"
+        "bGVzIjpbIm9mZmxpbmVfYWNjZXNzIiwiZGVmYXVsdC1yb2xlcy1haWZhYnJpeCIsInVtYV9hdXRob3Jp"
+        "emF0aW9uIl19LCJyZXNvdXJjZV9hY2Nlc3MiOnsiYWNjb3VudCI6eyJyb2xlcyI6WyJtYW5hZ2UtYWNj"
+        "b3VudCIsIm1hbmFnZS1hY2NvdW50LWxpbmtzIiwidmlldy1wcm9maWxlIl19fSwic2NvcGUiOiJlbWFp"
+        "bCBwcm9maWxlIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsIm5hbWUiOiJBZG1pbiBVc2VyIiwicHJlZmVy"
+        "cmVkX3VzZXJuYW1lIjoiYWRtaW4iLCJnaXZlbl9uYW1lIjoiQWRtaW4iLCJmYW1pbHlfbmFtZSI6IlVz"
+        "ZXIiLCJlbWFpbCI6ImFkbWluQGFpZmFicml4LmFpIn0.mt1Yb4SWHP_YDNqst2On0Vsv2UtnmMCytY4M"
+        "kFXelN1lB0eO6Ag-kU97gjosA74C5q873Aa_wby6J3Cyy5PJkP1tFjaqbReWcDUNWSHFqfHLTrEr91T-"
+        "cO7Wj4eBrNknNvc_HUID9z2cXOQBxmMdWqXaOA6IfJv-fMSi3eUVn1HA5E7oyjuN9ofqD_0rgXPiFHFI"
+        "Gc0jKTs4Z1qsRhNGQfy7Ye7ndnApG2Xt7_zztJ2syEJZlOxGSwVOu9UfqgrvIh_3EZe7GjrTZ6j7Ht9o"
+        "RF2Oh1n5EAXo7EUo8QDiCVZwFlwc_TDpXUhm1g-LghazCaFX_LltxKq8ddDXGsNnMg"
+    )
 
     await test_permissions(token)
 

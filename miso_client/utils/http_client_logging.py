@@ -1,5 +1,4 @@
-"""
-HTTP client logging utilities for ISO 27001 compliant audit and debug logging.
+"""HTTP client logging utilities for ISO 27001 compliant audit and debug logging.
 
 This module provides logging functionality extracted from HttpClient to keep
 the main HTTP client class focused and within size limits. All sensitive data
@@ -19,8 +18,7 @@ from .http_log_masker import (
 
 
 def should_skip_logging(url: str, config: Optional[Any] = None) -> bool:
-    """
-    Check if logging should be skipped for this URL.
+    """Check if logging should be skipped for this URL.
 
     Skips logging for /api/logs and /api/auth/token to prevent infinite loops.
     Also checks audit config skipEndpoints.
@@ -31,6 +29,7 @@ def should_skip_logging(url: str, config: Optional[Any] = None) -> bool:
 
     Returns:
         True if logging should be skipped, False otherwise
+
     """
     # Check if audit is explicitly disabled
     if config and config.audit and config.audit.enabled is False:
@@ -62,8 +61,7 @@ def should_skip_logging(url: str, config: Optional[Any] = None) -> bool:
 def calculate_request_metrics(
     start_time: float, response: Optional[Any] = None, error: Optional[Exception] = None
 ) -> tuple[int, Optional[int]]:
-    """
-    Calculate request duration and status code.
+    """Calculate request duration and status code.
 
     Args:
         start_time: Request start time from time.perf_counter()
@@ -72,6 +70,7 @@ def calculate_request_metrics(
 
     Returns:
         Tuple of (duration_ms, status_code)
+
     """
     duration_ms = int((time.perf_counter() - start_time) * 1000)
 
@@ -90,8 +89,7 @@ def calculate_request_metrics(
 def calculate_request_sizes(
     request_data: Optional[Dict[str, Any]], response: Optional[Any]
 ) -> tuple[Optional[int], Optional[int]]:
-    """
-    Calculate request and response sizes in bytes.
+    """Calculate request and response sizes in bytes.
 
     Args:
         request_data: Request body data
@@ -99,6 +97,7 @@ def calculate_request_sizes(
 
     Returns:
         Tuple of (request_size, response_size) in bytes, None if unavailable
+
     """
     request_size: Optional[int] = None
     if request_data is not None:
@@ -131,11 +130,11 @@ def _prepare_audit_context(
     audit_config: Optional[Dict[str, Any]] = None,
     correlation_id: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
-    """
-    Prepare audit context for logging.
+    """Prepare audit context for logging.
 
     Returns:
         Audit context dictionary or None if logging should be skipped
+
     """
     duration_ms, status_code = calculate_request_metrics(start_time, response, error)
 
@@ -173,8 +172,7 @@ async def log_http_request_audit(
     log_level: str,
     config: Optional[Any] = None,
 ) -> None:
-    """
-    Log HTTP request audit event with ISO 27001 compliant data masking.
+    """Log HTTP request audit event with ISO 27001 compliant data masking.
 
     Supports configurable audit levels: minimal, standard, detailed, full.
 
@@ -189,6 +187,7 @@ async def log_http_request_audit(
         user_id: User ID if available
         log_level: Log level configuration
         config: Optional MisoClientConfig for audit configuration
+
     """
     try:
         # Check if logging should be skipped
@@ -272,11 +271,11 @@ def _prepare_debug_context(
     base_url: str,
     max_response_size: Optional[int] = None,
 ) -> Dict[str, Any]:
-    """
-    Prepare debug context for logging.
+    """Prepare debug context for logging.
 
     Returns:
         Debug context dictionary
+
     """
     masked_headers, masked_body = mask_request_data(request_headers, request_data)
     masked_response = mask_response_data(response, max_size=max_response_size)
@@ -309,8 +308,7 @@ async def log_http_request_debug(
     base_url: str,
     config: Optional[Any] = None,
 ) -> None:
-    """
-    Log detailed debug information for HTTP request.
+    """Log detailed debug information for HTTP request.
 
     All sensitive data is masked before logging.
 
@@ -325,6 +323,7 @@ async def log_http_request_debug(
         request_data: Request body data
         request_headers: Request headers
         base_url: Base URL from config
+
     """
     try:
         # Get maxResponseSize from audit config if available

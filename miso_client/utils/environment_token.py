@@ -1,5 +1,4 @@
-"""
-Server-side environment token wrapper with origin validation and audit logging.
+"""Server-side environment token wrapper with origin validation and audit logging.
 
 This module provides a secure server-side wrapper for fetching environment tokens
 with origin validation and ISO 27001 compliant audit logging.
@@ -14,8 +13,7 @@ from .origin_validator import validate_origin
 
 
 async def get_environment_token(miso_client: Any, headers: Any) -> str:
-    """
-    Get environment token with origin validation and audit logging.
+    """Get environment token with origin validation and audit logging.
 
     This is a server-side wrapper that validates request origin before calling
     the controller, and logs audit events with ISO 27001 compliant data masking.
@@ -36,6 +34,7 @@ async def get_environment_token(miso_client: Any, headers: Any) -> str:
         >>> client = MisoClient(config)
         >>> headers = {"origin": "http://localhost:3000"}
         >>> token = await get_environment_token(client, headers)
+
     """
     config = miso_client.config
     logger: LoggerService = miso_client.logger

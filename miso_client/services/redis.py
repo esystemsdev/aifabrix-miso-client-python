@@ -1,5 +1,4 @@
-"""
-Redis service for caching and log queuing.
+"""Redis service for caching and log queuing.
 
 This module provides Redis connectivity with graceful degradation when Redis
 is unavailable. It handles caching of roles and permissions, and log queuing.
@@ -19,22 +18,22 @@ class RedisService:
     """Redis service for caching and log queuing."""
 
     def __init__(self, config: Optional[RedisConfig] = None):
-        """
-        Initialize Redis service.
+        """Initialize Redis service.
 
         Args:
             config: Optional Redis configuration
+
         """
         self.config = config
         self.redis: Optional[redis.Redis] = None
         self.connected = False
 
     async def connect(self) -> None:
-        """
-        Connect to Redis.
+        """Connect to Redis.
 
         Raises:
             Exception: If connection fails and config is provided
+
         """
         if not self.config:
             logger.info("Redis not configured, using controller fallback")
@@ -73,23 +72,23 @@ class RedisService:
             logger.info("Disconnected from Redis")
 
     def is_connected(self) -> bool:
-        """
-        Check if Redis is connected.
+        """Check if Redis is connected.
 
         Returns:
             True if connected, False otherwise
+
         """
         return self.connected and self.redis is not None
 
     async def get(self, key: str) -> Optional[str]:
-        """
-        Get value from Redis.
+        """Get value from Redis.
 
         Args:
             key: Redis key
 
         Returns:
             Value if found, None otherwise
+
         """
         if not self.is_connected():
             return None
@@ -108,8 +107,7 @@ class RedisService:
             return None
 
     async def set(self, key: str, value: str, ttl: int) -> bool:
-        """
-        Set value in Redis with TTL.
+        """Set value in Redis with TTL.
 
         Args:
             key: Redis key
@@ -118,6 +116,7 @@ class RedisService:
 
         Returns:
             True if successful, False otherwise
+
         """
         if not self.is_connected():
             return False
@@ -134,14 +133,14 @@ class RedisService:
             return False
 
     async def delete(self, key: str) -> bool:
-        """
-        Delete key from Redis.
+        """Delete key from Redis.
 
         Args:
             key: Redis key
 
         Returns:
             True if successful, False otherwise
+
         """
         if not self.is_connected():
             return False
@@ -158,8 +157,7 @@ class RedisService:
             return False
 
     async def rpush(self, queue: str, value: str) -> bool:
-        """
-        Push value to Redis list (for log queuing).
+        """Push value to Redis list (for log queuing).
 
         Args:
             queue: Queue name
@@ -167,6 +165,7 @@ class RedisService:
 
         Returns:
             True if successful, False otherwise
+
         """
         if not self.is_connected():
             return False

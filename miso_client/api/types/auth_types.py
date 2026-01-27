@@ -1,5 +1,4 @@
-"""
-Auth API request and response types.
+"""Auth API request and response types.
 
 All types follow OpenAPI specification with camelCase field names.
 The controller returns responses in format: {"data": {...}} without success/timestamp.

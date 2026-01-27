@@ -1,5 +1,4 @@
-"""
-Logger helper functions for building log entries.
+"""Logger helper functions for building log entries.
 
 Extracted from logger.py to reduce file size and improve maintainability.
 """
@@ -15,14 +14,14 @@ from ..utils.jwt_tools import decode_token
 
 
 def extract_jwt_context(token: Optional[str]) -> Dict[str, Any]:
-    """
-    Extract JWT token information.
+    """Extract JWT token information.
 
     Args:
         token: JWT token string
 
     Returns:
         Dictionary with userId, applicationId, sessionId, roles, permissions
+
     """
     if not token:
         return {}
@@ -59,11 +58,11 @@ def extract_jwt_context(token: Optional[str]) -> Dict[str, Any]:
 
 
 def extract_metadata() -> Dict[str, Any]:
-    """
-    Extract metadata from environment (browser or Node.js).
+    """Extract metadata from environment (browser or Node.js).
 
     Returns:
         Dictionary with hostname, userAgent, etc.
+
     """
     metadata: Dict[str, Any] = {}
 
@@ -82,8 +81,7 @@ def extract_metadata() -> Dict[str, Any]:
 def _convert_to_foreign_key_reference(
     value: Optional[Union[str, ForeignKeyReference]], entity_type: str
 ) -> Optional[ForeignKeyReference]:
-    """
-    Convert string ID or ForeignKeyReference to ForeignKeyReference object.
+    """Convert string ID or ForeignKeyReference to ForeignKeyReference object.
 
     Args:
         value: String ID or ForeignKeyReference object
@@ -91,6 +89,7 @@ def _convert_to_foreign_key_reference(
 
     Returns:
         ForeignKeyReference object or None
+
     """
     if value is None:
         return None
@@ -125,8 +124,7 @@ def build_log_entry(
     mask_sensitive: bool = True,
     application_context: Optional[Dict[str, Optional[str]]] = None,
 ) -> LogEntry:
-    """
-    Build LogEntry object from parameters.
+    """Build LogEntry object from parameters.
 
     Args:
         level: Log level
@@ -139,10 +137,11 @@ def build_log_entry(
         options: Logging options
         metadata: Environment metadata
         mask_sensitive: Whether to mask sensitive data
-        application_context: Optional application context dict with application, applicationId, environment
+        application_context: Optional context dict (application, applicationId, environment)
 
     Returns:
         LogEntry object
+
     """
     # Extract JWT context if token provided
     jwt_context = extract_jwt_context(jwt_token or (options.token if options else None))
@@ -229,14 +228,14 @@ def build_log_entry(
 
 
 def transform_log_entry_to_request(log_entry: LogEntry) -> Any:
-    """
-    Transform LogEntry to LogRequest format for API layer.
+    """Transform LogEntry to LogRequest format for API layer.
 
     Args:
         log_entry: LogEntry to transform
 
     Returns:
         LogRequest object for API layer
+
     """
     # Import here to avoid circular dependency
     from ..api.types.logs_types import AuditLogData, GeneralLogData, LogRequest

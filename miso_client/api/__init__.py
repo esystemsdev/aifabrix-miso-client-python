@@ -1,5 +1,4 @@
-"""
-Centralized API layer with typed interfaces.
+"""Centralized API layer with typed interfaces.
 
 Provides typed interfaces for all controller API calls, organized by domain.
 """
@@ -12,18 +11,17 @@ from .roles_api import RolesApi
 
 
 class ApiClient:
-    """
-    Centralized API client for Miso Controller communication.
+    """Centralized API client for Miso Controller communication.
 
     Wraps HttpClient and provides typed interfaces organized by domain.
     """
 
     def __init__(self, http_client: HttpClient):
-        """
-        Initialize API client.
+        """Initialize API client.
 
         Args:
             http_client: HttpClient instance
+
         """
         self.http_client = http_client
         self.auth = AuthApi(http_client)

@@ -1,5 +1,4 @@
-"""
-Role service for user authorization with caching.
+"""Role service for user authorization with caching.
 
 This module handles role-based access control with caching support.
 Roles are cached with Redis and in-memory fallback using CacheService.
@@ -31,13 +30,13 @@ class RoleService(ApplicationContextMixin):
     def __init__(
         self, http_client: HttpClient, cache: CacheService, api_client: Optional["ApiClient"] = None
     ):
-        """
-        Initialize role service.
+        """Initialize role service.
 
         Args:
             http_client: HTTP client instance (for backward compatibility)
             cache: Cache service instance (handles Redis + in-memory fallback)
             api_client: Optional API client instance (for typed API calls)
+
         """
         self.config = http_client.config
         self.http_client = http_client
@@ -52,8 +51,7 @@ class RoleService(ApplicationContextMixin):
         token: str,
         auth_strategy: Optional[AuthStrategy] = None,
     ) -> List[str]:
-        """
-        Get user roles with Redis caching.
+        """Get user roles with Redis caching.
 
         Optimized to extract userId from token first to check cache before API call.
 
@@ -63,6 +61,7 @@ class RoleService(ApplicationContextMixin):
 
         Returns:
             List of user roles
+
         """
         try:
             # Extract userId from token to check cache first (avoids API call on cache hit)
@@ -88,8 +87,8 @@ class RoleService(ApplicationContextMixin):
                     return []
                 cache_key = f"roles:{user_id}"
 
-            # Extract environment and application from application context service (matching TypeScript)
-            # Use synchronous method to avoid triggering controller calls on cache hits
+            # Extract environment and application from application context service
+            # Use synchronous method to avoid controller calls on cache hits
             context = self._get_app_context_service().get_application_context_sync()
             environment = (
                 context.environment
@@ -159,8 +158,7 @@ class RoleService(ApplicationContextMixin):
         role: str,
         auth_strategy: Optional[AuthStrategy] = None,
     ) -> bool:
-        """
-        Check if user has specific role.
+        """Check if user has specific role.
 
         Args:
             token: JWT token
@@ -169,6 +167,7 @@ class RoleService(ApplicationContextMixin):
 
         Returns:
             True if user has the role, False otherwise
+
         """
         roles = await self.get_roles(token, auth_strategy=auth_strategy)
         return role in roles
@@ -179,8 +178,7 @@ class RoleService(ApplicationContextMixin):
         roles: List[str],
         auth_strategy: Optional[AuthStrategy] = None,
     ) -> bool:
-        """
-        Check if user has any of the specified roles.
+        """Check if user has any of the specified roles.
 
         Args:
             token: JWT token
@@ -189,6 +187,7 @@ class RoleService(ApplicationContextMixin):
 
         Returns:
             True if user has any of the roles, False otherwise
+
         """
         user_roles = await self.get_roles(token, auth_strategy=auth_strategy)
         return any(role in user_roles for role in roles)
@@ -199,8 +198,7 @@ class RoleService(ApplicationContextMixin):
         roles: List[str],
         auth_strategy: Optional[AuthStrategy] = None,
     ) -> bool:
-        """
-        Check if user has all of the specified roles.
+        """Check if user has all of the specified roles.
 
         Args:
             token: JWT token
@@ -209,6 +207,7 @@ class RoleService(ApplicationContextMixin):
 
         Returns:
             True if user has all roles, False otherwise
+
         """
         user_roles = await self.get_roles(token, auth_strategy=auth_strategy)
         return all(role in user_roles for role in roles)
@@ -218,8 +217,7 @@ class RoleService(ApplicationContextMixin):
         token: str,
         auth_strategy: Optional[AuthStrategy] = None,
     ) -> List[str]:
-        """
-        Force refresh roles from controller (bypass cache).
+        """Force refresh roles from controller (bypass cache).
 
         Args:
             token: JWT token
@@ -227,6 +225,7 @@ class RoleService(ApplicationContextMixin):
 
         Returns:
             Fresh list of user roles
+
         """
         try:
             # Get user info to extract userId
@@ -241,8 +240,8 @@ class RoleService(ApplicationContextMixin):
             # Cache key does NOT include environment (matching TypeScript)
             cache_key = f"roles:{user_id}"
 
-            # Extract environment and application from application context service (matching TypeScript)
-            # Use synchronous method to avoid triggering controller calls on cache hits
+            # Extract environment and application from application context service
+            # Use synchronous method to avoid controller calls on cache hits
             context = self._get_app_context_service().get_application_context_sync()
             environment = (
                 context.environment
@@ -308,12 +307,12 @@ class RoleService(ApplicationContextMixin):
     async def clear_roles_cache(
         self, token: str, auth_strategy: Optional[AuthStrategy] = None
     ) -> None:
-        """
-        Clear cached roles for a user.
+        """Clear cached roles for a user.
 
         Args:
             token: JWT token
             auth_strategy: Optional authentication strategy
+
         """
         try:
             # Extract userId from token to avoid unnecessary API calls

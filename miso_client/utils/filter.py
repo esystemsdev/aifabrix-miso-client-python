@@ -1,5 +1,4 @@
-"""
-Filter utilities for MisoClient SDK.
+"""Filter utilities for MisoClient SDK.
 
 This module provides reusable filter utilities for parsing filter parameters,
 building query strings, and applying filters to arrays.
@@ -17,8 +16,7 @@ from .filter_parser import parse_filter_params  # noqa: F401
 
 
 def build_query_string(filter_query: FilterQuery) -> str:
-    """
-    Convert FilterQuery object to query string.
+    """Convert FilterQuery object to query string.
 
     Builds query string with filter, sort, page, pageSize, and fields parameters.
 
@@ -37,6 +35,7 @@ def build_query_string(filter_query: FilterQuery) -> str:
         ... )
         >>> build_query_string(query)
         'filter=status:eq:active&page=1&pageSize=25'
+
     """
     query_parts: List[str] = []
 
@@ -85,8 +84,7 @@ def build_query_string(filter_query: FilterQuery) -> str:
 
 
 def filter_query_to_json(filter_query: FilterQuery) -> Dict[str, Any]:
-    """
-    Convert FilterQuery to JSON dict (camelCase).
+    """Convert FilterQuery to JSON dict (camelCase).
 
     Args:
         filter_query: FilterQuery instance
@@ -103,13 +101,13 @@ def filter_query_to_json(filter_query: FilterQuery) -> Dict[str, Any]:
         ... )
         >>> filter_query_to_json(query)
         {'filters': [...], 'page': 1, 'pageSize': 25}
+
     """
     return filter_query.to_json()
 
 
 def json_to_filter_query(json_data: Dict[str, Any]) -> FilterQuery:
-    """
-    Convert JSON dict to FilterQuery.
+    """Convert JSON dict to FilterQuery.
 
     Args:
         json_data: Dictionary with filter data (camelCase or snake_case)
@@ -121,13 +119,13 @@ def json_to_filter_query(json_data: Dict[str, Any]) -> FilterQuery:
         >>> json_data = {'filters': [{'field': 'status', 'op': 'eq', 'value': 'active'}]}
         >>> json_to_filter_query(json_data)
         FilterQuery(filters=[FilterOption(...)])
+
     """
     return FilterQuery.from_json(json_data)
 
 
 def json_filter_to_query_string(json_filter: JsonFilter) -> str:
-    """
-    Convert JsonFilter to query string.
+    """Convert JsonFilter to query string.
 
     Args:
         json_filter: JsonFilter instance
@@ -144,6 +142,7 @@ def json_filter_to_query_string(json_filter: JsonFilter) -> str:
         ... )
         >>> json_filter_to_query_string(json_filter)
         'filter=status:eq:active&page=1&pageSize=25'
+
     """
     # Convert JsonFilter to FilterQuery, then use existing build_query_string
     filter_query = FilterQuery(
@@ -157,8 +156,7 @@ def json_filter_to_query_string(json_filter: JsonFilter) -> str:
 
 
 def query_string_to_json_filter(query_string: str) -> JsonFilter:
-    """
-    Convert query string to JsonFilter.
+    """Convert query string to JsonFilter.
 
     Args:
         query_string: Query string (e.g., '?filter=status:eq:active&page=1&pageSize=25')
@@ -171,6 +169,7 @@ def query_string_to_json_filter(query_string: str) -> JsonFilter:
         >>> json_filter = query_string_to_json_filter(query_string)
         >>> json_filter.filters[0].field
         'status'
+
     """
     # Remove leading ? if present
     if query_string.startswith("?"):
@@ -228,8 +227,7 @@ def query_string_to_json_filter(query_string: str) -> JsonFilter:
 
 
 def validate_filter_option(option: Dict[str, Any]) -> bool:
-    """
-    Validate single filter option structure.
+    """Validate single filter option structure.
 
     Args:
         option: Dictionary with filter option data
@@ -242,6 +240,7 @@ def validate_filter_option(option: Dict[str, Any]) -> bool:
         True
         >>> validate_filter_option({'field': 'status'})  # Missing op/value
         False
+
     """
     if not isinstance(option, dict):
         return False
@@ -281,8 +280,7 @@ def validate_filter_option(option: Dict[str, Any]) -> bool:
 
 
 def validate_json_filter(json_data: Dict[str, Any]) -> bool:
-    """
-    Validate JSON filter structure.
+    """Validate JSON filter structure.
 
     Args:
         json_data: Dictionary with filter data
@@ -298,6 +296,7 @@ def validate_json_filter(json_data: Dict[str, Any]) -> bool:
         ... }
         >>> validate_json_filter(json_data)
         True
+
     """
     if not isinstance(json_data, dict):
         return False
@@ -371,8 +370,7 @@ def validate_json_filter(json_data: Dict[str, Any]) -> bool:
 def validate_filter_with_schema(
     filter_option: FilterOption, schema: "FilterSchema"
 ) -> Tuple[bool, Optional["FilterError"]]:
-    """
-    Validate a FilterOption against a FilterSchema.
+    """Validate a FilterOption against a FilterSchema.
 
     Convenience wrapper around filter_schema.validate_filter().
 
@@ -390,6 +388,7 @@ def validate_filter_with_schema(
         >>> schema = FilterSchema(resource="apps", fields={...})
         >>> filter_opt = FilterOption(field="name", op="eq", value="test")
         >>> is_valid, error = validate_filter_with_schema(filter_opt, schema)
+
     """
     from .filter_schema import validate_filter
 
@@ -399,8 +398,7 @@ def validate_filter_with_schema(
 def coerce_filter_value(
     value: Any, field_type: str, enum_values: Optional[List[str]] = None
 ) -> Tuple[Any, Optional["FilterError"]]:
-    """
-    Coerce and validate a filter value based on field type.
+    """Coerce and validate a filter value based on field type.
 
     Convenience wrapper around filter_schema.coerce_value().
 
@@ -415,6 +413,7 @@ def coerce_filter_value(
     Examples:
         >>> coerced, error = coerce_filter_value("25", "number")
         >>> print(coerced)  # 25 (int)
+
     """
     from typing import Literal, cast
 

@@ -1,5 +1,4 @@
-"""
-Logs API implementation.
+"""Logs API implementation.
 
 Provides typed interfaces for logging endpoints including:
 - Log ingestion (POST /api/v1/logs, POST /api/v1/logs/batch)
@@ -42,11 +41,11 @@ class LogsApi:
     LOGS_JOBS_ENDPOINT = "/api/v1/logs/jobs"
 
     def __init__(self, http_client: HttpClient):
-        """
-        Initialize Logs API client.
+        """Initialize Logs API client.
 
         Args:
             http_client: HttpClient instance
+
         """
         self.http_client = http_client
         self._stats = LogsStatsApi(http_client)
@@ -56,8 +55,7 @@ class LogsApi:
     # =========================================================================
 
     async def send_log(self, log_entry: LogRequest, token: Optional[str] = None) -> LogResponse:
-        """
-        Send log entry (POST /api/v1/logs).
+        """Send log entry (POST /api/v1/logs).
 
         Supports Bearer token, x-client-token, or client credentials authentication.
         If token is provided, uses authenticated_request. Otherwise uses client credentials.
@@ -71,6 +69,7 @@ class LogsApi:
 
         Raises:
             MisoClientError: If request fails
+
         """
         if token:
             response = await self.http_client.authenticated_request(
@@ -89,8 +88,7 @@ class LogsApi:
     async def send_batch_logs(
         self, logs: List[LogEntry], token: Optional[str] = None
     ) -> BatchLogResponse:
-        """
-        Send multiple log entries in batch (POST /api/v1/logs/batch).
+        """Send multiple log entries in batch (POST /api/v1/logs/batch).
 
         Supports Bearer token, x-client-token, or client credentials authentication.
         If token is provided, uses authenticated_request. Otherwise uses client credentials.
@@ -104,6 +102,7 @@ class LogsApi:
 
         Raises:
             MisoClientError: If request fails
+
         """
         request_data = BatchLogRequest(logs=logs)
         if token:
@@ -140,8 +139,7 @@ class LogsApi:
         search: Optional[str] = None,
         auth_strategy: Optional[AuthStrategy] = None,
     ) -> ListGeneralLogsResponse:
-        """
-        List general logs (GET /api/v1/logs/general).
+        """List general logs (GET /api/v1/logs/general).
 
         Args:
             token: User authentication token
@@ -163,6 +161,7 @@ class LogsApi:
 
         Raises:
             MisoClientError: If request fails
+
         """
         params = self._build_list_params(
             page=page,
@@ -204,8 +203,7 @@ class LogsApi:
         action: Optional[str] = None,
         auth_strategy: Optional[AuthStrategy] = None,
     ) -> ListAuditLogsResponse:
-        """
-        List audit logs (GET /api/v1/logs/audit).
+        """List audit logs (GET /api/v1/logs/audit).
 
         Args:
             token: User authentication token
@@ -228,6 +226,7 @@ class LogsApi:
 
         Raises:
             MisoClientError: If request fails
+
         """
         params = self._build_list_params(
             page=page,
@@ -271,8 +270,7 @@ class LogsApi:
         search: Optional[str] = None,
         auth_strategy: Optional[AuthStrategy] = None,
     ) -> ListJobLogsResponse:
-        """
-        List job logs (GET /api/v1/logs/jobs).
+        """List job logs (GET /api/v1/logs/jobs).
 
         Args:
             token: User authentication token
@@ -292,6 +290,7 @@ class LogsApi:
 
         Raises:
             MisoClientError: If request fails
+
         """
         params: Dict[str, Any] = {
             "page": page,
@@ -328,8 +327,7 @@ class LogsApi:
         log_id: str,
         auth_strategy: Optional[AuthStrategy] = None,
     ) -> GetJobLogResponse:
-        """
-        Get job log by ID (GET /api/v1/logs/jobs/{id}).
+        """Get job log by ID (GET /api/v1/logs/jobs/{id}).
 
         Args:
             token: User authentication token
@@ -341,6 +339,7 @@ class LogsApi:
 
         Raises:
             MisoClientError: If request fails
+
         """
         response = await self.http_client.authenticated_request(
             "GET",

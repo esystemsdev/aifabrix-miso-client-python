@@ -1,5 +1,4 @@
-"""
-Logger chain for fluent logging API.
+"""Logger chain for fluent logging API.
 
 This module provides the LoggerChain class for method chaining in logging operations.
 """
@@ -22,13 +21,13 @@ class LoggerChain:
         context: Optional[dict[str, Any]] = None,
         options: Optional[ClientLoggingOptions] = None,
     ):
-        """
-        Initialize logger chain.
+        """Initialize logger chain.
 
         Args:
             logger: Logger service instance
             context: Initial context
             options: Initial logging options
+
         """
         self.logger = logger
         self.context = context or {}
@@ -96,8 +95,7 @@ class LoggerChain:
         return self
 
     def with_request(self, request: Any) -> "LoggerChain":
-        """
-        Auto-extract logging context from HTTP Request object.
+        """Auto-extract logging context from HTTP Request object.
 
         Extracts: IP, method, path, user-agent, correlation ID, user from JWT.
 
@@ -114,6 +112,7 @@ class LoggerChain:
 
         Example:
             >>> await logger.with_request(request).info("Processing request")
+
         """
         ctx = extract_request_context(request)
 
@@ -155,8 +154,7 @@ class LoggerChain:
         record_key: Optional[str] = None,
         record_display_name: Optional[str] = None,
     ) -> "LoggerChain":
-        """
-        Add indexed context fields for fast querying.
+        """Add indexed context fields for fast querying.
 
         Args:
             source_key: ExternalDataSource.key
@@ -168,6 +166,7 @@ class LoggerChain:
 
         Returns:
             Self for method chaining
+
         """
         if self.options is None:
             self.options = ClientLoggingOptions()
@@ -190,8 +189,7 @@ class LoggerChain:
         credential_id: Optional[str] = None,
         credential_type: Optional[str] = None,
     ) -> "LoggerChain":
-        """
-        Add credential context for performance analysis.
+        """Add credential context for performance analysis.
 
         Args:
             credential_id: Credential identifier
@@ -199,6 +197,7 @@ class LoggerChain:
 
         Returns:
             Self for method chaining
+
         """
         if self.options is None:
             self.options = ClientLoggingOptions()
@@ -217,8 +216,7 @@ class LoggerChain:
         timeout: Optional[float] = None,
         retry_count: Optional[int] = None,
     ) -> "LoggerChain":
-        """
-        Add request/response metrics.
+        """Add request/response metrics.
 
         Args:
             request_size: Request body size in bytes
@@ -230,6 +228,7 @@ class LoggerChain:
 
         Returns:
             Self for method chaining
+
         """
         if self.options is None:
             self.options = ClientLoggingOptions()
@@ -252,8 +251,7 @@ class LoggerChain:
         error_category: Optional[str] = None,
         http_status_category: Optional[str] = None,
     ) -> "LoggerChain":
-        """
-        Add error classification context.
+        """Add error classification context.
 
         Args:
             error_category: Error category (network, timeout, auth, validation, server)
@@ -261,6 +259,7 @@ class LoggerChain:
 
         Returns:
             Self for method chaining
+
         """
         if self.options is None:
             self.options = ClientLoggingOptions()
@@ -271,14 +270,14 @@ class LoggerChain:
         return self
 
     def add_session(self, session_id: str) -> "LoggerChain":
-        """
-        Add session ID to logging context.
+        """Add session ID to logging context.
 
         Args:
             session_id: Session identifier
 
         Returns:
             Self for method chaining
+
         """
         if self.options is None:
             self.options = ClientLoggingOptions()
@@ -298,12 +297,12 @@ class LoggerChain:
         await self.logger.audit(action, resource, self.context, self.options)
 
     async def debug(self, message: str) -> None:
-        """
-        Log debug message.
+        """Log debug message.
 
         Only logs if log level is set to 'debug' in config.
 
         Args:
             message: Debug message
+
         """
         await self.logger.debug(message, self.context, self.options)

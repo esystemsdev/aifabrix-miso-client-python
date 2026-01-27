@@ -102,7 +102,10 @@ class TestAuthServiceUserInfoCaching:
     def sample_token(self):
         """Sample JWT token with user ID in 'sub' claim."""
         # This is a mock token - in real tests we'd use jwt_tools.extract_user_id
-        return "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyLTEyMyIsIm5hbWUiOiJUZXN0IFVzZXIifQ.signature"
+        return (
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
+            "eyJzdWIiOiJ1c2VyLTEyMyIsIm5hbWUiOiJUZXN0IFVzZXIifQ.signature"
+        )
 
     # ========== Cache Hit Tests ==========
 

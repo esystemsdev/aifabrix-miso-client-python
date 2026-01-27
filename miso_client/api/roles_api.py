@@ -1,5 +1,4 @@
-"""
-Roles API implementation.
+"""Roles API implementation.
 
 Provides typed interfaces for roles endpoints.
 """
@@ -20,11 +19,11 @@ class RolesApi:
     ROLES_REFRESH_ENDPOINT = "/api/v1/auth/roles/refresh"
 
     def __init__(self, http_client: HttpClient):
-        """
-        Initialize Roles API client.
+        """Initialize Roles API client.
 
         Args:
             http_client: HttpClient instance
+
         """
         self.http_client = http_client
 
@@ -35,8 +34,7 @@ class RolesApi:
         application: Optional[str] = None,
         auth_strategy: Optional[AuthStrategy] = None,
     ) -> GetRolesResponse:
-        """
-        Get user roles (GET).
+        """Get user roles (GET).
 
         Args:
             token: Optional user token (if not provided, uses x-client-token)
@@ -49,6 +47,7 @@ class RolesApi:
 
         Raises:
             MisoClientError: If request fails
+
         """
         params = {}
         if environment:
@@ -74,8 +73,7 @@ class RolesApi:
         application: Optional[str] = None,
         auth_strategy: Optional[AuthStrategy] = None,
     ) -> RefreshRolesResponse:
-        """
-        Refresh user roles (GET).
+        """Refresh user roles (GET).
 
         Args:
             token: Optional user token (if not provided, uses x-client-token)
@@ -88,6 +86,7 @@ class RolesApi:
 
         Raises:
             MisoClientError: If request fails
+
         """
         params = {}
         if environment:

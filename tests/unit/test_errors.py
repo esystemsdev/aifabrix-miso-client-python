@@ -162,7 +162,7 @@ class TestErrors:
         assert error.status_code == 400
 
     def test_miso_client_error_with_both_error_body_and_response(self):
-        """Test MisoClientError with both error_body and error_response (error_response takes precedence)."""
+        """Test MisoClientError with error_body and error_response (response wins)."""
         error_response = ErrorResponse(
             errors=["Structured error"],
             type="/Errors/Bad Input",
@@ -180,3 +180,100 @@ class TestErrors:
         assert error.error_body == {"code": "ERR001"}
         assert error.message == "Structured error"  # Message from error_response
         assert error.status_code == 400  # Status code from error_response
+
+    def test_miso_client_error_with_auth_method_parameter(self):
+        """Test MisoClientError with auth_method parameter."""
+        error = MisoClientError(
+            "Auth failed",
+            status_code=401,
+            auth_method="bearer",
+        )
+
+        assert error.auth_method == "bearer"
+        assert error.status_code == 401
+
+    def test_miso_client_error_auth_method_from_error_response(self):
+        """Test MisoClientError extracts auth_method from error_response."""
+        error_response = ErrorResponse(
+            errors=["Token expired"],
+            type="/Errors/Unauthorized",
+            title="Unauthorized",
+            statusCode=401,
+            authMethod="bearer",
+        )
+        error = MisoClientError("Auth failed", error_response=error_response)
+
+        assert error.auth_method == "bearer"
+        assert error.status_code == 401
+
+    def test_miso_client_error_auth_method_parameter_takes_precedence(self):
+        """Test auth_method parameter takes precedence over error_response.authMethod."""
+        error_response = ErrorResponse(
+            errors=["Token expired"],
+            type="/Errors/Unauthorized",
+            title="Unauthorized",
+            statusCode=401,
+            authMethod="bearer",
+        )
+        error = MisoClientError(
+            "Auth failed",
+            error_response=error_response,
+            auth_method="client-token",
+        )
+
+        assert error.auth_method == "client-token"  # Parameter takes precedence
+
+    def test_miso_client_error_auth_method_none_by_default(self):
+        """Test auth_method is None by default."""
+        error = MisoClientError("Error")
+
+        assert error.auth_method is None
+
+    def test_miso_client_error_all_auth_methods(self):
+        """Test MisoClientError with all auth_method values."""
+        for auth_method in ["bearer", "client-token", "client-credentials", "api-key"]:
+            error = MisoClientError(
+                f"Auth failed with {auth_method}",
+                status_code=401,
+                auth_method=auth_method,  # type: ignore
+            )
+            assert error.auth_method == auth_method
+
+    def test_authentication_error_with_auth_method(self):
+        """Test AuthenticationError with auth_method."""
+        error = AuthenticationError(
+            "Auth failed",
+            status_code=401,
+            auth_method="client-credentials",
+        )
+
+        assert isinstance(error, MisoClientError)
+        assert error.auth_method == "client-credentials"
+        assert error.status_code == 401
+
+    def test_error_response_with_auth_method(self):
+        """Test ErrorResponse model with authMethod field."""
+        error_data = {
+            "errors": ["Token expired"],
+            "type": "/Errors/Unauthorized",
+            "title": "Unauthorized",
+            "statusCode": 401,
+            "instance": "/api/auth/validate",
+            "authMethod": "bearer",
+        }
+        error_response = ErrorResponse(**error_data)
+
+        assert error_response.authMethod == "bearer"
+        assert error_response.statusCode == 401
+
+    def test_error_response_auth_method_none_by_default(self):
+        """Test ErrorResponse authMethod is None by default."""
+        error_data = {
+            "errors": ["Error"],
+            "type": "/Errors/BadRequest",
+            "title": "Bad Request",
+            "statusCode": 400,
+        }
+        error_response = ErrorResponse(**error_data)
+
+        assert error_response.authMethod is None

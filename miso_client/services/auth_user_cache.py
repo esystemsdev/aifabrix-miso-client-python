@@ -1,5 +1,4 @@
-"""
-User info caching helpers for AuthService.
+"""User info caching helpers for AuthService.
 
 This module provides caching functionality for user information
 to reduce API calls to the controller.
@@ -19,21 +18,20 @@ logger = logging.getLogger(__name__)
 
 
 def get_user_cache_key(user_id: str) -> str:
-    """
-    Generate cache key for user info.
+    """Generate cache key for user info.
 
     Args:
         user_id: User ID string
 
     Returns:
         Cache key string in format: user:{userId}
+
     """
     return f"user:{user_id}"
 
 
 async def check_user_info_cache(cache: Optional["CacheService"], token: str) -> Optional[UserInfo]:
-    """
-    Check cache for user info.
+    """Check cache for user info.
 
     Args:
         cache: CacheService instance (may be None)
@@ -41,6 +39,7 @@ async def check_user_info_cache(cache: Optional["CacheService"], token: str) -> 
 
     Returns:
         Cached UserInfo if found, None otherwise
+
     """
     if not cache:
         return None
@@ -61,14 +60,14 @@ async def check_user_info_cache(cache: Optional["CacheService"], token: str) -> 
 async def cache_user_info(
     cache: Optional["CacheService"], token: str, user_info: UserInfo, ttl: int
 ) -> None:
-    """
-    Cache user info result.
+    """Cache user info result.
 
     Args:
         cache: CacheService instance (may be None)
         token: JWT token to extract userId from
         user_info: UserInfo to cache
         ttl: Time to live in seconds
+
     """
     if not cache:
         return
@@ -90,12 +89,12 @@ async def cache_user_info(
 
 
 async def clear_user_cache(cache: Optional["CacheService"], token: str) -> None:
-    """
-    Clear cached user info for a user.
+    """Clear cached user info for a user.
 
     Args:
         cache: CacheService instance (may be None)
         token: JWT token to extract userId from
+
     """
     if not cache:
         return

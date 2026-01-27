@@ -1,5 +1,4 @@
-"""
-Controller URL resolver with environment detection.
+"""Controller URL resolver with environment detection.
 
 Automatically selects appropriate controller URL based on environment
 (public for browser, private for server) with fallback support.
@@ -13,20 +12,19 @@ from .url_validator import validate_url
 
 
 def is_browser() -> bool:
-    """
-    Check if running in browser environment.
+    """Check if running in browser environment.
 
     For Python SDK (server-side only), always returns False.
 
     Returns:
         False (Python SDK is server-side only)
+
     """
     return False
 
 
 def resolve_controller_url(config: MisoClientConfig) -> str:
-    """
-    Resolve controller URL based on environment and configuration.
+    """Resolve controller URL based on environment and configuration.
 
     For server environment:
     - Uses controllerPrivateUrl if set
@@ -53,6 +51,7 @@ def resolve_controller_url(config: MisoClientConfig) -> str:
         >>> url = resolve_controller_url(config)
         >>> url
         'https://controller-private.example.com'
+
     """
     # Server environment: prefer controllerPrivateUrl, fallback to controller_url
     resolved_url: Optional[str] = None

@@ -1,5 +1,4 @@
-"""
-Cache service with Redis support and in-memory TTL fallback.
+"""Cache service with Redis support and in-memory TTL fallback.
 
 This module provides a generic caching service that can be used anywhere.
 It supports Redis-backed caching when available, with automatic fallback to
@@ -17,13 +16,13 @@ class CacheService:
     """Cache service with Redis and in-memory TTL fallback."""
 
     def __init__(self, redis: Optional[RedisService] = None):
-        """
-        Initialize cache service.
+        """Initialize cache service.
 
         Args:
             redis: Optional RedisService instance. If provided, Redis will be used
                   as primary cache with in-memory as fallback. If None, only
                   in-memory caching is used.
+
         """
         self.redis = redis
         # In-memory cache: {key: (value, expiration_timestamp)}
@@ -50,14 +49,14 @@ class CacheService:
             del self._memory_cache[key]
 
     def _serialize_value(self, value: Any) -> str:
-        """
-        Serialize value to JSON string.
+        """Serialize value to JSON string.
 
         Args:
             value: Value to serialize (can be any JSON-serializable type)
 
         Returns:
             JSON string representation
+
         """
         # For primitive types (str, int, float, bool, None), return as-is or simple string
         if isinstance(value, (str, int, float, bool)) or value is None:
@@ -69,14 +68,14 @@ class CacheService:
         return json.dumps({"__cached_value__": value})
 
     def _deserialize_value(self, value_str: str) -> Any:
-        """
-        Deserialize JSON string back to original value.
+        """Deserialize JSON string back to original value.
 
         Args:
             value_str: JSON string to deserialize
 
         Returns:
             Deserialized value
+
         """
         if not value_str:
             return None
@@ -94,8 +93,7 @@ class CacheService:
             return value_str
 
     async def get(self, key: str) -> Optional[Any]:
-        """
-        Get cached value.
+        """Get cached value.
 
         Checks Redis first (if available), then falls back to in-memory cache.
 
@@ -104,6 +102,7 @@ class CacheService:
 
         Returns:
             Cached value if found, None otherwise
+
         """
         # Try Redis first if available and connected
         if self.redis and self.redis.is_connected():
@@ -127,8 +126,7 @@ class CacheService:
         return None
 
     async def set(self, key: str, value: Any, ttl: int) -> bool:
-        """
-        Set cached value with TTL.
+        """Set cached value with TTL.
 
         Stores in both Redis (if available) and in-memory cache.
 
@@ -139,6 +137,7 @@ class CacheService:
 
         Returns:
             True if successful, False otherwise
+
         """
         serialized_value = self._serialize_value(value)
         success = False
@@ -161,8 +160,7 @@ class CacheService:
         return success or True  # Return True if at least memory cache succeeded
 
     async def delete(self, key: str) -> bool:
-        """
-        Delete cached value.
+        """Delete cached value.
 
         Deletes from both Redis (if available) and in-memory cache.
 
@@ -171,6 +169,7 @@ class CacheService:
 
         Returns:
             True if deleted from at least one cache, False otherwise
+
         """
         deleted = False
 
@@ -189,8 +188,7 @@ class CacheService:
         return deleted
 
     async def clear(self) -> None:
-        """
-        Clear all cached values.
+        """Clear all cached values.
 
         Clears both Redis (if available) and in-memory cache.
         Note: Redis clear operation only clears keys with the configured prefix,

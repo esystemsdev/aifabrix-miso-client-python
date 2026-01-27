@@ -1,5 +1,4 @@
-"""
-FastAPI middleware helper for unified logging context.
+"""FastAPI middleware helper for unified logging context.
 
 This module provides FastAPI middleware to automatically set logger context
 from request objects, enabling unified logging throughout the application.
@@ -18,8 +17,7 @@ from .logger_context_storage import set_logger_context
 async def logger_context_middleware(
     request: "Request", call_next: Callable[["Request"], Awaitable["Response"]]
 ) -> "Response":
-    """
-    FastAPI middleware to set logger context from request.
+    """FastAPI middleware to set logger context from request.
 
     Call this early in middleware chain (after auth middleware) to enable
     automatic context extraction for unified logging.
@@ -36,6 +34,7 @@ async def logger_context_middleware(
         >>> from miso_client.utils.fastapi_logger_middleware import logger_context_middleware
         >>> app = FastAPI()
         >>> app.middleware("http")(logger_context_middleware)
+
     """
     # Extract request context
     request_context = extract_request_context(request)

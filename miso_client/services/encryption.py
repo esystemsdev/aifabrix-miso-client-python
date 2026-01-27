@@ -1,5 +1,4 @@
-"""
-Encryption service for security parameter management via miso-controller.
+"""Encryption service for security parameter management via miso-controller.
 
 This service provides encryption and decryption functionality by calling
 miso-controller API endpoints. It supports Azure Key Vault and local
@@ -28,33 +27,32 @@ PARAMETER_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9._-]{1,128}$")
 
 
 class EncryptionService:
-    """
-    Encryption service calling miso-controller for server-side encryption.
+    """Encryption service calling miso-controller for server-side encryption.
 
     This service provides encrypt/decrypt methods with client-side parameter
     validation before calling the controller API endpoints.
     """
 
     def __init__(self, http_client: "HttpClient", config: "MisoClientConfig"):
-        """
-        Initialize encryption service.
+        """Initialize encryption service.
 
         Args:
             http_client: HTTP client for controller API calls
             config: Client configuration containing encryption_key
+
         """
         self.http_client = http_client
         self._encryption_key = config.encryption_key
 
     def _validate_parameter_name(self, parameter_name: str) -> None:
-        """
-        Validate parameter name against allowed pattern.
+        """Validate parameter name against allowed pattern.
 
         Args:
             parameter_name: Name to validate
 
         Raises:
             EncryptionError: If name doesn't match pattern
+
         """
         if not parameter_name or not PARAMETER_NAME_PATTERN.match(parameter_name):
             raise EncryptionError(
@@ -65,11 +63,11 @@ class EncryptionService:
             )
 
     def _validate_encryption_key(self) -> None:
-        """
-        Validate that encryption key is configured.
+        """Validate that encryption key is configured.
 
         Raises:
             EncryptionError: If encryption key is not configured
+
         """
         if not self._encryption_key:
             raise EncryptionError(
@@ -79,8 +77,7 @@ class EncryptionService:
             )
 
     async def encrypt(self, plaintext: str, parameter_name: str) -> EncryptResult:
-        """
-        Encrypt a plaintext value via miso-controller.
+        """Encrypt a plaintext value via miso-controller.
 
         The storage backend (Key Vault or local encryption) is determined
         by the controller's configuration.
@@ -94,6 +91,7 @@ class EncryptionService:
 
         Raises:
             EncryptionError: If validation fails or encryption fails
+
         """
         self._validate_parameter_name(parameter_name)
         self._validate_encryption_key()
@@ -117,8 +115,7 @@ class EncryptionService:
             ) from e
 
     async def decrypt(self, value: str, parameter_name: str) -> str:
-        """
-        Decrypt an encrypted reference via miso-controller.
+        """Decrypt an encrypted reference via miso-controller.
 
         The storage provider is auto-detected from the value prefix
         (kv:// for Key Vault, enc://v1: for local).
@@ -132,6 +129,7 @@ class EncryptionService:
 
         Raises:
             EncryptionError: If validation fails or decryption fails
+
         """
         self._validate_parameter_name(parameter_name)
         self._validate_encryption_key()

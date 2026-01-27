@@ -1,5 +1,4 @@
-"""
-API type definitions.
+"""API type definitions.
 
 Exports all request and response types for the API layer.
 """

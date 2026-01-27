@@ -1,5 +1,4 @@
-"""
-Unified logger service with minimal API and automatic context extraction.
+"""Unified logger service with minimal API and automatic context extraction.
 
 This module provides a simplified logging interface that automatically extracts
 context from contextvars, eliminating the need to manually pass Request objects.
@@ -14,8 +13,7 @@ from .logger import LoggerService
 
 
 class UnifiedLogger:
-    """
-    Unified logger interface with minimal API and automatic context extraction.
+    """Unified logger interface with minimal API and automatic context extraction.
 
     Provides simple logging methods that automatically extract context from
     contextvars, eliminating the need to manually pass Request objects or context.
@@ -26,22 +24,22 @@ class UnifiedLogger:
         logger_service: LoggerService,
         context_storage: Optional[LoggerContextStorage] = None,
     ):
-        """
-        Initialize unified logger.
+        """Initialize unified logger.
 
         Args:
             logger_service: LoggerService instance for actual log emission
             context_storage: Optional LoggerContextStorage instance (creates new if not provided)
+
         """
         self.logger_service = logger_service
         self.context_storage = context_storage or LoggerContextStorage()
 
     async def info(self, message: str) -> None:
-        """
-        Log info message.
+        """Log info message.
 
         Args:
             message: Info message
+
         """
         try:
             context, options = self._build_context_and_options()
@@ -51,11 +49,11 @@ class UnifiedLogger:
             pass
 
     async def warn(self, message: str) -> None:
-        """
-        Log warning message.
+        """Log warning message.
 
         Args:
             message: Warning message
+
         """
         try:
             context, options = self._build_context_and_options()
@@ -66,11 +64,11 @@ class UnifiedLogger:
             pass
 
     async def debug(self, message: str) -> None:
-        """
-        Log debug message.
+        """Log debug message.
 
         Args:
             message: Debug message
+
         """
         try:
             context, options = self._build_context_and_options()
@@ -80,12 +78,12 @@ class UnifiedLogger:
             pass
 
     async def error(self, message: str, error: Optional[Exception] = None) -> None:
-        """
-        Log error message.
+        """Log error message.
 
         Args:
             message: Error message
             error: Optional error object (auto-extracts stack trace)
+
         """
         try:
             context, options = self._build_context_and_options()
@@ -107,8 +105,7 @@ class UnifiedLogger:
         old_values: Optional[Dict[str, Any]] = None,
         new_values: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Log audit event.
+        """Log audit event.
 
         Args:
             action: Action performed (e.g., 'CREATE', 'UPDATE', 'DELETE')
@@ -116,6 +113,7 @@ class UnifiedLogger:
             entity_id: Optional entity ID (defaults to 'unknown')
             old_values: Optional old values for UPDATE operations (ISO 27001 requirement)
             new_values: Optional new values for CREATE/UPDATE operations (ISO 27001 requirement)
+
         """
         try:
             context, options = self._build_context_and_options()
@@ -133,21 +131,21 @@ class UnifiedLogger:
             pass
 
     def _get_context(self) -> Dict[str, Any]:
-        """
-        Get current context from contextvars.
+        """Get current context from contextvars.
 
         Returns:
             Context dictionary (empty dict if no context available)
+
         """
         context = self.context_storage.get_context()
         return context if context is not None else {}
 
     def _build_context_and_options(self) -> tuple[Dict[str, Any], ClientLoggingOptions]:
-        """
-        Build context and options from contextvars.
+        """Build context and options from contextvars.
 
         Returns:
             Tuple of (context dict, ClientLoggingOptions)
+
         """
         ctx = self._get_context()
 
@@ -192,14 +190,14 @@ class UnifiedLogger:
         return context_dict, options
 
     def _extract_error_context(self, error: Optional[Exception]) -> Dict[str, Any]:
-        """
-        Extract error context from exception.
+        """Extract error context from exception.
 
         Args:
             error: Exception object
 
         Returns:
             Dictionary with error context
+
         """
         if error is None:
             return {}
@@ -212,14 +210,14 @@ class UnifiedLogger:
         return error_context
 
     def _extract_stack_trace(self, error: Optional[Exception]) -> Optional[str]:
-        """
-        Extract stack trace from exception.
+        """Extract stack trace from exception.
 
         Args:
             error: Exception object
 
         Returns:
             Stack trace string, or None if no error
+
         """
         if error is None:
             return None

@@ -1,5 +1,4 @@
-"""
-Application context service for extracting application, applicationId, and environment.
+"""Application context service for extracting application, applicationId, and environment.
 
 This service provides a unified way to extract application context information
 from client tokens and clientId format with consistent fallback logic.
@@ -21,24 +20,24 @@ class ApplicationContext:
         application_id: Optional[str] = None,
         environment: str = "unknown",
     ):
-        """
-        Initialize application context.
+        """Initialize application context.
 
         Args:
             application: Application name
             application_id: Application ID (optional)
             environment: Environment name
+
         """
         self.application = application
         self.application_id = application_id
         self.environment = environment
 
     def to_dict(self) -> Dict[str, Optional[str]]:
-        """
-        Convert to dictionary.
+        """Convert to dictionary.
 
         Returns:
             Dictionary with application, applicationId, and environment
+
         """
         return {
             "application": self.application,
@@ -48,8 +47,7 @@ class ApplicationContext:
 
 
 class ApplicationContextService:
-    """
-    Service for extracting application context with consistent fallback logic.
+    """Service for extracting application context with consistent fallback logic.
 
     Extracts application, applicationId, and environment from:
     1. Client token (if available)
@@ -61,25 +59,25 @@ class ApplicationContextService:
     """
 
     def __init__(self, internal_http_client: InternalHttpClient):
-        """
-        Initialize application context service.
+        """Initialize application context service.
 
         Args:
             internal_http_client: Internal HTTP client instance (for accessing client token)
+
         """
         self.config = internal_http_client.config
         self.internal_http_client = internal_http_client
         self._cached_context: Optional[ApplicationContext] = None
 
     def _parse_client_id_format(self, client_id: str) -> Dict[str, Optional[str]]:
-        """
-        Parse clientId format: `miso-controller-{environment}-{application}`.
+        """Parse clientId format: `miso-controller-{environment}-{application}`.
 
         Args:
             client_id: Client ID string
 
         Returns:
             Dictionary with application and environment (or None if format doesn't match)
+
         """
         if not client_id or not isinstance(client_id, str):
             return {"application": None, "environment": None}
@@ -102,14 +100,14 @@ class ApplicationContextService:
         }
 
     def get_application_context_sync(self) -> ApplicationContext:
-        """
-        Get application context synchronously (no controller calls).
+        """Get application context synchronously (no controller calls).
 
         Uses cached client token or parses clientId format.
         Matches TypeScript getApplicationContext() behavior.
 
         Returns:
             ApplicationContext object with application, applicationId, and environment
+
         """
         # Use cached context if available
         if self._cached_context is not None:
@@ -169,8 +167,7 @@ class ApplicationContextService:
         overwrite_application_id: Optional[str] = None,
         overwrite_environment: Optional[str] = None,
     ) -> ApplicationContext:
-        """
-        Get application context with optional overwrites.
+        """Get application context with optional overwrites.
 
         Supports overwriting values for dataplane use cases where external
         applications need logging on their behalf.
@@ -182,6 +179,7 @@ class ApplicationContextService:
 
         Returns:
             ApplicationContext object with application, applicationId, and environment
+
         """
         # If overwrites are provided, use them directly (don't cache)
         if (
@@ -256,8 +254,7 @@ class ApplicationContextService:
         overwrite_application_id: Optional[str],
         overwrite_environment: Optional[str],
     ) -> ApplicationContext:
-        """
-        Build context with overwrites, falling back to defaults for non-overwritten values.
+        """Build context with overwrites, falling back to defaults for non-overwritten values.
 
         Args:
             overwrite_application: Override application name
@@ -266,6 +263,7 @@ class ApplicationContextService:
 
         Returns:
             ApplicationContext with overwrites applied
+
         """
         # Get base context for non-overwritten values
         base_context = self._cached_context

@@ -1,5 +1,4 @@
-"""
-Flask endpoint utilities for client token endpoint.
+"""Flask endpoint utilities for client token endpoint.
 
 Provides server-side route handlers for creating client token endpoints
 that return client token + DataClient configuration to frontend clients.
@@ -21,8 +20,7 @@ from ..utils.environment_token import get_environment_token
 def create_flask_client_token_endpoint(
     miso_client: Any, options: Optional[ClientTokenEndpointOptions] = None
 ) -> Callable[[], Any]:
-    """
-    Create Flask route handler for client-token endpoint.
+    """Create Flask route handler for client-token endpoint.
 
     Automatically enriches response with DataClient configuration including
     controllerPublicUrl for frontend client initialization.
@@ -43,6 +41,7 @@ def create_flask_client_token_endpoint(
         >>> await client.initialize()
         >>>
         >>> app.post('/api/v1/auth/client-token')(create_flask_client_token_endpoint(client))
+
     """
     opts = ClientTokenEndpointOptions(
         clientTokenUri=options.clientTokenUri if options else "/api/v1/auth/client-token",
@@ -51,11 +50,11 @@ def create_flask_client_token_endpoint(
     )
 
     def handler() -> tuple[dict[str, Any], int]:
-        """
-        Flask route handler for client token endpoint.
+        """Flask route handler for client token endpoint.
 
         Returns:
             Tuple of (response_dict, status_code)
+
         """
         try:
             # Check if misoClient is initialized
@@ -112,7 +111,7 @@ def create_flask_client_token_endpoint(
                 # Derive baseUrl from request
                 base_url = f"{request.scheme}://{request.host or 'localhost'}"
 
-                # Get controller URL (prefer controllerPublicUrl for browser, fallback to controller_url)
+                # Get controller URL (prefer controllerPublicUrl, fallback to controller_url)
                 controller_url = config.controllerPublicUrl or config.controller_url
 
                 if not controller_url:

@@ -1,5 +1,4 @@
-"""
-Configuration types for MisoClient SDK.
+"""Configuration types for MisoClient SDK.
 
 This module contains Pydantic models that define the configuration structure
 and data types used throughout the MisoClient SDK.
@@ -94,11 +93,11 @@ class MisoClientConfig(BaseModel):
     )
     cache: Optional[Dict[str, int]] = Field(
         default=None,
-        description="Cache TTL settings: permission_ttl, role_ttl, user_ttl, validation_ttl (defaults: 900s, 900s, 300s, 120s)",
+        description="Cache TTL settings: permission_ttl, role_ttl, user_ttl, validation_ttl",
     )
     api_key: Optional[str] = Field(
         default=None,
-        description="API key for testing - when set, bearer tokens matching this key bypass OAuth2 validation",
+        description="API key for testing - bypasses OAuth2 validation when bearer token matches",
     )
     sensitive_fields_config: Optional[str] = Field(
         default=None, description="Path to sensitive fields configuration JSON file"
@@ -130,7 +129,7 @@ class MisoClientConfig(BaseModel):
     )
     encryption_key: Optional[str] = Field(
         default=None,
-        description="Encryption key for encrypt/decrypt operations. Required if using encryption methods. Set via MISO_ENCRYPTION_KEY env var.",
+        description="Encryption key for encrypt/decrypt operations (MISO_ENCRYPTION_KEY env var)",
     )
 
     @property

@@ -1,5 +1,4 @@
-"""
-Sort types for MisoClient SDK.
+"""Sort types for MisoClient SDK.
 
 This module contains Pydantic models that define sort structures
 for query sorting matching the Miso/Dataplane API conventions.
@@ -13,8 +12,7 @@ SortOrder = Literal["asc", "desc"]
 
 
 class SortOption(BaseModel):
-    """
-    Sort option with field and order.
+    """Sort option with field and order.
 
     Fields:
         field: Field name to sort by

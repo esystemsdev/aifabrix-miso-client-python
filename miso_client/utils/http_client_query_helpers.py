@@ -1,5 +1,4 @@
-"""
-HTTP client query helpers for filters and pagination.
+"""HTTP client query helpers for filters and pagination.
 
 Extracted from http_client.py to reduce file size and improve maintainability.
 """
@@ -13,26 +12,26 @@ from ..utils.filter import build_query_string
 
 
 def parse_filter_query_string(query_string: str) -> Dict[str, Any]:
-    """
-    Parse filter query string into params dictionary.
+    """Parse filter query string into params dictionary.
 
     Args:
         query_string: Query string from FilterQuery
 
     Returns:
         Params dictionary with filters
+
     """
     query_params = parse_qs(query_string)
     return {k: v[0] if len(v) == 1 else v for k, v in query_params.items()}
 
 
 def merge_filter_params(kwargs: Dict[str, Any], filter_params: Dict[str, Any]) -> None:
-    """
-    Merge filter params with existing params.
+    """Merge filter params with existing params.
 
     Args:
         kwargs: Request kwargs dictionary
         filter_params: Filter params from FilterBuilder
+
     """
     existing_params = kwargs.get("params", {})
     if existing_params:
@@ -45,13 +44,13 @@ def merge_filter_params(kwargs: Dict[str, Any], filter_params: Dict[str, Any]) -
 def add_pagination_params(
     kwargs: Dict[str, Any], page: Optional[int], page_size: Optional[int]
 ) -> None:
-    """
-    Add pagination params to kwargs.
+    """Add pagination params to kwargs.
 
     Args:
         kwargs: Request kwargs dictionary
         page: Optional page number (1-based)
         page_size: Optional number of items per page
+
     """
     params = kwargs.get("params", {})
     if page is not None:
@@ -64,14 +63,14 @@ def add_pagination_params(
 
 
 def parse_paginated_response(response_data: Any) -> Any:
-    """
-    Parse response as PaginatedListResponse if possible.
+    """Parse response as PaginatedListResponse if possible.
 
     Args:
         response_data: Response data from API
 
     Returns:
         PaginatedListResponse if format matches, otherwise raw response
+
     """
     try:
         return PaginatedListResponse(**response_data)
@@ -82,14 +81,14 @@ def parse_paginated_response(response_data: Any) -> Any:
 
 
 def prepare_filter_params(filter_builder: Optional[FilterBuilder]) -> Optional[Dict[str, Any]]:
-    """
-    Prepare filter parameters from FilterBuilder.
+    """Prepare filter parameters from FilterBuilder.
 
     Args:
         filter_builder: Optional FilterBuilder instance
 
     Returns:
         Dictionary of filter parameters, or None if no filters
+
     """
     if not filter_builder:
         return None
@@ -111,8 +110,7 @@ def prepare_json_filter_body(
     json_filter: Optional[Union[JsonFilter, FilterQuery, Dict[str, Any]]],
     json_body: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """
-    Prepare JSON body with filter data.
+    """Prepare JSON body with filter data.
 
     Args:
         json_filter: Optional JsonFilter, FilterQuery, or dict
@@ -120,6 +118,7 @@ def prepare_json_filter_body(
 
     Returns:
         Dictionary with merged filter and body data
+
     """
     request_body: Dict[str, Any] = {}
     if json_body:

@@ -1,5 +1,4 @@
-"""
-Permissions API implementation.
+"""Permissions API implementation.
 
 Provides typed interfaces for permissions endpoints.
 """
@@ -20,11 +19,11 @@ class PermissionsApi:
     PERMISSIONS_REFRESH_ENDPOINT = "/api/v1/auth/permissions/refresh"
 
     def __init__(self, http_client: HttpClient):
-        """
-        Initialize Permissions API client.
+        """Initialize Permissions API client.
 
         Args:
             http_client: HttpClient instance
+
         """
         self.http_client = http_client
 
@@ -35,8 +34,7 @@ class PermissionsApi:
         application: Optional[str] = None,
         auth_strategy: Optional[AuthStrategy] = None,
     ) -> GetPermissionsResponse:
-        """
-        Get user permissions (GET).
+        """Get user permissions (GET).
 
         Args:
             token: Optional user token (if not provided, uses x-client-token)
@@ -49,6 +47,7 @@ class PermissionsApi:
 
         Raises:
             MisoClientError: If request fails
+
         """
         params = {}
         if environment:
@@ -74,8 +73,7 @@ class PermissionsApi:
         application: Optional[str] = None,
         auth_strategy: Optional[AuthStrategy] = None,
     ) -> RefreshPermissionsResponse:
-        """
-        Refresh user permissions (GET).
+        """Refresh user permissions (GET).
 
         Args:
             token: Optional user token (if not provided, uses x-client-token)
@@ -88,6 +86,7 @@ class PermissionsApi:
 
         Raises:
             MisoClientError: If request fails
+
         """
         params = {}
         if environment:

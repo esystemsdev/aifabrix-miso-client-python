@@ -1,5 +1,4 @@
-"""
-Filter schema types for MisoClient SDK.
+"""Filter schema types for MisoClient SDK.
 
 This module contains Pydantic models for defining filter schemas, field definitions,
 and compiled filter results for schema-based validation.
@@ -17,8 +16,7 @@ FilterError = ErrorResponse
 
 
 class FilterFieldDefinition(BaseModel):
-    """
-    Definition of a filterable field with its type, allowed operators, and constraints.
+    """Definition of a filterable field with its type, allowed operators, and constraints.
 
     Fields:
         column: Database column name
@@ -46,8 +44,7 @@ class FilterFieldDefinition(BaseModel):
 
 
 class FilterSchema(BaseModel):
-    """
-    Complete filter schema for a resource.
+    """Complete filter schema for a resource.
 
     Defines all filterable fields, their types, and allowed operators for a resource.
 
@@ -67,8 +64,7 @@ class FilterSchema(BaseModel):
 
 
 class CompiledFilter(BaseModel):
-    """
-    Compiled filter result with SQL and parameters.
+    """Compiled filter result with SQL and parameters.
 
     Used for generating PostgreSQL-safe parameterized queries.
 

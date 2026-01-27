@@ -1,5 +1,4 @@
-"""
-Log Statistics and Export API implementation.
+"""Log Statistics and Export API implementation.
 
 Provides typed interfaces for log statistics and export endpoints:
 - GET /api/v1/logs/stats/summary
@@ -34,11 +33,11 @@ class LogsStatsApi:
     LOGS_EXPORT_ENDPOINT = "/api/v1/logs/export"
 
     def __init__(self, http_client: HttpClient):
-        """
-        Initialize Log Statistics API client.
+        """Initialize Log Statistics API client.
 
         Args:
             http_client: HttpClient instance
+
         """
         self.http_client = http_client
 
@@ -77,8 +76,7 @@ class LogsStatsApi:
         end_date: Optional[str] = None,
         auth_strategy: Optional[AuthStrategy] = None,
     ) -> LogStatsSummaryResponse:
-        """
-        Get log statistics summary (GET /api/v1/logs/stats/summary).
+        """Get log statistics summary (GET /api/v1/logs/stats/summary).
 
         Args:
             token: User authentication token
@@ -94,6 +92,7 @@ class LogsStatsApi:
 
         Raises:
             MisoClientError: If request fails
+
         """
         params = self._build_stats_params(
             environment=environment,
@@ -123,8 +122,7 @@ class LogsStatsApi:
         end_date: Optional[str] = None,
         auth_strategy: Optional[AuthStrategy] = None,
     ) -> LogStatsErrorsResponse:
-        """
-        Get error statistics (GET /api/v1/logs/stats/errors).
+        """Get error statistics (GET /api/v1/logs/stats/errors).
 
         Args:
             token: User authentication token
@@ -141,6 +139,7 @@ class LogsStatsApi:
 
         Raises:
             MisoClientError: If request fails
+
         """
         params = self._build_stats_params(
             environment=environment,
@@ -170,8 +169,7 @@ class LogsStatsApi:
         end_date: Optional[str] = None,
         auth_strategy: Optional[AuthStrategy] = None,
     ) -> LogStatsUsersResponse:
-        """
-        Get user activity statistics (GET /api/v1/logs/stats/users).
+        """Get user activity statistics (GET /api/v1/logs/stats/users).
 
         Args:
             token: User authentication token
@@ -187,6 +185,7 @@ class LogsStatsApi:
 
         Raises:
             MisoClientError: If request fails
+
         """
         params = self._build_stats_params(
             environment=environment,
@@ -213,8 +212,7 @@ class LogsStatsApi:
         end_date: Optional[str] = None,
         auth_strategy: Optional[AuthStrategy] = None,
     ) -> LogStatsApplicationsResponse:
-        """
-        Get application statistics (GET /api/v1/logs/stats/applications).
+        """Get application statistics (GET /api/v1/logs/stats/applications).
 
         Args:
             token: User authentication token
@@ -228,6 +226,7 @@ class LogsStatsApi:
 
         Raises:
             MisoClientError: If request fails
+
         """
         params = self._build_stats_params(
             environment=environment,
@@ -257,8 +256,7 @@ class LogsStatsApi:
         limit: int = 1000,
         auth_strategy: Optional[AuthStrategy] = None,
     ) -> LogExportResponse:
-        """
-        Export logs (GET /api/v1/logs/export).
+        """Export logs (GET /api/v1/logs/export).
 
         Note: CSV format returns raw text, JSON format returns LogExportResponse.
 
@@ -279,6 +277,7 @@ class LogsStatsApi:
 
         Raises:
             MisoClientError: If request fails
+
         """
         params: Dict[str, Any] = {
             "type": log_type,

@@ -1,5 +1,4 @@
-"""
-Client token utilities for extracting information from JWT tokens.
+"""Client token utilities for extracting information from JWT tokens.
 
 This module provides utilities for decoding client tokens and extracting
 application/environment information without verification.
@@ -11,8 +10,7 @@ from .jwt_tools import decode_token
 
 
 def extract_client_token_info(client_token: str) -> Dict[str, Optional[str]]:
-    """
-    Extract application and environment information from client token.
+    """Extract application and environment information from client token.
 
     Decodes JWT token without verification (no secret available) and extracts
     fields with fallback support for multiple field name variations.
@@ -32,6 +30,7 @@ def extract_client_token_info(client_token: str) -> Dict[str, Optional[str]]:
         >>> info = extract_client_token_info(token)
         >>> info.get("application")
         'my-app'
+
     """
     if not client_token or not isinstance(client_token, str):
         return {

@@ -1,5 +1,4 @@
-"""
-Pagination utilities for MisoClient SDK.
+"""Pagination utilities for MisoClient SDK.
 
 This module provides reusable pagination utilities for parsing pagination parameters,
 creating meta objects, and working with paginated responses.
@@ -13,8 +12,7 @@ T = TypeVar("T")
 
 
 def parsePaginationParams(params: dict) -> Dict[str, int]:
-    """
-    Parse query parameters into pagination values.
+    """Parse query parameters into pagination values.
 
     Parses `page` and `page_size` query parameters into `currentPage` and `pageSize`.
     Both are 1-based (page starts at 1).
@@ -30,6 +28,7 @@ def parsePaginationParams(params: dict) -> Dict[str, int]:
         {'currentPage': 1, 'pageSize': 25}
         >>> parsePaginationParams({'page': '2'})
         {'currentPage': 2, 'pageSize': 20}  # Default pageSize is 20
+
     """
     # Default values (matching TypeScript default of 20)
     default_page = 1
@@ -63,8 +62,7 @@ def parsePaginationParams(params: dict) -> Dict[str, int]:
 
 
 def parse_pagination_params(params: dict[str, Any]) -> tuple[int, int]:
-    """
-    Parse pagination parameters from a dictionary.
+    """Parse pagination parameters from a dictionary.
 
     This function normalizes pagination parameters, ensuring they are valid integers
     and enforcing minimum values. It follows the same pattern as parse_filter_params
@@ -99,6 +97,7 @@ def parse_pagination_params(params: dict[str, Any]) -> tuple[int, int]:
         (1, 1)
         >>> parse_pagination_params({"page": None, "page_size": "invalid"})
         (1, 20)
+
     """
     page = params.get("page", 1)
     page_size = params.get("page_size", 20)
@@ -122,8 +121,7 @@ def parse_pagination_params(params: dict[str, Any]) -> tuple[int, int]:
 
 
 def createMetaObject(totalItems: int, currentPage: int, pageSize: int, type: str) -> Meta:
-    """
-    Construct meta object for API response.
+    """Construct meta object for API response.
 
     Args:
         totalItems: Total number of items available in full dataset
@@ -140,6 +138,7 @@ def createMetaObject(totalItems: int, currentPage: int, pageSize: int, type: str
         120
         >>> meta.currentPage
         1
+
     """
     return Meta(
         totalItems=totalItems,
@@ -150,8 +149,7 @@ def createMetaObject(totalItems: int, currentPage: int, pageSize: int, type: str
 
 
 def applyPaginationToArray(items: List[T], currentPage: int, pageSize: int) -> List[T]:
-    """
-    Apply pagination to an array (for mock/testing).
+    """Apply pagination to an array (for mock/testing).
 
     Args:
         items: Array of items to paginate
@@ -167,6 +165,7 @@ def applyPaginationToArray(items: List[T], currentPage: int, pageSize: int) -> L
         [1, 2, 3]
         >>> applyPaginationToArray(items, 2, 3)
         [4, 5, 6]
+
     """
     if not items:
         return []
@@ -191,8 +190,7 @@ def createPaginatedListResponse(
     pageSize: int,
     type: str,
 ) -> PaginatedListResponse[T]:
-    """
-    Wrap array + meta into a standard paginated response.
+    """Wrap array + meta into a standard paginated response.
 
     Args:
         items: Array of items for the current page
@@ -211,6 +209,7 @@ def createPaginatedListResponse(
         10
         >>> len(response.data)
         2
+
     """
     meta = createMetaObject(totalItems, currentPage, pageSize, type)
     return PaginatedListResponse(meta=meta, data=items)

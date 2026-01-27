@@ -1,18 +1,19 @@
-"""
-Structured error response model following RFC 7807-style format.
+"""Structured error response model following RFC 7807-style format.
 
 This module provides a generic error response interface that can be used
 across different applications for consistent error handling.
 """
 
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
+# AuthMethod type for authentication method tracking (aligned with config.py)
+AuthMethod = Literal["bearer", "client-token", "client-credentials", "api-key"]
+
 
 class ErrorResponse(BaseModel):
-    """
-    Structured error response following RFC 7807-style format.
+    """Structured error response following RFC 7807-style format.
 
     This model represents a standardized error response structure that includes:
     - Multiple error messages
@@ -20,6 +21,7 @@ class ErrorResponse(BaseModel):
     - Human-readable title
     - HTTP status code
     - Request instance URI (optional)
+    - Authentication method that failed (401 errors only)
 
     Example:
         {
@@ -27,8 +29,10 @@ class ErrorResponse(BaseModel):
             "type": "/Errors/Bad Input",
             "title": "Bad Request",
             "statusCode": 400,
-            "instance": "/OpenApi/rest/Xzy"
+            "instance": "/OpenApi/rest/Xzy",
+            "authMethod": "bearer"
         }
+
     """
 
     errors: List[str] = Field(..., description="List of error messages")
@@ -37,3 +41,7 @@ class ErrorResponse(BaseModel):
     statusCode: int = Field(..., description="HTTP status code")
     instance: Optional[str] = Field(default=None, description="Request instance URI")
     correlationId: Optional[str] = Field(default=None, description="Request key for error tracking")
+    authMethod: Optional[AuthMethod] = Field(
+        default=None,
+        description="Authentication method that was attempted and failed (401 errors only)",
+    )

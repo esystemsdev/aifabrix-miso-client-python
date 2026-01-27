@@ -1,5 +1,4 @@
-"""
-Authentication service for token validation and user management.
+"""Authentication service for token validation and user management.
 
 This module handles authentication operations including client token management,
 token validation, user information retrieval, and logout functionality.
@@ -41,14 +40,14 @@ class AuthService:
         cache: Optional[CacheService] = None,
         api_client: Optional["ApiClient"] = None,
     ):
-        """
-        Initialize authentication service.
+        """Initialize authentication service.
 
         Args:
             http_client: HTTP client instance (for backward compatibility)
             redis: Redis service instance
             cache: Optional cache service instance (for token validation caching)
             api_client: Optional API client instance (for typed API calls)
+
         """
         self.config = http_client.config
         self.http_client = http_client
@@ -59,8 +58,7 @@ class AuthService:
         self.user_ttl = self.config.user_ttl
 
     def _get_token_cache_key(self, token: str) -> str:
-        """
-        Generate cache key for token validation using SHA-256 hash.
+        """Generate cache key for token validation using SHA-256 hash.
 
         Uses token hash instead of full token for security.
 
@@ -69,12 +67,12 @@ class AuthService:
 
         Returns:
             Cache key string in format: token_validation:{sha256_hash}
+
         """
         return get_token_cache_key(token)
 
     def _get_cache_ttl_from_token(self, token: str) -> int:
-        """
-        Calculate smart TTL based on token expiration.
+        """Calculate smart TTL based on token expiration.
 
         If token has expiration claim, cache until token_exp - 30s buffer.
         Minimum: 60 seconds, Maximum: validation_ttl.
@@ -84,24 +82,24 @@ class AuthService:
 
         Returns:
             TTL in seconds
+
         """
         return get_cache_ttl_from_token(token, self.validation_ttl)
 
     def _get_user_cache_key(self, user_id: str) -> str:
-        """
-        Generate cache key for user info.
+        """Generate cache key for user info.
 
         Args:
             user_id: User ID string
 
         Returns:
             Cache key string in format: user:{userId}
+
         """
         return get_user_cache_key(user_id)
 
     async def get_environment_token(self) -> str:
-        """
-        Get environment token using client credentials.
+        """Get environment token using client credentials.
 
         This is called automatically by HttpClient, but can be called manually if needed.
 
@@ -110,18 +108,19 @@ class AuthService:
 
         Raises:
             AuthenticationError: If token fetch fails
+
         """
         return await self.http_client.get_environment_token()
 
     async def _check_cache_for_token(self, token: str) -> Optional[Dict[str, Any]]:
-        """
-        Check cache for token validation result.
+        """Check cache for token validation result.
 
         Args:
             token: JWT token to check
 
         Returns:
             Cached validation result if found, None otherwise
+
         """
         cache_key = self._get_token_cache_key(token)
         return await check_cache_for_token(self.cache, cache_key)
@@ -129,8 +128,7 @@ class AuthService:
     async def _fetch_validation_from_api_client(
         self, token: str, auth_strategy: Optional[AuthStrategy] = None
     ) -> Dict[str, Any]:
-        """
-        Fetch token validation using ApiClient.
+        """Fetch token validation using ApiClient.
 
         Args:
             token: JWT token to validate
@@ -138,6 +136,7 @@ class AuthService:
 
         Returns:
             Validation result dictionary
+
         """
         if not self.api_client:
             raise ValueError("ApiClient is required for this method")
@@ -154,8 +153,7 @@ class AuthService:
     async def _fetch_validation_from_http_client(
         self, token: str, auth_strategy: Optional[AuthStrategy] = None
     ) -> Dict[str, Any]:
-        """
-        Fetch token validation using HttpClient (backward compatibility).
+        """Fetch token validation using HttpClient (backward compatibility).
 
         Args:
             token: JWT token to validate
@@ -163,6 +161,7 @@ class AuthService:
 
         Returns:
             Validation result dictionary
+
         """
         if auth_strategy is not None:
             result = await self.http_client.authenticated_request(
@@ -182,8 +181,7 @@ class AuthService:
     async def _fetch_validation_from_api(
         self, token: str, auth_strategy: Optional[AuthStrategy] = None
     ) -> Dict[str, Any]:
-        """
-        Fetch token validation from API (ApiClient or HttpClient).
+        """Fetch token validation from API (ApiClient or HttpClient).
 
         Args:
             token: JWT token to validate
@@ -191,6 +189,7 @@ class AuthService:
 
         Returns:
             Validation result dictionary
+
         """
         if self.api_client:
             return await self._fetch_validation_from_api_client(token, auth_strategy)
@@ -198,12 +197,12 @@ class AuthService:
             return await self._fetch_validation_from_http_client(token, auth_strategy)
 
     async def _cache_validation_result(self, token: str, result: Dict[str, Any]) -> None:
-        """
-        Cache successful validation results.
+        """Cache successful validation results.
 
         Args:
             token: JWT token that was validated
             result: Validation result dictionary
+
         """
         cache_key = self._get_token_cache_key(token)
         ttl = self._get_cache_ttl_from_token(token)
@@ -212,8 +211,7 @@ class AuthService:
     async def _validate_token_request(
         self, token: str, auth_strategy: Optional[AuthStrategy] = None
     ) -> Dict[str, Any]:
-        """
-        Helper method to call /api/v1/auth/validate endpoint with proper request body.
+        """Helper method to call /api/v1/auth/validate endpoint with proper request body.
 
         Checks cache before making HTTP request and caches successful validation results.
 
@@ -223,6 +221,7 @@ class AuthService:
 
         Returns:
             Validation result dictionary
+
         """
         # Check cache first
         cached_result = await self._check_cache_for_token(token)
@@ -244,8 +243,7 @@ class AuthService:
         logger.error(message, exc_info=error, extra=extra)
 
     async def login(self, redirect: str, state: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Initiate login flow by calling GET /api/v1/auth/login.
+        """Initiate login flow by calling GET /api/v1/auth/login.
 
         Args:
             redirect: Callback URL for Keycloak redirect
@@ -253,6 +251,7 @@ class AuthService:
 
         Returns:
             Dictionary with loginUrl and state, or empty dict on error
+
         """
         try:
             if self.api_client:
@@ -274,8 +273,7 @@ class AuthService:
     async def validate_token(
         self, token: str, auth_strategy: Optional[AuthStrategy] = None
     ) -> bool:
-        """
-        Validate token with controller. API_KEY bypasses OAuth2 validation.
+        """Validate token with controller. API_KEY bypasses OAuth2 validation.
 
         Args:
             token: JWT token to validate (or API_KEY for testing)
@@ -283,6 +281,7 @@ class AuthService:
 
         Returns:
             True if token is valid, False otherwise
+
         """
         if self._is_api_key_auth(token):
             return True
@@ -298,8 +297,7 @@ class AuthService:
     async def get_user(
         self, token: str, auth_strategy: Optional[AuthStrategy] = None
     ) -> Optional[UserInfo]:
-        """
-        Get user information from token validation.
+        """Get user information from token validation.
 
         Args:
             token: JWT token (or API_KEY for testing)
@@ -307,6 +305,7 @@ class AuthService:
 
         Returns:
             UserInfo if token is valid, None otherwise (including API_KEY auth)
+
         """
         if self._is_api_key_auth(token):
             return None
@@ -322,32 +321,31 @@ class AuthService:
             return None
 
     async def _check_user_info_cache(self, token: str) -> Optional[UserInfo]:
-        """
-        Check cache for user info.
+        """Check cache for user info.
 
         Args:
             token: JWT token to extract userId from
 
         Returns:
             Cached UserInfo if found, None otherwise
+
         """
         return await check_user_info_cache(self.cache, token)
 
     async def _cache_user_info(self, token: str, user_info: UserInfo) -> None:
-        """
-        Cache user info result.
+        """Cache user info result.
 
         Args:
             token: JWT token to extract userId from
             user_info: UserInfo to cache
+
         """
         await cache_user_info(self.cache, token, user_info, self.user_ttl)
 
     async def get_user_info(
         self, token: str, auth_strategy: Optional[AuthStrategy] = None
     ) -> Optional[UserInfo]:
-        """
-        Get user information from GET /api/v1/auth/user endpoint.
+        """Get user information from GET /api/v1/auth/user endpoint.
 
         Results are cached using userId from token with configurable TTL (default 5 min).
 
@@ -357,6 +355,7 @@ class AuthService:
 
         Returns:
             UserInfo if token is valid, None otherwise (including API_KEY auth)
+
         """
         if self._is_api_key_auth(token):
             return None
@@ -387,11 +386,11 @@ class AuthService:
             return None
 
     async def clear_user_cache(self, token: str) -> None:
-        """
-        Clear cached user info for a user.
+        """Clear cached user info for a user.
 
         Args:
             token: JWT token to extract userId from
+
         """
         await clear_user_cache(self.cache, token)
 
@@ -414,14 +413,14 @@ class AuthService:
             await self.clear_user_cache(token)
 
     async def logout(self, token: str) -> Dict[str, Any]:
-        """
-        Logout user by invalidating the access token via POST /api/v1/auth/logout.
+        """Logout user by invalidating the access token via POST /api/v1/auth/logout.
 
         Args:
             token: Access token to invalidate
 
         Returns:
             Response dict with data field, or empty dict on error
+
         """
         try:
             if self.api_client:
@@ -439,14 +438,14 @@ class AuthService:
             return {}
 
     async def refresh_user_token(self, refresh_token: str) -> Optional[Dict[str, Any]]:
-        """
-        Refresh user access token using refresh token.
+        """Refresh user access token using refresh token.
 
         Args:
             refresh_token: Refresh token string
 
         Returns:
             Dict with token, refreshToken, expiresIn, or None if refresh fails
+
         """
         try:
             if self.api_client:
@@ -473,8 +472,7 @@ class AuthService:
     async def is_authenticated(
         self, token: str, auth_strategy: Optional[AuthStrategy] = None
     ) -> bool:
-        """
-        Check if user is authenticated (has valid token).
+        """Check if user is authenticated (has valid token).
 
         Args:
             token: JWT token
@@ -482,6 +480,7 @@ class AuthService:
 
         Returns:
             True if user is authenticated, False otherwise
+
         """
         if auth_strategy is not None:
             return await self.validate_token(token, auth_strategy=auth_strategy)

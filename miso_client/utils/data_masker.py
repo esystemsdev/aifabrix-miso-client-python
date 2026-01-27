@@ -1,5 +1,4 @@
-"""
-Data masker utility for client-side sensitive data protection.
+"""Data masker utility for client-side sensitive data protection.
 
 Implements ISO 27001 data protection controls by masking sensitive fields
 in log entries and context data.
@@ -46,14 +45,14 @@ class DataMasker:
 
     @classmethod
     def _load_config(cls, config_path: Optional[str] = None) -> None:
-        """
-        Load sensitive fields configuration from JSON and merge with hardcoded defaults.
+        """Load sensitive fields configuration from JSON and merge with hardcoded defaults.
 
         This method is called automatically on first use. It loads JSON configuration
         and merges it with hardcoded defaults, ensuring backward compatibility.
 
         Args:
             config_path: Optional custom path to JSON config file
+
         """
         if cls._config_loaded:
             return
@@ -80,11 +79,11 @@ class DataMasker:
 
     @classmethod
     def _get_sensitive_fields(cls) -> Set[str]:
-        """
-        Get the set of sensitive fields (loads config on first call).
+        """Get the set of sensitive fields (loads config on first call).
 
         Returns:
             Set of normalized sensitive field names
+
         """
         if not cls._config_loaded:
             cls._load_config()
@@ -93,14 +92,14 @@ class DataMasker:
 
     @classmethod
     def set_config_path(cls, config_path: str) -> None:
-        """
-        Set custom path for sensitive fields configuration.
+        """Set custom path for sensitive fields configuration.
 
         Must be called before first use of DataMasker methods if custom path is needed.
         Otherwise, default path or environment variable will be used.
 
         Args:
             config_path: Path to JSON configuration file
+
         """
         # Reset cache to force reload with new path
         cls._config_loaded = False
@@ -109,14 +108,14 @@ class DataMasker:
 
     @classmethod
     def is_sensitive_field(cls, key: str) -> bool:
-        """
-        Check if a field name indicates sensitive data.
+        """Check if a field name indicates sensitive data.
 
         Args:
             key: Field name to check
 
         Returns:
             True if field is sensitive, False otherwise
+
         """
         # Normalize key: lowercase and remove underscores/hyphens
         normalized_key = key.lower().replace("_", "").replace("-", "")
@@ -137,8 +136,7 @@ class DataMasker:
 
     @classmethod
     def mask_sensitive_data(cls, data: Any) -> Any:
-        """
-        Mask sensitive data in objects, arrays, or primitives.
+        """Mask sensitive data in objects, arrays, or primitives.
 
         Returns a masked copy without modifying the original.
         Recursively processes nested objects and arrays.
@@ -148,6 +146,7 @@ class DataMasker:
 
         Returns:
             Masked copy of the data
+
         """
         # Handle null and undefined
         if data is None:
@@ -178,8 +177,7 @@ class DataMasker:
 
     @classmethod
     def mask_value(cls, value: str, show_first: int = 0, show_last: int = 0) -> str:
-        """
-        Mask specific value (useful for masking individual strings).
+        """Mask specific value (useful for masking individual strings).
 
         Args:
             value: String value to mask
@@ -188,6 +186,7 @@ class DataMasker:
 
         Returns:
             Masked string value
+
         """
         if not value or len(value) <= show_first + show_last:
             return cls.MASKED_VALUE
@@ -201,14 +200,14 @@ class DataMasker:
 
     @classmethod
     def contains_sensitive_data(cls, data: Any) -> bool:
-        """
-        Check if data contains sensitive information.
+        """Check if data contains sensitive information.
 
         Args:
             data: Data to check
 
         Returns:
             True if data contains sensitive fields, False otherwise
+
         """
         if data is None or not isinstance(data, (dict, list)):
             return False

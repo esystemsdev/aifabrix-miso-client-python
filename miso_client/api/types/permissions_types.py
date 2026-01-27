@@ -1,5 +1,4 @@
-"""
-Permissions API request and response types.
+"""Permissions API request and response types.
 
 All types follow OpenAPI specification with camelCase field names.
 """

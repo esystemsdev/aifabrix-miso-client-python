@@ -1,5 +1,4 @@
-"""
-Token validation caching helpers for AuthService.
+"""Token validation caching helpers for AuthService.
 
 This module provides caching functionality for token validation results
 to reduce API calls to the controller.
@@ -17,8 +16,7 @@ logger = logging.getLogger(__name__)
 async def check_cache_for_token(
     cache: Optional["CacheService"], cache_key: str
 ) -> Optional[Dict[str, Any]]:
-    """
-    Check cache for token validation result.
+    """Check cache for token validation result.
 
     Args:
         cache: CacheService instance (may be None)
@@ -26,6 +24,7 @@ async def check_cache_for_token(
 
     Returns:
         Cached validation result if found, None otherwise
+
     """
     if not cache:
         return None
@@ -44,14 +43,14 @@ async def cache_validation_result(
     result: Dict[str, Any],
     ttl: int,
 ) -> None:
-    """
-    Cache successful validation results.
+    """Cache successful validation results.
 
     Args:
         cache: CacheService instance (may be None)
         cache_key: Cache key for the token
         result: Validation result dictionary
         ttl: Time to live in seconds
+
     """
     if not cache:
         return

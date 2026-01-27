@@ -202,7 +202,8 @@ def test_api_coverage():
 
     # Assert 100% coverage
     assert coverage_percentage == 100.0, (
-        f"API test coverage is {coverage_percentage:.1f}%, expected 100%. Untested methods: {len(untested_methods)}"
+        f"API test coverage is {coverage_percentage:.1f}%, expected 100%. "
+        f"Untested: {len(untested_methods)}"
     )
 
 

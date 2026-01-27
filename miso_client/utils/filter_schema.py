@@ -1,5 +1,4 @@
-"""
-Filter schema validation and SQL compilation utilities for MisoClient SDK.
+"""Filter schema validation and SQL compilation utilities for MisoClient SDK.
 
 This module provides utilities for validating filters against schemas,
 coercing values to appropriate types, and compiling filters to SQL.
@@ -30,8 +29,7 @@ ERROR_TYPE_INVALID_FORMAT = "/Errors/FilterValidation/InvalidFormat"
 def validate_filter(
     filter_option: FilterOption, schema: FilterSchema
 ) -> Tuple[bool, Optional[FilterError]]:
-    """
-    Validate a FilterOption against a FilterSchema.
+    """Validate a FilterOption against a FilterSchema.
 
     Checks if the field exists, operator is allowed, and value type is valid.
 
@@ -49,6 +47,7 @@ def validate_filter(
         >>> is_valid, error = validate_filter(filter_opt, schema)
         >>> if not is_valid:
         ...     print(error.errors)
+
     """
     # Check if field exists in schema
     if filter_option.field not in schema.fields:
@@ -85,8 +84,7 @@ def validate_filter(
 
 
 def coerce_value(value: Any, field_def: FilterFieldDefinition) -> Tuple[Any, Optional[FilterError]]:
-    """
-    Coerce and validate a value based on field definition type.
+    """Coerce and validate a value based on field definition type.
 
     Supports type coercion for string, number, boolean, uuid, timestamp, and enum types.
 
@@ -104,6 +102,7 @@ def coerce_value(value: Any, field_def: FilterFieldDefinition) -> Tuple[Any, Opt
         ... )
         >>> coerced, error = coerce_value("25", field_def)
         >>> print(coerced)  # 25 (int)
+
     """
     field_type = field_def.type
 
@@ -124,8 +123,7 @@ def coerce_value(value: Any, field_def: FilterFieldDefinition) -> Tuple[Any, Opt
 def compile_filter(
     filter_option: FilterOption, schema: FilterSchema, param_index: int = 1
 ) -> CompiledFilter:
-    """
-    Compile a FilterOption to PostgreSQL SQL with parameterized queries.
+    """Compile a FilterOption to PostgreSQL SQL with parameterized queries.
 
     Generates SQL WHERE clause fragments with parameter placeholders ($1, $2, etc.).
 
@@ -143,6 +141,7 @@ def compile_filter(
         >>> compiled = compile_filter(filter_opt, schema)
         >>> print(compiled.sql)  # "name = $1"
         >>> print(compiled.params)  # ["test"]
+
     """
     field_def = schema.fields[filter_option.field]
     column = field_def.column
@@ -203,8 +202,7 @@ def compile_filter(
 
 
 def parse_json_filter(json_data: dict) -> List[FilterOption]:
-    """
-    Parse JSON format filter into FilterOption list.
+    """Parse JSON format filter into FilterOption list.
 
     Supports both nested JSON format: {"field": {"op": "value"}}
     and flat format: {"field": "value"} (defaults to "eq" operator).
@@ -220,6 +218,7 @@ def parse_json_filter(json_data: dict) -> List[FilterOption]:
         >>> filters = parse_json_filter(json_data)
         >>> len(filters)
         2
+
     """
     filters: List[FilterOption] = []
 
@@ -249,8 +248,7 @@ DEFAULT_OPERATORS_BY_TYPE: Dict[str, List[str]] = {
 def validate_filters(
     filters: List[FilterOption], schema: FilterSchema
 ) -> Tuple[bool, List[FilterError]]:
-    """
-    Validate multiple filters against a schema.
+    """Validate multiple filters against a schema.
 
     Validates all filters and returns all errors found (not just the first one).
 
@@ -271,6 +269,7 @@ def validate_filters(
         >>> is_valid, errors = validate_filters(filters, schema)
         >>> print(is_valid)  # False
         >>> print(len(errors))  # 1
+
     """
     errors: List[FilterError] = []
 
@@ -287,8 +286,7 @@ def compile_filters(
     schema: FilterSchema,
     logic: Literal["and", "or"] = "and",
 ) -> CompiledFilter:
-    """
-    Compile multiple filters to PostgreSQL SQL with parameterized queries.
+    """Compile multiple filters to PostgreSQL SQL with parameterized queries.
 
     Combines multiple filter clauses with AND or OR logic.
 
@@ -315,6 +313,7 @@ def compile_filters(
 
         >>> compiled_or = compile_filters(filters, schema, logic="or")
         >>> print(compiled_or.sql)  # "name = $1 OR status = $2"
+
     """
     if not filters:
         return CompiledFilter(sql="", params=[], param_index=1)
@@ -340,8 +339,7 @@ def create_filter_schema(
     fields: Dict[str, Dict[str, Any]],
     version: Optional[str] = None,
 ) -> FilterSchema:
-    """
-    Create a FilterSchema with default operators per field type.
+    """Create a FilterSchema with default operators per field type.
 
     Convenience function for creating schemas where operators can be omitted
     and will be filled in based on the field type using DEFAULT_OPERATORS_BY_TYPE.
@@ -371,6 +369,7 @@ def create_filter_schema(
         ... )
         >>> schema.fields["name"].operators
         ['eq', 'neq', 'in', 'nin', 'contains', 'like', 'ilike']
+
     """
     complete_fields: Dict[str, FilterFieldDefinition] = {}
 

@@ -1,5 +1,4 @@
-"""
-Internal HTTP client utility for controller communication.
+"""Internal HTTP client utility for controller communication.
 
 This module provides the internal HTTP client implementation with automatic client
 token management. This class is not meant to be used directly - use the public
@@ -16,23 +15,22 @@ from ..models.config import AuthStrategy, MisoClientConfig
 from .auth_strategy import AuthStrategyHandler
 from .client_token_manager import ClientTokenManager
 from .controller_url_resolver import resolve_controller_url
-from .http_error_handler import parse_error_response
+from .http_error_handler import detect_auth_method_from_headers, parse_error_response
 
 
 class InternalHttpClient:
-    """
-    Internal HTTP client for Miso Controller communication with automatic client token management.
+    """Internal HTTP client for Miso Controller communication.
 
-    This class contains the core HTTP functionality without logging.
-    It is wrapped by the public HttpClient class which adds audit and debug logging.
+    Provides automatic client token management. This class contains the core HTTP
+    functionality without logging. Wrapped by HttpClient which adds audit logging.
     """
 
     def __init__(self, config: MisoClientConfig):
-        """
-        Initialize internal HTTP client with configuration.
+        """Initialize internal HTTP client with configuration.
 
         Args:
             config: MisoClient configuration
+
         """
         self.config = config
         self.client: Optional[httpx.AsyncClient] = None
@@ -80,9 +78,59 @@ class InternalHttpClient:
         """Async context manager exit."""
         await self.close()
 
-    async def get(self, url: str, **kwargs) -> Any:
+    def _create_error_from_http_status(
+        self,
+        error: httpx.HTTPStatusError,
+        url: str,
+        request_headers: Optional[Dict[str, str]] = None,
+    ) -> MisoClientError:
+        """Create MisoClientError from HTTP status error with auth_method detection.
+
+        For 401 errors, detects the authentication method from request headers
+        if not provided in the error response.
+
+        Args:
+            error: The HTTPStatusError from httpx
+            url: Request URL
+            request_headers: Optional request headers for auth_method detection
+
+        Returns:
+            MisoClientError with appropriate auth_method for 401 errors
+
         """
-        Make GET request.
+        # Try to parse structured error response
+        error_response = parse_error_response(error.response, url)
+        error_body: Dict[str, Any] = {}
+
+        if (
+            error.response.headers.get("content-type", "").startswith("application/json")
+            and not error_response
+        ):
+            try:
+                error_body = error.response.json()
+            except (ValueError, TypeError):
+                pass
+
+        # Detect auth_method for 401 errors
+        auth_method = None
+        if error.response.status_code == 401:
+            # First check if error_response has authMethod from controller
+            if error_response and error_response.authMethod:
+                auth_method = error_response.authMethod
+            else:
+                # Fallback: detect from request headers
+                auth_method = detect_auth_method_from_headers(request_headers)
+
+        return MisoClientError(
+            f"HTTP {error.response.status_code}: {error.response.text}",
+            status_code=error.response.status_code,
+            error_body=error_body,
+            error_response=error_response,
+            auth_method=auth_method,
+        )
+
+    async def get(self, url: str, **kwargs) -> Any:
+        """Make GET request.
 
         Args:
             url: Request URL
@@ -93,6 +141,7 @@ class InternalHttpClient:
 
         Raises:
             MisoClientError: If request fails
+
         """
         await self._initialize_client()
         await self._ensure_client_token()
@@ -107,30 +156,15 @@ class InternalHttpClient:
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
-            # Try to parse structured error response
-            error_response = parse_error_response(e.response, url)
-            error_body = {}
-            if (
-                e.response.headers.get("content-type", "").startswith("application/json")
-                and not error_response
-            ):
-                try:
-                    error_body = e.response.json()
-                except (ValueError, TypeError):
-                    pass
-
-            raise MisoClientError(
-                f"HTTP {e.response.status_code}: {e.response.text}",
-                status_code=e.response.status_code,
-                error_body=error_body,
-                error_response=error_response,
-            )
+            # Get request headers for auth_method detection
+            request_headers = dict(self.client.headers) if self.client else {}
+            request_headers.update(kwargs.get("headers", {}))
+            raise self._create_error_from_http_status(e, url, request_headers)
         except httpx.RequestError as e:
             raise ConnectionError(f"Request failed: {str(e)}")
 
     async def post(self, url: str, data: Optional[Dict[str, Any]] = None, **kwargs) -> Any:
-        """
-        Make POST request.
+        """Make POST request.
 
         Args:
             url: Request URL
@@ -142,6 +176,7 @@ class InternalHttpClient:
 
         Raises:
             MisoClientError: If request fails
+
         """
         await self._initialize_client()
         await self._ensure_client_token()
@@ -155,30 +190,15 @@ class InternalHttpClient:
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
-            # Try to parse structured error response
-            error_response = parse_error_response(e.response, url)
-            error_body = {}
-            if (
-                e.response.headers.get("content-type", "").startswith("application/json")
-                and not error_response
-            ):
-                try:
-                    error_body = e.response.json()
-                except (ValueError, TypeError):
-                    pass
-
-            raise MisoClientError(
-                f"HTTP {e.response.status_code}: {e.response.text}",
-                status_code=e.response.status_code,
-                error_body=error_body,
-                error_response=error_response,
-            )
+            # Get request headers for auth_method detection
+            request_headers = dict(self.client.headers) if self.client else {}
+            request_headers.update(kwargs.get("headers", {}))
+            raise self._create_error_from_http_status(e, url, request_headers)
         except httpx.RequestError as e:
             raise ConnectionError(f"Request failed: {str(e)}")
 
     async def put(self, url: str, data: Optional[Dict[str, Any]] = None, **kwargs) -> Any:
-        """
-        Make PUT request.
+        """Make PUT request.
 
         Args:
             url: Request URL
@@ -190,6 +210,7 @@ class InternalHttpClient:
 
         Raises:
             MisoClientError: If request fails
+
         """
         await self._initialize_client()
         await self._ensure_client_token()
@@ -203,30 +224,15 @@ class InternalHttpClient:
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
-            # Try to parse structured error response
-            error_response = parse_error_response(e.response, url)
-            error_body = {}
-            if (
-                e.response.headers.get("content-type", "").startswith("application/json")
-                and not error_response
-            ):
-                try:
-                    error_body = e.response.json()
-                except (ValueError, TypeError):
-                    pass
-
-            raise MisoClientError(
-                f"HTTP {e.response.status_code}: {e.response.text}",
-                status_code=e.response.status_code,
-                error_body=error_body,
-                error_response=error_response,
-            )
+            # Get request headers for auth_method detection
+            request_headers = dict(self.client.headers) if self.client else {}
+            request_headers.update(kwargs.get("headers", {}))
+            raise self._create_error_from_http_status(e, url, request_headers)
         except httpx.RequestError as e:
             raise ConnectionError(f"Request failed: {str(e)}")
 
     async def delete(self, url: str, **kwargs) -> Any:
-        """
-        Make DELETE request.
+        """Make DELETE request.
 
         Args:
             url: Request URL
@@ -237,6 +243,7 @@ class InternalHttpClient:
 
         Raises:
             MisoClientError: If request fails
+
         """
         await self._initialize_client()
         await self._ensure_client_token()
@@ -250,24 +257,10 @@ class InternalHttpClient:
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
-            # Try to parse structured error response
-            error_response = parse_error_response(e.response, url)
-            error_body = {}
-            if (
-                e.response.headers.get("content-type", "").startswith("application/json")
-                and not error_response
-            ):
-                try:
-                    error_body = e.response.json()
-                except (ValueError, TypeError):
-                    pass
-
-            raise MisoClientError(
-                f"HTTP {e.response.status_code}: {e.response.text}",
-                status_code=e.response.status_code,
-                error_body=error_body,
-                error_response=error_response,
-            )
+            # Get request headers for auth_method detection
+            request_headers = dict(self.client.headers) if self.client else {}
+            request_headers.update(kwargs.get("headers", {}))
+            raise self._create_error_from_http_status(e, url, request_headers)
         except httpx.RequestError as e:
             raise ConnectionError(f"Request failed: {str(e)}")
 
@@ -278,8 +271,7 @@ class InternalHttpClient:
         data: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> Any:
-        """
-        Generic request method.
+        """Generic request method.
 
         Args:
             method: HTTP method
@@ -292,6 +284,7 @@ class InternalHttpClient:
 
         Raises:
             MisoClientError: If request fails
+
         """
         method_upper = method.upper()
         if method_upper == "GET":
@@ -314,8 +307,7 @@ class InternalHttpClient:
         auth_strategy: Optional[AuthStrategy] = None,
         **kwargs,
     ) -> Any:
-        """
-        Make authenticated request with Bearer token.
+        """Make authenticated request with Bearer token.
 
         IMPORTANT: Client token is sent as x-client-token header (via _ensure_client_token)
         User token is sent as Authorization: Bearer header (this method parameter)
@@ -334,6 +326,7 @@ class InternalHttpClient:
 
         Raises:
             MisoClientError: If request fails
+
         """
         # If no strategy provided, use default (backward compatibility)
         if auth_strategy is None:
@@ -352,8 +345,7 @@ class InternalHttpClient:
         data: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> Any:
-        """
-        Make request with authentication strategy (priority-based fallback).
+        """Make request with authentication strategy (priority-based fallback).
 
         Tries authentication methods in priority order until one succeeds.
         If a method returns 401, automatically tries the next method in the strategy.
@@ -370,6 +362,7 @@ class InternalHttpClient:
 
         Raises:
             MisoClientError: If all authentication methods fail
+
         """
         await self._initialize_client()
 
@@ -433,12 +426,12 @@ class InternalHttpClient:
         raise AuthenticationError("No authentication methods available")
 
     async def get_environment_token(self) -> str:
-        """
-        Get environment token using client credentials.
+        """Get environment token using client credentials.
 
         This is called automatically by HttpClient but can be called manually.
 
         Returns:
             Client token string
+
         """
         return await self.token_manager.get_client_token()

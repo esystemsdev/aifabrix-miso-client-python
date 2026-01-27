@@ -1,5 +1,4 @@
-"""
-HTTP log formatting utilities for ISO 27001 compliant audit and debug logging.
+"""HTTP log formatting utilities for ISO 27001 compliant audit and debug logging.
 
 This module provides formatting functions for building audit and debug log contexts.
 All sensitive data should be masked before passing to these formatters.
@@ -9,12 +8,12 @@ from typing import Any, Dict, Optional
 
 
 def _add_optional_fields(context: Dict[str, Any], **fields: Any) -> None:
-    """
-    Add optional fields to context dictionary if they are not None.
+    """Add optional fields to context dictionary if they are not None.
 
     Args:
         context: Context dictionary to add fields to
         **fields: Optional fields to add (value is None if field should be skipped)
+
     """
     for key, value in fields.items():
         if value is not None:
@@ -32,8 +31,7 @@ def build_audit_context(
     error_message: Optional[str],
     correlation_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    Build audit context dictionary for logging.
+    """Build audit context dictionary for logging.
 
     Args:
         method: HTTP method
@@ -48,6 +46,7 @@ def build_audit_context(
 
     Returns:
         Audit context dictionary
+
     """
     audit_context: Dict[str, Any] = {
         "method": method,
@@ -78,8 +77,7 @@ def build_debug_context(
     masked_response: Optional[str],
     query_params: Optional[Dict[str, Any]],
 ) -> Dict[str, Any]:
-    """
-    Build debug context dictionary for detailed logging.
+    """Build debug context dictionary for detailed logging.
 
     Args:
         method: HTTP method
@@ -95,6 +93,7 @@ def build_debug_context(
 
     Returns:
         Debug context dictionary
+
     """
     debug_context: Dict[str, Any] = {
         "method": method,

@@ -452,7 +452,10 @@ class TestInternalHttpClient:
 
         mock_response = MagicMock()
         mock_response.status_code = 400
-        mock_response.text = '{"errors": ["Bad request"], "type": "/Errors/Bad Input", "title": "Bad Request", "statusCode": 400, "instance": "/api/test"}'
+        mock_response.text = (
+            '{"errors": ["Bad request"], "type": "/Errors/Bad Input", '
+            '"title": "Bad Request", "statusCode": 400, "instance": "/api/test"}'
+        )
         mock_response.headers.get.return_value = "application/json"
         mock_response.json.return_value = {
             "errors": ["Bad request"],

@@ -1,21 +1,22 @@
-"""
-HTTP error handler utilities for InternalHttpClient.
+"""HTTP error handler utilities for InternalHttpClient.
 
 This module provides error parsing and handling functionality for HTTP responses.
 """
 
-from typing import Optional
+from typing import Dict, Literal, Optional
 
 import httpx
 
 from ..models.error_response import ErrorResponse
 
+# Authentication method type for error tracking
+AuthMethod = Literal["bearer", "client-token", "client-credentials", "api-key"]
+
 
 def extract_correlation_id_from_response(
     response: Optional[httpx.Response] = None,
 ) -> Optional[str]:
-    """
-    Extract correlation ID from response headers.
+    """Extract correlation ID from response headers.
 
     Checks common correlation ID header names.
 
@@ -24,6 +25,7 @@ def extract_correlation_id_from_response(
 
     Returns:
         Correlation ID string if found, None otherwise
+
     """
     if not response:
         return None
@@ -48,11 +50,60 @@ def extract_correlation_id_from_response(
     return None
 
 
-def parse_error_response(response: httpx.Response, url: str) -> Optional[ErrorResponse]:
+def detect_auth_method_from_headers(
+    headers: Optional[Dict[str, str]] = None,
+) -> Optional[AuthMethod]:
+    """Detect authentication method from request headers.
+
+    This is a fallback detection mechanism used when the controller doesn't
+    return an authMethod field in the error response. It inspects the request
+    headers to determine which authentication method was attempted.
+
+    Args:
+        headers: Request headers dictionary (optional)
+
+    Returns:
+        The detected auth method ('bearer', 'client-token', 'client-credentials',
+        'api-key') or None if no auth headers found.
+
+    Examples:
+        >>> detect_auth_method_from_headers({"Authorization": "Bearer token123"})
+        'bearer'
+        >>> detect_auth_method_from_headers({"x-client-token": "token123"})
+        'client-token'
+        >>> detect_auth_method_from_headers({"x-api-key": "key123"})
+        'api-key'
+        >>> detect_auth_method_from_headers({})
+        None
+
     """
-    Parse structured error response from HTTP response.
+    if not headers:
+        return None
+
+    # Check for Bearer token (Authorization header)
+    if headers.get("Authorization") or headers.get("authorization"):
+        return "bearer"
+
+    # Check for client token
+    if headers.get("x-client-token") or headers.get("X-Client-Token"):
+        return "client-token"
+
+    # Check for client credentials (client ID header indicates client-credentials auth)
+    if headers.get("x-client-id") or headers.get("X-Client-Id"):
+        return "client-credentials"
+
+    # Check for API key
+    if headers.get("x-api-key") or headers.get("X-Api-Key"):
+        return "api-key"
+
+    return None
+
+
+def parse_error_response(response: httpx.Response, url: str) -> Optional[ErrorResponse]:
+    """Parse structured error response from HTTP response.
 
     Extracts correlation ID from response headers if not present in response body.
+    Also extracts authMethod from response data if present (for 401 errors).
 
     Args:
         response: HTTP response object
@@ -60,6 +111,7 @@ def parse_error_response(response: httpx.Response, url: str) -> Optional[ErrorRe
 
     Returns:
         ErrorResponse if response matches structure, None otherwise
+
     """
     if not response.headers.get("content-type", "").startswith("application/json"):
         return None
@@ -83,6 +135,9 @@ def parse_error_response(response: httpx.Response, url: str) -> Optional[ErrorRe
                 correlation_id = extract_correlation_id_from_response(response)
                 if correlation_id:
                     response_data["correlationId"] = correlation_id
+
+            # authMethod is extracted from response data if present (controller may send it)
+            # No need to set default here - ErrorResponse model handles it
 
             return ErrorResponse(**response_data)
     except (ValueError, TypeError, KeyError):

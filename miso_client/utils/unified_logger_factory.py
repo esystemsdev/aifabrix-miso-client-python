@@ -1,5 +1,4 @@
-"""
-Factory functions for unified logger with automatic context detection.
+"""Factory functions for unified logger with automatic context detection.
 
 This module provides factory functions to create UnifiedLogger instances
 that automatically detect context from contextvars.
@@ -21,8 +20,7 @@ _default_logger_service: Optional[LoggerService] = None
 
 
 def set_default_logger_service(logger_service: LoggerService) -> None:
-    """
-    Set the default logger service for get_logger() factory function.
+    """Set the default logger service for get_logger() factory function.
 
     This should be called once during MisoClient initialization.
 
@@ -33,14 +31,14 @@ def set_default_logger_service(logger_service: LoggerService) -> None:
         >>> from miso_client import MisoClient, set_default_logger_service
         >>> client = MisoClient(config)
         >>> set_default_logger_service(client.logger)
+
     """
     global _default_logger_service
     _default_logger_service = logger_service
 
 
 def get_logger(logger_service: Optional[LoggerService] = None) -> UnifiedLogger:
-    """
-    Get logger instance with automatic context detection from contextvars.
+    """Get logger instance with automatic context detection from contextvars.
 
     Returns a UnifiedLogger instance that automatically extracts context
     from contextvars, eliminating the need to manually pass Request objects.
@@ -60,6 +58,7 @@ def get_logger(logger_service: Optional[LoggerService] = None) -> UnifiedLogger:
         >>> from miso_client import get_logger
         >>> logger = get_logger()
         >>> await logger.info("Message")  # Auto-extracts context
+
     """
     if logger_service is None:
         if _default_logger_service is None:

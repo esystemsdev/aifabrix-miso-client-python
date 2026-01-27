@@ -1,5 +1,4 @@
-"""
-Auth API implementation.
+"""Auth API implementation.
 
 Provides typed interfaces for authentication endpoints.
 """
@@ -46,17 +45,16 @@ class AuthApi:
     PERMISSIONS_REFRESH_ENDPOINT = "/api/v1/auth/permissions/refresh"
 
     def __init__(self, http_client: HttpClient):
-        """
-        Initialize Auth API client.
+        """Initialize Auth API client.
 
         Args:
             http_client: HttpClient instance
+
         """
         self.http_client = http_client
 
     async def login(self, redirect: str, state: Optional[str] = None) -> LoginResponse:
-        """
-        Initiate login flow (GET with query params).
+        """Initiate login flow (GET with query params).
 
         Args:
             redirect: Redirect URI for OAuth2 callback
@@ -67,6 +65,7 @@ class AuthApi:
 
         Raises:
             MisoClientError: If request fails
+
         """
         params = {"redirect": redirect}
         if state:
@@ -82,8 +81,7 @@ class AuthApi:
         application: Optional[str] = None,
         auth_strategy: Optional[AuthStrategy] = None,
     ) -> ValidateTokenResponse:
-        """
-        Validate authentication token (POST).
+        """Validate authentication token (POST).
 
         Uses authenticated_request to send the token as Bearer token for authentication,
         while also including it in the request body for validation.
@@ -99,6 +97,7 @@ class AuthApi:
 
         Raises:
             MisoClientError: If request fails
+
         """
         request_data = ValidateTokenRequest(
             token=token, environment=environment, application=application
@@ -115,8 +114,7 @@ class AuthApi:
     async def get_user(
         self, token: Optional[str] = None, auth_strategy: Optional[AuthStrategy] = None
     ) -> GetUserResponse:
-        """
-        Get current user information (GET).
+        """Get current user information (GET).
 
         Token is optional - can use x-client-token header instead.
 
@@ -129,6 +127,7 @@ class AuthApi:
 
         Raises:
             MisoClientError: If request fails
+
         """
         if token:
             response = await self.http_client.authenticated_request(
@@ -139,8 +138,7 @@ class AuthApi:
         return GetUserResponse(**response)
 
     async def logout(self, token: Optional[str] = None) -> LogoutResponse:
-        """
-        Logout user (POST).
+        """Logout user (POST).
 
         If token is provided, sends it in the request body for server-side invalidation.
         Otherwise, uses client credentials authentication.
@@ -153,6 +151,7 @@ class AuthApi:
 
         Raises:
             MisoClientError: If request fails
+
         """
         if token:
             # Send token in body for server-side invalidation
@@ -165,8 +164,7 @@ class AuthApi:
         return LogoutResponse(**response)
 
     async def refresh_token(self, refresh_token: str) -> RefreshTokenResponse:
-        """
-        Refresh user access token (POST).
+        """Refresh user access token (POST).
 
         Args:
             refresh_token: Refresh token
@@ -176,6 +174,7 @@ class AuthApi:
 
         Raises:
             MisoClientError: If request fails
+
         """
         request_data = RefreshTokenRequest(refreshToken=refresh_token)
         response = await self.http_client.post(
@@ -186,8 +185,7 @@ class AuthApi:
     async def initiate_device_code(
         self, environment: Optional[str] = None, scope: Optional[str] = None
     ) -> DeviceCodeResponseWrapper:
-        """
-        Initiate device code flow (POST).
+        """Initiate device code flow (POST).
 
         Args:
             environment: Optional environment key
@@ -198,6 +196,7 @@ class AuthApi:
 
         Raises:
             MisoClientError: If request fails
+
         """
         # Build request data
         request_data = {}
@@ -211,8 +210,7 @@ class AuthApi:
         return DeviceCodeResponseWrapper(**response)
 
     async def poll_device_code_token(self, device_code: str) -> DeviceCodeTokenPollResponse:
-        """
-        Poll for device code token (POST).
+        """Poll for device code token (POST).
 
         Returns 202 while authorization is pending.
 
@@ -224,6 +222,7 @@ class AuthApi:
 
         Raises:
             MisoClientError: If request fails
+
         """
         request_data = DeviceCodeTokenPollRequest(deviceCode=device_code)
         response = await self.http_client.post(
@@ -232,8 +231,7 @@ class AuthApi:
         return DeviceCodeTokenPollResponse(**response)
 
     async def refresh_device_code_token(self, refresh_token: str) -> DeviceCodeTokenResponse:
-        """
-        Refresh device code access token (POST).
+        """Refresh device code access token (POST).
 
         Args:
             refresh_token: Refresh token from device code flow
@@ -243,6 +241,7 @@ class AuthApi:
 
         Raises:
             MisoClientError: If request fails
+
         """
         request_data = RefreshTokenRequest(refreshToken=refresh_token)
         response = await self.http_client.post(
@@ -258,8 +257,7 @@ class AuthApi:
         application: Optional[str] = None,
         auth_strategy: Optional[AuthStrategy] = None,
     ) -> GetRolesResponse:
-        """
-        Get user roles (GET).
+        """Get user roles (GET).
 
         Args:
             token: Optional user token (if not provided, uses x-client-token)
@@ -272,6 +270,7 @@ class AuthApi:
 
         Raises:
             MisoClientError: If request fails
+
         """
         params = {}
         if environment:
@@ -291,8 +290,7 @@ class AuthApi:
     async def refresh_roles(
         self, token: Optional[str] = None, auth_strategy: Optional[AuthStrategy] = None
     ) -> RefreshRolesResponse:
-        """
-        Refresh user roles (GET).
+        """Refresh user roles (GET).
 
         Args:
             token: Optional user token (if not provided, uses x-client-token)
@@ -303,6 +301,7 @@ class AuthApi:
 
         Raises:
             MisoClientError: If request fails
+
         """
         if token:
             response = await self.http_client.authenticated_request(
@@ -320,8 +319,7 @@ class AuthApi:
         application: Optional[str] = None,
         auth_strategy: Optional[AuthStrategy] = None,
     ) -> GetPermissionsResponse:
-        """
-        Get user permissions (GET).
+        """Get user permissions (GET).
 
         Args:
             token: Optional user token (if not provided, uses x-client-token)
@@ -334,6 +332,7 @@ class AuthApi:
 
         Raises:
             MisoClientError: If request fails
+
         """
         params = {}
         if environment:
@@ -353,8 +352,7 @@ class AuthApi:
     async def refresh_permissions(
         self, token: Optional[str] = None, auth_strategy: Optional[AuthStrategy] = None
     ) -> RefreshPermissionsResponse:
-        """
-        Refresh user permissions (GET).
+        """Refresh user permissions (GET).
 
         Args:
             token: Optional user token (if not provided, uses x-client-token)
@@ -365,6 +363,7 @@ class AuthApi:
 
         Raises:
             MisoClientError: If request fails
+
         """
         if token:
             response = await self.http_client.authenticated_request(

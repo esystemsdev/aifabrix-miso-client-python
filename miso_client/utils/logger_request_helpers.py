@@ -1,5 +1,4 @@
-"""
-Logger request helper functions for extracting request context.
+"""Logger request helper functions for extracting request context.
 
 This module provides helper functions for extracting logging context from HTTP requests
 and building LogEntry objects with request context.
@@ -24,8 +23,7 @@ async def get_log_with_request(
     context: Optional[Dict[str, Any]] = None,
     stack_trace: Optional[str] = None,
 ) -> "LogEntry":
-    """
-    Get LogEntry object with auto-extracted request context.
+    """Get LogEntry object with auto-extracted request context.
 
     Extracts IP, method, path, userAgent, correlationId, userId from request.
     Returns LogEntry object ready for use in other projects' logger tables.
@@ -44,6 +42,7 @@ async def get_log_with_request(
     Example:
         >>> log_entry = await get_log_with_request(logger, request, "Processing request")
         >>> # Use log_entry in your own logger table
+
     """
     # Extract request context
     ctx = extract_request_context(request)
@@ -115,8 +114,7 @@ async def get_with_context(
     stack_trace: Optional[str] = None,
     options: Optional[ClientLoggingOptions] = None,
 ) -> "LogEntry":
-    """
-    Get LogEntry object with custom context.
+    """Get LogEntry object with custom context.
 
     Adds custom context and returns LogEntry object.
     Allows projects to add their own context while leveraging MisoClient defaults.
@@ -139,6 +137,7 @@ async def get_with_context(
         ...     "Custom log",
         ...     level="info"
         ... )
+
     """
     final_options = options or ClientLoggingOptions()
     correlation_id = (
@@ -181,8 +180,7 @@ async def get_with_token(
     context: Optional[Dict[str, Any]] = None,
     stack_trace: Optional[str] = None,
 ) -> "LogEntry":
-    """
-    Get LogEntry object with JWT token context extracted.
+    """Get LogEntry object with JWT token context extracted.
 
     Extracts userId, sessionId from JWT token.
     Returns LogEntry with user context extracted.
@@ -205,6 +203,7 @@ async def get_with_token(
         ...     "User action",
         ...     level="audit"
         ... )
+
     """
     options = ClientLoggingOptions(token=token)
     correlation_id = (
@@ -247,8 +246,7 @@ async def get_for_request(
     context: Optional[Dict[str, Any]] = None,
     stack_trace: Optional[str] = None,
 ) -> "LogEntry":
-    """
-    Get LogEntry object with request context (alias for get_log_with_request).
+    """Get LogEntry object with request context (alias for get_log_with_request).
 
     Same functionality as get_log_with_request() for convenience.
 
@@ -265,5 +263,6 @@ async def get_for_request(
 
     Example:
         >>> log_entry = await get_for_request(logger, request, "Request processed")
+
     """
     return await get_log_with_request(logger_service, request, message, level, context, stack_trace)

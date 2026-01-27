@@ -1,5 +1,4 @@
-"""
-Pagination types for MisoClient SDK.
+"""Pagination types for MisoClient SDK.
 
 This module contains Pydantic models that define pagination structures
 for paginated list responses matching the Miso/Dataplane API conventions.
@@ -13,8 +12,7 @@ T = TypeVar("T")
 
 
 class Meta(BaseModel):
-    """
-    Pagination metadata for list responses.
+    """Pagination metadata for list responses.
 
     Fields:
         totalItems: Total number of items across all pages
@@ -30,8 +28,7 @@ class Meta(BaseModel):
 
 
 class PaginatedListResponse(BaseModel, Generic[T]):
-    """
-    Paginated list response structure.
+    """Paginated list response structure.
 
     Generic type parameter T represents the item type in the data array.
 

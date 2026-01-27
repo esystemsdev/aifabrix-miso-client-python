@@ -1,5 +1,4 @@
-"""
-Audit log queue for batching multiple logs into single requests.
+"""Audit log queue for batching multiple logs into single requests.
 
 Reduces network overhead by batching audit logs.
 """
@@ -20,20 +19,19 @@ class QueuedLogEntry:
     """Internal class for queued log entries."""
 
     def __init__(self, entry: LogEntry, timestamp: int):
-        """
-        Initialize queued log entry.
+        """Initialize queued log entry.
 
         Args:
             entry: LogEntry object
             timestamp: Timestamp in milliseconds
+
         """
         self.entry = entry
         self.timestamp = timestamp
 
 
 class AuditLogQueue:
-    """
-    Audit log queue for batching multiple logs into single requests.
+    """Audit log queue for batching multiple logs into single requests.
 
     Automatically batches audit logs based on size and time thresholds.
     Supports Redis LIST for efficient queuing with HTTP fallback.
@@ -45,13 +43,13 @@ class AuditLogQueue:
         redis: RedisService,
         config: MisoClientConfig,
     ):
-        """
-        Initialize audit log queue.
+        """Initialize audit log queue.
 
         Args:
             http_client: HttpClient instance for sending logs
             redis: RedisService instance for queuing
             config: MisoClientConfig with audit configuration
+
         """
         self.http_client = http_client
         self.redis = redis
@@ -89,13 +87,13 @@ class AuditLogQueue:
             asyncio.create_task(self.flush(True))
 
     async def add(self, entry: LogEntry) -> None:
-        """
-        Add log entry to queue.
+        """Add log entry to queue.
 
         Automatically flushes if batch size is reached.
 
         Args:
             entry: LogEntry to add to queue
+
         """
         self.queue.append(QueuedLogEntry(entry, self._current_timestamp()))
 
@@ -126,11 +124,11 @@ class AuditLogQueue:
         return int(time.time() * 1000)
 
     async def flush(self, sync: bool = False) -> None:
-        """
-        Flush queued logs.
+        """Flush queued logs.
 
         Args:
             sync: If True, wait for flush to complete (for shutdown)
+
         """
         if self.is_flushing:
             return
@@ -206,11 +204,11 @@ class AuditLogQueue:
             self.is_flushing = False
 
     def get_queue_size(self) -> int:
-        """
-        Get current queue size.
+        """Get current queue size.
 
         Returns:
             Number of entries in queue
+
         """
         return len(self.queue)
 

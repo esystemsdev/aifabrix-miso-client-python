@@ -1,5 +1,4 @@
-"""
-Authentication strategy handler utility.
+"""Authentication strategy handler utility.
 
 This module provides utilities for managing authentication strategies with
 priority-based fallback support.
@@ -19,8 +18,7 @@ class AuthStrategyHandler:
         strategy: AuthStrategy,
         client_token: Optional[str] = None,
     ) -> Dict[str, str]:
-        """
-        Build authentication headers for a specific auth method.
+        """Build authentication headers for a specific auth method.
 
         Args:
             method: Authentication method to use
@@ -32,6 +30,7 @@ class AuthStrategyHandler:
 
         Raises:
             ValueError: If required credentials are missing for the method
+
         """
         headers: Dict[str, str] = {}
 
@@ -65,8 +64,7 @@ class AuthStrategyHandler:
 
     @staticmethod
     def should_try_method(method: AuthMethod, strategy: AuthStrategy) -> bool:
-        """
-        Check if a method should be tried based on the strategy.
+        """Check if a method should be tried based on the strategy.
 
         Args:
             method: Authentication method to check
@@ -74,15 +72,16 @@ class AuthStrategyHandler:
 
         Returns:
             True if method should be tried, False otherwise
+
         """
         return method in strategy.methods
 
     @staticmethod
     def get_default_strategy() -> AuthStrategy:
-        """
-        Get default authentication strategy.
+        """Get default authentication strategy.
 
         Returns:
             Default AuthStrategy with ['bearer', 'client-token'] methods
+
         """
         return AuthStrategy(methods=["bearer", "client-token"])

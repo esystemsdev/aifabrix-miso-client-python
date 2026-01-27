@@ -113,7 +113,9 @@ class TestExtractUserIdFromHeaders:
         """Test extracting user ID from headers with Bearer token."""
         jwt_cache = JwtTokenCache()
         headers = {
-            "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3OCJ9.test"
+            "Authorization": (
+                "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3OCJ9.test"
+            )
         }
 
         # Mock the decode to return a user ID

@@ -1,5 +1,4 @@
-"""
-MisoClient - Main SDK class for authentication, authorization, and logging.
+"""MisoClient - Main SDK class for authentication, authorization, and logging.
 
 This module contains the MisoClient class which provides a unified interface
 for integrating with the Miso Controller.
@@ -26,8 +25,7 @@ if TYPE_CHECKING:
 
 
 class MisoClient:
-    """
-    Main MisoClient SDK class for authentication, authorization, and logging.
+    """Main MisoClient SDK class for authentication, authorization, and logging.
 
     This client provides a unified interface for:
     - Token validation and user management

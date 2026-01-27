@@ -1,5 +1,4 @@
-"""
-FastAPI endpoint utilities for client token endpoint.
+"""FastAPI endpoint utilities for client token endpoint.
 
 Provides server-side route handlers for creating client token endpoints
 that return client token + DataClient configuration to frontend clients.
@@ -20,8 +19,7 @@ from ..utils.environment_token import get_environment_token
 def create_fastapi_client_token_endpoint(
     miso_client: Any, options: Optional[ClientTokenEndpointOptions] = None
 ) -> Callable[[Any], Any]:
-    """
-    Create FastAPI route handler for client-token endpoint.
+    """Create FastAPI route handler for client-token endpoint.
 
     Automatically enriches response with DataClient configuration including
     controllerPublicUrl for frontend client initialization.
@@ -42,6 +40,7 @@ def create_fastapi_client_token_endpoint(
         >>> await client.initialize()
         >>>
         >>> app.post('/api/v1/auth/client-token')(create_fastapi_client_token_endpoint(client))
+
     """
     opts = ClientTokenEndpointOptions(
         clientTokenUri=options.clientTokenUri if options else "/api/v1/auth/client-token",
@@ -50,8 +49,7 @@ def create_fastapi_client_token_endpoint(
     )
 
     async def handler(request: Any) -> ClientTokenEndpointResponse:
-        """
-        FastAPI route handler for client token endpoint.
+        """FastAPI route handler for client token endpoint.
 
         Args:
             request: FastAPI Request object
@@ -61,6 +59,7 @@ def create_fastapi_client_token_endpoint(
 
         Raises:
             HTTPException: With appropriate status code on errors
+
         """
         try:
             # Check if misoClient is initialized
@@ -94,7 +93,7 @@ def create_fastapi_client_token_endpoint(
                 # request.base_url is a URL object in FastAPI
                 base_url = str(request.base_url).rstrip("/")
 
-                # Get controller URL (prefer controllerPublicUrl for browser, fallback to controller_url)
+                # Get controller URL (prefer controllerPublicUrl, fallback to controller_url)
                 controller_url = config.controllerPublicUrl or config.controller_url
 
                 if not controller_url:

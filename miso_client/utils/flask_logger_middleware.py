@@ -1,5 +1,4 @@
-"""
-Flask middleware helper for unified logging context.
+"""Flask middleware helper for unified logging context.
 
 This module provides Flask middleware to automatically set logger context
 from request objects, enabling unified logging throughout the application.
@@ -16,8 +15,7 @@ from .logger_context_storage import clear_logger_context, set_logger_context
 
 
 def logger_context_middleware() -> None:
-    """
-    Flask middleware to set logger context from request.
+    """Flask middleware to set logger context from request.
 
     Use with @app.before_request decorator to enable automatic context
     extraction for unified logging.
@@ -29,6 +27,7 @@ def logger_context_middleware() -> None:
         >>> @app.before_request
         ... def before_request():
         ...     logger_context_middleware()
+
     """
     from flask import request
 
@@ -85,8 +84,7 @@ def logger_context_middleware() -> None:
 
 
 def register_logger_context_middleware(app: "Flask") -> None:
-    """
-    Register logger context middleware with Flask app.
+    """Register logger context middleware with Flask app.
 
     Convenience function to register the middleware automatically.
 
@@ -98,6 +96,7 @@ def register_logger_context_middleware(app: "Flask") -> None:
         >>> from miso_client.utils.flask_logger_middleware import register_logger_context_middleware
         >>> app = Flask(__name__)
         >>> register_logger_context_middleware(app)
+
     """
     app.before_request(logger_context_middleware)
 

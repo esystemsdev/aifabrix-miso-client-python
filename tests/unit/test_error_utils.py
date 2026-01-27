@@ -208,7 +208,7 @@ class TestHandleApiError:
             handleApiError(response_data, 400)
 
         exception = exc_info.value
-        # Title is set to None in ErrorResponse, and ApiErrorException uses error.title or "API Error"
+        # Title is None in ErrorResponse, ApiErrorException uses error.title or "API Error"
         # Since title is None, it should use "API Error" as default
         assert str(exception) == "API Error"  # Default from ApiErrorException
         # The error response should have title as None

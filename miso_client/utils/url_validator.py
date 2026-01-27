@@ -1,5 +1,4 @@
-"""
-URL validation utility for controller URLs.
+"""URL validation utility for controller URLs.
 
 This module provides utilities for validating HTTP/HTTPS URLs with comprehensive
 checks to prevent dangerous protocols and ensure valid URL structure.
@@ -9,8 +8,7 @@ from urllib.parse import urlparse
 
 
 def validate_url(url: str) -> bool:
-    """
-    Validate HTTP/HTTPS URL with comprehensive checks.
+    """Validate HTTP/HTTPS URL with comprehensive checks.
 
     Validates that the URL:
     - Starts with http:// or https://
@@ -30,6 +28,7 @@ def validate_url(url: str) -> bool:
         False
         >>> validate_url("http://localhost:3000")
         True
+
     """
     if not url or not isinstance(url, str):
         return False

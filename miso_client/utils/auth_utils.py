@@ -1,5 +1,4 @@
-"""
-Authentication utilities for shared use across services.
+"""Authentication utilities for shared use across services.
 
 This module provides shared authentication utilities to avoid code duplication
 across service classes.
@@ -20,8 +19,7 @@ async def validate_token_request(
     api_client: Optional["ApiClient"] = None,
     auth_strategy: Optional[AuthStrategy] = None,
 ) -> Dict[str, Any]:
-    """
-    Helper function to call /api/v1/auth/validate endpoint with proper request body.
+    """Helper function to call /api/v1/auth/validate endpoint with proper request body.
 
     Shared utility for RoleService and PermissionService to avoid code duplication.
 
@@ -33,6 +31,7 @@ async def validate_token_request(
 
     Returns:
         Validation result dictionary
+
     """
     if api_client:
         # Use ApiClient for typed API calls

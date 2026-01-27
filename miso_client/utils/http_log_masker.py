@@ -1,5 +1,4 @@
-"""
-HTTP log data masking utilities for ISO 27001 compliant logging.
+"""HTTP log data masking utilities for ISO 27001 compliant logging.
 
 This module provides data masking functions specifically for HTTP request/response
 logging. All sensitive data is masked using DataMasker before logging.
@@ -12,14 +11,14 @@ from .data_masker import DataMasker
 
 
 def mask_error_message(error: Exception) -> Optional[str]:
-    """
-    Mask sensitive data in error message.
+    """Mask sensitive data in error message.
 
     Args:
         error: Exception object
 
     Returns:
         Masked error message string, or None if no error
+
     """
     if error is None:
         return None
@@ -39,8 +38,7 @@ def mask_error_message(error: Exception) -> Optional[str]:
 def mask_request_data(
     request_headers: Optional[Dict[str, Any]], request_data: Optional[Dict[str, Any]]
 ) -> tuple[Optional[Dict[str, Any]], Optional[Any]]:
-    """
-    Mask sensitive data in request headers and body.
+    """Mask sensitive data in request headers and body.
 
     Args:
         request_headers: Request headers dictionary
@@ -48,6 +46,7 @@ def mask_request_data(
 
     Returns:
         Tuple of (masked_headers, masked_body)
+
     """
     masked_headers: Optional[Dict[str, Any]] = None
     if request_headers:
@@ -61,14 +60,14 @@ def mask_request_data(
 
 
 def extract_and_mask_query_params(url: str) -> Optional[Dict[str, Any]]:
-    """
-    Extract query parameters from URL and mask sensitive data.
+    """Extract query parameters from URL and mask sensitive data.
 
     Args:
         url: Request URL with query string
 
     Returns:
         Masked query parameters dictionary, or None if no query params
+
     """
     try:
         parsed_url = urlparse(url)
@@ -87,14 +86,14 @@ def extract_and_mask_query_params(url: str) -> Optional[Dict[str, Any]]:
 
 
 def estimate_object_size(obj: Any) -> int:
-    """
-    Quick size estimation without full JSON serialization.
+    """Quick size estimation without full JSON serialization.
 
     Args:
         obj: Object to estimate size for
 
     Returns:
         Estimated size in bytes
+
     """
     if obj is None:
         return 0
@@ -122,8 +121,7 @@ def estimate_object_size(obj: Any) -> int:
 
 
 def truncate_response_body(body: Any, max_size: int = 10000) -> tuple[Any, bool]:
-    """
-    Truncate response body to reduce processing cost.
+    """Truncate response body to reduce processing cost.
 
     Args:
         body: Response body to truncate
@@ -131,6 +129,7 @@ def truncate_response_body(body: Any, max_size: int = 10000) -> tuple[Any, bool]
 
     Returns:
         Tuple of (truncated_data, was_truncated)
+
     """
     if body is None:
         return body, False
@@ -158,8 +157,7 @@ def truncate_response_body(body: Any, max_size: int = 10000) -> tuple[Any, bool]
 def mask_response_data(
     response: Optional[Any], max_size: Optional[int] = None, max_masking_size: Optional[int] = None
 ) -> Optional[str]:
-    """
-    Mask sensitive data in response body and limit size.
+    """Mask sensitive data in response body and limit size.
 
     Args:
         response: Response data
@@ -168,6 +166,7 @@ def mask_response_data(
 
     Returns:
         Masked response body as string, or None
+
     """
     if response is None:
         return None

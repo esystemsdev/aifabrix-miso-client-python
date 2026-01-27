@@ -1,5 +1,4 @@
-"""
-Client token manager for InternalHttpClient.
+"""Client token manager for InternalHttpClient.
 
 This module provides client token management functionality including token fetching,
 caching, and correlation ID extraction.
@@ -18,18 +17,17 @@ from .jwt_tools import decode_token
 
 
 class ClientTokenManager:
-    """
-    Manages client token lifecycle including fetching, caching, and expiration.
+    """Manages client token lifecycle including fetching, caching, and expiration.
 
     This class handles all client token operations for InternalHttpClient.
     """
 
     def __init__(self, config: MisoClientConfig):
-        """
-        Initialize client token manager.
+        """Initialize client token manager.
 
         Args:
             config: MisoClient configuration
+
         """
         self.config = config
         self.client_token: Optional[str] = None
@@ -37,8 +35,7 @@ class ClientTokenManager:
         self.token_refresh_lock = asyncio.Lock()
 
     def extract_correlation_id(self, response: Optional[httpx.Response] = None) -> Optional[str]:
-        """
-        Extract correlation ID from response headers.
+        """Extract correlation ID from response headers.
 
         Checks common correlation ID header names.
 
@@ -47,6 +44,7 @@ class ClientTokenManager:
 
         Returns:
             Correlation ID string if found, None otherwise
+
         """
         if not response:
             return None
@@ -71,8 +69,7 @@ class ClientTokenManager:
         return None
 
     async def get_client_token(self) -> str:
-        """
-        Get client token, fetching if needed.
+        """Get client token, fetching if needed.
 
         Proactively refreshes if token will expire within 60 seconds.
 
@@ -81,6 +78,7 @@ class ClientTokenManager:
 
         Raises:
             AuthenticationError: If token fetch fails
+
         """
         now = datetime.now()
 
@@ -110,11 +108,11 @@ class ClientTokenManager:
             return self.client_token
 
     async def fetch_client_token(self) -> None:
-        """
-        Fetch client token from controller.
+        """Fetch client token from controller.
 
         Raises:
             AuthenticationError: If token fetch fails
+
         """
         client_id = self.config.client_id
         response: Optional[httpx.Response] = None
@@ -142,14 +140,18 @@ class ClientTokenManager:
             # Extract correlation ID from response
             correlation_id = self.extract_correlation_id(response)
 
-            # OpenAPI spec returns 201 (Created) on success, but accept both 200 and 201 for compatibility
+            # OpenAPI spec returns 201 (Created) on success, accept both 200 and 201
             if response.status_code not in [200, 201]:
                 error_msg = f"Failed to get client token: HTTP {response.status_code}"
                 if client_id:
                     error_msg += f" (clientId: {client_id})"
                 if correlation_id:
                     error_msg += f" (correlationId: {correlation_id})"
-                raise AuthenticationError(error_msg, status_code=response.status_code)
+                raise AuthenticationError(
+                    error_msg,
+                    status_code=response.status_code,
+                    auth_method="client-credentials",
+                )
 
             data = response.json()
 
@@ -191,11 +193,11 @@ class ClientTokenManager:
                     error_msg += f" (clientId: {client_id})"
                 if correlation_id:
                     error_msg += f" (correlationId: {correlation_id})"
-                raise AuthenticationError(error_msg)
+                raise AuthenticationError(error_msg, auth_method="client-credentials")
 
             self.client_token = token_response.token
 
-            # Calculate expiration: use expiresIn if available, otherwise decode JWT to get exp claim
+            # Calculate expiration: use expiresIn if available, else decode JWT exp claim
             expires_in = token_response.expiresIn
             if not expires_in or expires_in <= 0:
                 # Try to extract expiration from JWT token
@@ -232,11 +234,10 @@ class ClientTokenManager:
                 error_msg += f" (clientId: {client_id})"
             if correlation_id:
                 error_msg += f" (correlationId: {correlation_id})"
-            raise AuthenticationError(error_msg)
+            raise AuthenticationError(error_msg, auth_method="client-credentials")
 
     def clear_token(self) -> None:
-        """
-        Clear cached client token.
+        """Clear cached client token.
 
         Forces token refresh on next request.
         """

@@ -1,5 +1,4 @@
-"""
-Public HTTP client utility for controller communication with ISO 27001 compliant logging.
+"""Public HTTP client utility for controller communication with ISO 27001 compliant logging.
 
 This module provides the public HTTP client interface that wraps InternalHttpClient
 and adds automatic audit and debug logging for all HTTP requests. All sensitive
@@ -33,8 +32,7 @@ from .user_token_refresh import UserTokenRefreshManager
 
 
 class HttpClient:
-    """
-    Public HTTP client for Miso Controller communication with ISO 27001 compliant logging.
+    """Public HTTP client for Miso Controller communication with ISO 27001 compliant logging.
 
     This class wraps InternalHttpClient and adds:
     - Automatic audit logging for all requests
@@ -46,12 +44,12 @@ class HttpClient:
     """
 
     def __init__(self, config: MisoClientConfig, logger: LoggerService):
-        """
-        Initialize public HTTP client with configuration and logger.
+        """Initialize public HTTP client with configuration and logger.
 
         Args:
             config: MisoClient configuration
             logger: LoggerService instance for audit and debug logging
+
         """
         self.config = config
         self.logger = logger
@@ -85,35 +83,35 @@ class HttpClient:
         await self.close()
 
     async def get_environment_token(self) -> str:
-        """
-        Get environment token using client credentials.
+        """Get environment token using client credentials.
 
         This is called automatically by HttpClient but can be called manually.
 
         Returns:
             Client token string
+
         """
         return await self._internal_client.get_environment_token()
 
     def _handle_logging_task_error(self, task: asyncio.Task) -> None:
-        """
-        Handle errors in background logging tasks.
+        """Handle errors in background logging tasks.
 
         Silently swallows all exceptions to prevent logging errors from breaking requests.
 
         Args:
             task: The completed logging task
+
         """
         handle_logging_task_error(task)
 
     async def _wait_for_logging_tasks(self, timeout: float = 0.5) -> None:
-        """
-        Wait for all pending logging tasks to complete.
+        """Wait for all pending logging tasks to complete.
 
         Useful for tests to ensure logging has finished before assertions.
 
         Args:
             timeout: Maximum time to wait in seconds
+
         """
         if hasattr(self, "_logging_tasks") and self._logging_tasks:
             await wait_for_logging_tasks(self._logging_tasks, timeout)
@@ -173,8 +171,7 @@ class HttpClient:
             raise
 
     async def get(self, url: str, **kwargs) -> Any:
-        """
-        Make GET request with automatic audit and debug logging.
+        """Make GET request with automatic audit and debug logging.
 
         Args:
             url: Request URL
@@ -185,6 +182,7 @@ class HttpClient:
 
         Raises:
             MisoClientError: If request fails
+
         """
 
         async def _get():
@@ -193,8 +191,7 @@ class HttpClient:
         return await self._execute_with_logging("GET", url, _get, **kwargs)
 
     async def post(self, url: str, data: Optional[Dict[str, Any]] = None, **kwargs) -> Any:
-        """
-        Make POST request with automatic audit and debug logging.
+        """Make POST request with automatic audit and debug logging.
 
         Args:
             url: Request URL
@@ -206,6 +203,7 @@ class HttpClient:
 
         Raises:
             MisoClientError: If request fails
+
         """
 
         async def _post():
@@ -214,8 +212,7 @@ class HttpClient:
         return await self._execute_with_logging("POST", url, _post, data, **kwargs)
 
     async def put(self, url: str, data: Optional[Dict[str, Any]] = None, **kwargs) -> Any:
-        """
-        Make PUT request with automatic audit and debug logging.
+        """Make PUT request with automatic audit and debug logging.
 
         Args:
             url: Request URL
@@ -227,6 +224,7 @@ class HttpClient:
 
         Raises:
             MisoClientError: If request fails
+
         """
 
         async def _put():
@@ -235,8 +233,7 @@ class HttpClient:
         return await self._execute_with_logging("PUT", url, _put, data, **kwargs)
 
     async def delete(self, url: str, **kwargs) -> Any:
-        """
-        Make DELETE request with automatic audit and debug logging.
+        """Make DELETE request with automatic audit and debug logging.
 
         Args:
             url: Request URL
@@ -247,6 +244,7 @@ class HttpClient:
 
         Raises:
             MisoClientError: If request fails
+
         """
 
         async def _delete():
@@ -261,8 +259,7 @@ class HttpClient:
         data: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> Any:
-        """
-        Generic request method with automatic audit and debug logging.
+        """Generic request method with automatic audit and debug logging.
 
         Args:
             method: HTTP method
@@ -275,6 +272,7 @@ class HttpClient:
 
         Raises:
             MisoClientError: If request fails
+
         """
         method_upper = method.upper()
         if method_upper == "GET":
@@ -289,37 +287,36 @@ class HttpClient:
             raise ValueError(f"Unsupported HTTP method: {method}")
 
     def register_user_token_refresh_callback(self, user_id: str, callback: Any) -> None:
-        """
-        Register refresh callback for a user.
+        """Register refresh callback for a user.
 
         Args:
             user_id: User ID
             callback: Async function that takes old token and returns new token
+
         """
         self._user_token_refresh.register_refresh_callback(user_id, callback)
 
     def register_user_refresh_token(self, user_id: str, refresh_token: str) -> None:
-        """
-        Register refresh token for a user.
+        """Register refresh token for a user.
 
         Args:
             user_id: User ID
             refresh_token: Refresh token string
+
         """
         self._user_token_refresh.register_refresh_token(user_id, refresh_token)
 
     def set_auth_service_for_refresh(self, auth_service: Any) -> None:
-        """
-        Set AuthService instance for refresh endpoint calls.
+        """Set AuthService instance for refresh endpoint calls.
 
         Args:
             auth_service: AuthService instance
+
         """
         self._user_token_refresh.set_auth_service(auth_service)
 
     async def _prepare_authenticated_request(self, token: str, auto_refresh: bool, **kwargs) -> str:
-        """
-        Prepare authenticated request by getting valid token and setting headers.
+        """Prepare authenticated request by getting valid token and setting headers.
 
         Args:
             token: User authentication token
@@ -328,6 +325,7 @@ class HttpClient:
 
         Returns:
             Valid token to use for request
+
         """
         return await prepare_authenticated_request(
             self._user_token_refresh, token, auto_refresh, **kwargs
@@ -368,8 +366,7 @@ class HttpClient:
         auto_refresh: bool = True,
         **kwargs,
     ) -> Any:
-        """
-        Make authenticated request with Bearer token and automatic refresh.
+        """Make authenticated request with Bearer token and automatic refresh.
 
         Client token sent as x-client-token (via InternalHttpClient), user token as Bearer.
 
@@ -380,6 +377,7 @@ class HttpClient:
             data: Request data (for POST/PUT)
             auth_strategy: Optional authentication strategy
             auto_refresh: Whether to refresh token on 401 (default: True)
+
         """
         valid_token = await self._prepare_authenticated_request(token, auto_refresh, **kwargs)
 
@@ -436,11 +434,11 @@ class HttpClient:
         return parse_paginated_response(await self.get(url, **kwargs))
 
     def clear_user_token(self, token: str) -> None:
-        """
-        Clear a user's JWT token from cache.
+        """Clear a user's JWT token from cache.
 
         Args:
             token: JWT token string to remove from cache
+
         """
         self._jwt_cache.clear_token(token)
 

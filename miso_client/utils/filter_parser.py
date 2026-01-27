@@ -1,5 +1,4 @@
-"""
-Filter parsing utilities for MisoClient SDK.
+"""Filter parsing utilities for MisoClient SDK.
 
 This module provides utilities for parsing filter parameters from query strings
 and converting them into FilterOption objects.
@@ -12,14 +11,13 @@ from ..models.filter import FilterOperator, FilterOption
 
 
 def parse_filter_params(params: dict) -> List[FilterOption]:
-    """
-    Parse filter query parameters into FilterOption list.
+    """Parse filter query parameters into FilterOption list.
 
     Parses `?filter=field:op:value` format into FilterOption objects.
     Supports multiple filter parameters (array of filter strings).
 
     Args:
-        params: Dictionary with query parameters (e.g., {'filter': ['status:eq:active', 'region:in:eu,us']})
+        params: Query parameters dict (e.g., {'filter': ['status:eq:active']})
 
     Returns:
         List of FilterOption objects
@@ -29,6 +27,7 @@ def parse_filter_params(params: dict) -> List[FilterOption]:
         [FilterOption(field='status', op='eq', value='active')]
         >>> parse_filter_params({'filter': ['region:in:eu,us']})
         [FilterOption(field='region', op='in', value=['eu', 'us'])]
+
     """
     filters: List[FilterOption] = []
 

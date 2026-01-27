@@ -1,5 +1,4 @@
-"""
-Origin validation utility for CORS security.
+"""Origin validation utility for CORS security.
 
 This module provides utilities for validating request origins against
 a list of allowed origins, with support for wildcard port matching.
@@ -10,8 +9,7 @@ from urllib.parse import urlparse
 
 
 def validate_origin(headers: Any, allowed_origins: List[str]) -> Dict[str, Any]:
-    """
-    Validate request origin against allowed origins list.
+    """Validate request origin against allowed origins list.
 
     Checks the 'origin' header first, then falls back to 'referer' header.
     Supports wildcard ports (e.g., 'http://localhost:*' matches any port).
@@ -30,6 +28,7 @@ def validate_origin(headers: Any, allowed_origins: List[str]) -> Dict[str, Any]:
         >>> result = validate_origin(headers, ["http://localhost:*"])
         >>> result["valid"]
         True
+
     """
     if not allowed_origins:
         # If no allowed origins configured, allow all (backward compatibility)
