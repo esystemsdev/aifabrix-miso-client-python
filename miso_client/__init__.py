@@ -83,7 +83,6 @@ from .utils.config_loader import load_config
 from .utils.controller_url_resolver import is_browser, resolve_controller_url
 from .utils.environment_token import get_environment_token
 from .utils.error_utils import ApiErrorException, handleApiError, transformError
-from .utils.http_error_handler import detect_auth_method_from_headers
 from .utils.fastapi_endpoints import create_fastapi_client_token_endpoint
 from .utils.fastapi_logger_middleware import (
     logger_context_middleware as fastapi_logger_context_middleware,
@@ -119,6 +118,7 @@ from .utils.flask_logger_middleware import (
     register_logger_context_middleware,
 )
 from .utils.http_client import HttpClient
+from .utils.http_error_handler import detect_auth_method_from_headers
 from .utils.jwt_tools import extract_user_id
 from .utils.logging_helpers import extract_logging_context
 from .utils.origin_validator import validate_origin
@@ -135,7 +135,7 @@ from .utils.token_utils import extract_client_token_info
 from .utils.unified_logger_factory import clear_logger_context, get_logger, set_logger_context
 from .utils.url_validator import validate_url
 
-__version__ = "4.3.0"
+__version__ = "4.3.1"
 __author__ = "AI Fabrix Team"
 __license__ = "MIT"
 

@@ -282,9 +282,7 @@ class TestAuthEndpoints:
             # Verify roles are actually returned (not empty list from parsing error)
             # Only check if token is valid (API_KEY may not return roles)
             if not config.api_key or user_token != config.api_key:
-                assert len(roles) > 0, (
-                    "Roles list should not be empty for valid JWT token"
-                )
+                assert len(roles) > 0, "Roles list should not be empty for valid JWT token"
                 # Verify roles are strings
                 assert all(isinstance(r, str) for r in roles), "All roles should be strings"
         except Exception as e:
@@ -311,9 +309,7 @@ class TestAuthEndpoints:
             # Verify roles are actually returned (not empty list from parsing error)
             # Only check if token is valid (API_KEY may not return roles)
             if not config.api_key or user_token != config.api_key:
-                assert len(roles) > 0, (
-                    "Roles list should not be empty for valid JWT token"
-                )
+                assert len(roles) > 0, "Roles list should not be empty for valid JWT token"
                 # Verify roles are strings
                 assert all(isinstance(r, str) for r in roles), "All roles should be strings"
         except Exception as e:
@@ -340,13 +336,13 @@ class TestAuthEndpoints:
             # Verify permissions are actually returned (not empty list from parsing error)
             # Only check if token is valid (API_KEY may not return permissions)
             if not config.api_key or user_token != config.api_key:
-                assert len(permissions) > 0, (
-                    "Permissions list should not be empty for valid JWT token"
-                )
+                assert (
+                    len(permissions) > 0
+                ), "Permissions list should not be empty for valid JWT token"
                 # Verify permissions are strings
-                assert all(isinstance(p, str) for p in permissions), (
-                    "All permissions should be strings"
-                )
+                assert all(
+                    isinstance(p, str) for p in permissions
+                ), "All permissions should be strings"
         except Exception as e:
             pytest.fail(f"Get permissions failed: {e}")
         finally:
@@ -371,13 +367,13 @@ class TestAuthEndpoints:
             # Verify permissions are actually returned (not empty list from parsing error)
             # Only check if token is valid (API_KEY may not return permissions)
             if not config.api_key or user_token != config.api_key:
-                assert len(permissions) > 0, (
-                    "Permissions list should not be empty for valid JWT token"
-                )
+                assert (
+                    len(permissions) > 0
+                ), "Permissions list should not be empty for valid JWT token"
                 # Verify permissions are strings
-                assert all(isinstance(p, str) for p in permissions), (
-                    "All permissions should be strings"
-                )
+                assert all(
+                    isinstance(p, str) for p in permissions
+                ), "All permissions should be strings"
         except Exception as e:
             pytest.fail(f"Refresh permissions failed: {e}")
         finally:
@@ -509,9 +505,7 @@ class TestAuthEndpoints:
             # Skip if we don't have a device code refresh token in the environment
             device_refresh_token = os.getenv("TEST_DEVICE_REFRESH_TOKEN")
             if not device_refresh_token:
-                pytest.skip(
-                    "TEST_DEVICE_REFRESH_TOKEN not available - cannot test refresh"
-                )
+                pytest.skip("TEST_DEVICE_REFRESH_TOKEN not available - cannot test refresh")
 
             # Use API client directly to test the API layer
             response = await client.api_client.auth.refresh_device_code_token(device_refresh_token)

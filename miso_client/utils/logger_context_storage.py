@@ -42,8 +42,7 @@ class LoggerContextStorage:
 
     @staticmethod
     def clear_context() -> None:
-        """Clear logger context for current async execution context.
-        """
+        """Clear logger context for current async execution context."""
         logger_context_var.set(None)
 
     @staticmethod

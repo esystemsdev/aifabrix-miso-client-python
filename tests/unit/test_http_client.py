@@ -286,6 +286,73 @@ class TestInternalHttpClient:
             assert http_client.token_manager.token_expires_at is None
 
     @pytest.mark.asyncio
+    async def test_post_with_json_kwarg_no_duplicate(self, http_client):
+        """Post with json= and timeout= in kwargs must not pass json twice to httpx.
+
+        Regression: post(url, json=body, timeout=60.0) must not raise
+        "got multiple values for keyword argument 'json'" from httpx.
+        """
+        await http_client._initialize_client()
+        http_client.token_manager.client_token = "test-token"
+
+        payload = {"key": "value"}
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"success": True}
+        mock_response.headers.get.return_value = "application/json"
+        mock_response.raise_for_status = MagicMock()
+
+        http_client.client.post = AsyncMock(return_value=mock_response)
+
+        with patch.object(http_client, "_ensure_client_token", new_callable=AsyncMock):
+            result = await http_client.post(
+                "https://example.com/api/endpoint",
+                json=payload,
+                timeout=60.0,
+            )
+
+        assert result == {"success": True}
+        http_client.client.post.assert_called_once()
+        call_kwargs = http_client.client.post.call_args[1]
+        assert call_kwargs.get("json") == payload
+        assert call_kwargs.get("timeout") == 60.0
+        # json must appear only once (no duplicate)
+        assert list(call_kwargs.keys()).count("json") == 1
+
+    @pytest.mark.asyncio
+    async def test_put_with_json_kwarg_no_duplicate(self, http_client):
+        """Put with json= and timeout= in kwargs must not pass json twice to httpx.
+
+        Regression: put(url, json=body, timeout=60.0) must not raise
+        "got multiple values for keyword argument 'json'" from httpx.
+        """
+        await http_client._initialize_client()
+        http_client.token_manager.client_token = "test-token"
+
+        payload = {"key": "value"}
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"updated": True}
+        mock_response.headers.get.return_value = "application/json"
+        mock_response.raise_for_status = MagicMock()
+
+        http_client.client.put = AsyncMock(return_value=mock_response)
+
+        with patch.object(http_client, "_ensure_client_token", new_callable=AsyncMock):
+            result = await http_client.put(
+                "https://example.com/api/endpoint",
+                json=payload,
+                timeout=60.0,
+            )
+
+        assert result == {"updated": True}
+        http_client.client.put.assert_called_once()
+        call_kwargs = http_client.client.put.call_args[1]
+        assert call_kwargs.get("json") == payload
+        assert call_kwargs.get("timeout") == 60.0
+        assert list(call_kwargs.keys()).count("json") == 1
+
+    @pytest.mark.asyncio
     async def test_delete_request_success(self, http_client):
         """Test successful DELETE request."""
         await http_client._initialize_client()
@@ -1346,6 +1413,33 @@ class TestHttpClient:
 
         # Verify audit logging was called for each method
         assert http_client.logger.audit.call_count == 4
+
+    @pytest.mark.asyncio
+    async def test_public_post_with_json_kwarg_no_duplicate(self, http_client):
+        """Public HttpClient post(url, json=body, timeout=...) must not raise duplicate json error.
+
+        Regression: when caller uses json= and timeout=, internal client must
+        pop body params so httpx does not receive json twice.
+        """
+        mock_internal_client = AsyncMock()
+        mock_internal_client.post = AsyncMock(return_value={"success": True})
+        http_client._internal_client = mock_internal_client
+
+        http_client.logger.audit = AsyncMock()
+
+        result = await http_client.post(
+            "https://example.com/api/endpoint",
+            json={"key": "value"},
+            timeout=60.0,
+        )
+
+        assert result == {"success": True}
+        mock_internal_client.post.assert_called_once()
+        call_args = mock_internal_client.post.call_args
+        assert call_args[0][0] == "https://example.com/api/endpoint"
+        assert call_args[0][1] is None  # data param
+        assert call_args[1]["json"] == {"key": "value"}
+        assert call_args[1]["timeout"] == 60.0
 
     @pytest.mark.asyncio
     async def test_authenticated_request_with_logging(self, http_client):

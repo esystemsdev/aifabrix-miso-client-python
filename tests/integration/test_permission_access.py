@@ -34,9 +34,7 @@ async def test_permissions(token: str) -> None:
         print()
     except Exception as e:
         print(f"✗ Failed to load configuration: {e}")
-        print(
-            "  Make sure .env file exists with MISO_CLIENTID, MISO_CLIENTSECRET"
-        )
+        print("  Make sure .env file exists with MISO_CLIENTID, MISO_CLIENTSECRET")
         sys.exit(1)
 
     # Initialize client

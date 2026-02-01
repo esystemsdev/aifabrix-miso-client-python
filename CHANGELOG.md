@@ -5,6 +5,18 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.3.1] - 2026-02-01
+
+### Fixed
+
+- **HTTP client body params** - `post()` and `put()` no longer pass body parameters twice to httpx
+  - `InternalHttpClient`: Body-related kwargs (`json`, `content`, `data`, `files`) are popped and passed to httpx at most once, avoiding "got multiple values for keyword argument 'json'" when callers pass both positional `data` and `json=` in kwargs
+  - `HttpClient`: Docstrings updated to document that callers may pass `json=` in kwargs and body params are forwarded without duplication
+
+### Technical
+
+- Added unit tests for post/put with `json` kwarg (no duplicate body params)
+
 ## [4.3.0] - 2026-01-27
 
 ### Added

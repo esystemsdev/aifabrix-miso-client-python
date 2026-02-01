@@ -195,8 +195,10 @@ class HttpClient:
 
         Args:
             url: Request URL
-            data: Request data (will be JSON encoded)
-            **kwargs: Additional httpx request parameters
+            data: Request data (will be JSON encoded). Callers may also pass
+                json= in kwargs; body params are forwarded without duplication.
+            **kwargs: Additional httpx request parameters (e.g. json=, timeout=,
+                headers=). Body params are passed to httpx at most once.
 
         Returns:
             Response data (JSON parsed)
@@ -216,8 +218,10 @@ class HttpClient:
 
         Args:
             url: Request URL
-            data: Request data (will be JSON encoded)
-            **kwargs: Additional httpx request parameters
+            data: Request data (will be JSON encoded). Callers may also pass
+                json= in kwargs; body params are forwarded without duplication.
+            **kwargs: Additional httpx request parameters (e.g. json=, timeout=,
+                headers=). Body params are passed to httpx at most once.
 
         Returns:
             Response data (JSON parsed)

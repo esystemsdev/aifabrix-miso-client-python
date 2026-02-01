@@ -169,7 +169,10 @@ class InternalHttpClient:
         Args:
             url: Request URL
             data: Request data (will be JSON encoded)
-            **kwargs: Additional httpx request parameters
+            **kwargs: Additional httpx request parameters (e.g. json=, timeout=, headers=).
+                Body params (json, content, data, files) are popped so they are
+                passed to httpx at most once, avoiding "multiple values for keyword
+                argument" errors.
 
         Returns:
             Response data (JSON parsed)
@@ -180,9 +183,25 @@ class InternalHttpClient:
         """
         await self._initialize_client()
         await self._ensure_client_token()
+        # Pop body-related kwargs so they are not passed twice to httpx (avoids
+        # "got multiple values for keyword argument 'json'" from httpx).
+        json_from_kwargs = kwargs.pop("json", None)
+        content = kwargs.pop("content", None)
+        data_from_kwargs = kwargs.pop("data", None)
+        files = kwargs.pop("files", None)
+        json_body = data if data is not None else json_from_kwargs
         try:
             assert self.client is not None
-            response = await self.client.post(url, json=data, **kwargs)
+            if json_body is not None:
+                response = await self.client.post(url, json=json_body, **kwargs)
+            elif content is not None:
+                response = await self.client.post(url, content=content, **kwargs)
+            elif data_from_kwargs is not None:
+                response = await self.client.post(url, data=data_from_kwargs, **kwargs)
+            elif files is not None:
+                response = await self.client.post(url, files=files, **kwargs)
+            else:
+                response = await self.client.post(url, **kwargs)
 
             if response.status_code == 401:
                 self.token_manager.clear_token()
@@ -203,7 +222,10 @@ class InternalHttpClient:
         Args:
             url: Request URL
             data: Request data (will be JSON encoded)
-            **kwargs: Additional httpx request parameters
+            **kwargs: Additional httpx request parameters (e.g. json=, timeout=, headers=).
+                Body params (json, content, data, files) are popped so they are
+                passed to httpx at most once, avoiding "multiple values for keyword
+                argument" errors.
 
         Returns:
             Response data (JSON parsed)
@@ -214,9 +236,25 @@ class InternalHttpClient:
         """
         await self._initialize_client()
         await self._ensure_client_token()
+        # Pop body-related kwargs so they are not passed twice to httpx (avoids
+        # "got multiple values for keyword argument 'json'" from httpx).
+        json_from_kwargs = kwargs.pop("json", None)
+        content = kwargs.pop("content", None)
+        data_from_kwargs = kwargs.pop("data", None)
+        files = kwargs.pop("files", None)
+        json_body = data if data is not None else json_from_kwargs
         try:
             assert self.client is not None
-            response = await self.client.put(url, json=data, **kwargs)
+            if json_body is not None:
+                response = await self.client.put(url, json=json_body, **kwargs)
+            elif content is not None:
+                response = await self.client.put(url, content=content, **kwargs)
+            elif data_from_kwargs is not None:
+                response = await self.client.put(url, data=data_from_kwargs, **kwargs)
+            elif files is not None:
+                response = await self.client.put(url, files=files, **kwargs)
+            else:
+                response = await self.client.put(url, **kwargs)
 
             if response.status_code == 401:
                 self.token_manager.clear_token()
