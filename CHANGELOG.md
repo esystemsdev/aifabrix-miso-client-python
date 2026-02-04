@@ -5,6 +5,22 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.4.0] - 2026-02-04
+
+### Changed
+
+- **Logging public API (breaking)** - Removed auto-computable parameters from public logging methods and `ClientLoggingOptions`
+  - `LoggerService`: removed token-based helper methods; rely on request/context extraction
+  - `LoggerChain`: removed `add_user`, `add_application`, `add_correlation`, `add_session`, `with_token`, and `with_application_id`
+  - `ClientLoggingOptions`: removed auto-computable fields (user/session/correlation/request, IP/UA, token, requestSize)
+- **Context flow** - Auto-computable fields are now promoted from request/contextvars instead of public params
+- **Docs** - Updated usage examples and added async context propagation notes
+
+### Technical
+
+- Updated logger helpers and request helpers to split/promote auto fields from context
+- Updated unit tests for new logging API and context handling
+
 ## [4.3.1] - 2026-02-01
 
 ### Fixed
