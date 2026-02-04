@@ -14,17 +14,18 @@ T = TypeVar("T")
 def parsePaginationParams(params: dict) -> Dict[str, int]:
     """Parse query parameters into pagination values.
 
-    Parses `page` and `page_size` query parameters into `currentPage` and `pageSize`.
+    Parses `page` and `pageSize` query parameters into `currentPage` and `pageSize`.
     Both are 1-based (page starts at 1).
+    Also accepts legacy `page_size` for backward compatibility.
 
     Args:
-        params: Dictionary with query parameters (e.g., {'page': '1', 'page_size': '25'})
+        params: Dictionary with query parameters (e.g., {'page': '1', 'pageSize': '25'})
 
     Returns:
         Dictionary with 'currentPage' and 'pageSize' keys (camelCase)
 
     Examples:
-        >>> parsePaginationParams({'page': '1', 'page_size': '25'})
+        >>> parsePaginationParams({'page': '1', 'pageSize': '25'})
         {'currentPage': 1, 'pageSize': 25}
         >>> parsePaginationParams({'page': '2'})
         {'currentPage': 2, 'pageSize': 20}  # Default pageSize is 20
@@ -69,7 +70,7 @@ def parse_pagination_params(params: dict[str, Any]) -> tuple[int, int]:
     and parse_sort_params.
 
     Args:
-        params: Dictionary with "page" and "page_size" keys.
+        params: Dictionary with "page" and "pageSize" keys.
                 Values can be int, str, or None.
 
     Returns:
@@ -85,9 +86,9 @@ def parse_pagination_params(params: dict[str, Any]) -> tuple[int, int]:
         - Invalid values (non-numeric strings, None) default to safe values
 
     Examples:
-        >>> parse_pagination_params({"page": 2, "page_size": 50})
+        >>> parse_pagination_params({"page": 2, "pageSize": 50})
         (2, 50)
-        >>> parse_pagination_params({"page": "3", "page_size": "25"})
+        >>> parse_pagination_params({"page": "3", "pageSize": "25"})
         (3, 25)
         >>> parse_pagination_params({"page": 1})
         (1, 20)
@@ -100,7 +101,7 @@ def parse_pagination_params(params: dict[str, Any]) -> tuple[int, int]:
 
     """
     page = params.get("page", 1)
-    page_size = params.get("page_size", 20)
+    page_size = params.get("page_size", params.get("pageSize", 20))
 
     # Convert to int if needed (handles string inputs from query params)
     try:

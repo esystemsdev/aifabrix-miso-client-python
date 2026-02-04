@@ -342,6 +342,18 @@ class AuthService:
         """
         await cache_user_info(self.cache, token, user_info, self.user_ttl)
 
+    async def _fetch_user_info(
+        self, token: str, auth_strategy: Optional[AuthStrategy]
+    ) -> Optional[UserInfo]:
+        if self.api_client:
+            response = await self.api_client.auth.get_user(token, auth_strategy=auth_strategy)
+            return response.data.user
+
+        user_data = await self.http_client.authenticated_request(
+            "GET", "/api/v1/auth/user", token, auth_strategy=auth_strategy
+        )
+        return UserInfo(**user_data)
+
     async def get_user_info(
         self, token: str, auth_strategy: Optional[AuthStrategy] = None
     ) -> Optional[UserInfo]:
@@ -361,20 +373,11 @@ class AuthService:
             return None
 
         try:
-            # Check cache first
             cached_user = await self._check_user_info_cache(token)
             if cached_user:
                 return cached_user
 
-            # Cache miss - fetch from controller
-            if self.api_client:
-                response = await self.api_client.auth.get_user(token, auth_strategy=auth_strategy)
-                user_info = response.data.user
-            else:
-                user_data = await self.http_client.authenticated_request(
-                    "GET", "/api/v1/auth/user", token, auth_strategy=auth_strategy
-                )
-                user_info = UserInfo(**user_data)
+            user_info = await self._fetch_user_info(token, auth_strategy)
 
             # Cache the result
             if user_info:

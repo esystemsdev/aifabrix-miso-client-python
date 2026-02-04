@@ -80,20 +80,22 @@ def detect_auth_method_from_headers(
     if not headers:
         return None
 
+    normalized_headers = {key.lower(): value for key, value in headers.items()}
+
     # Check for Bearer token (Authorization header)
-    if headers.get("Authorization") or headers.get("authorization"):
+    if normalized_headers.get("authorization"):
         return "bearer"
 
     # Check for client token
-    if headers.get("x-client-token") or headers.get("X-Client-Token"):
+    if normalized_headers.get("x-client-token"):
         return "client-token"
 
     # Check for client credentials (client ID header indicates client-credentials auth)
-    if headers.get("x-client-id") or headers.get("X-Client-Id"):
+    if normalized_headers.get("x-client-id"):
         return "client-credentials"
 
     # Check for API key
-    if headers.get("x-api-key") or headers.get("X-Api-Key"):
+    if normalized_headers.get("x-api-key"):
         return "api-key"
 
     return None

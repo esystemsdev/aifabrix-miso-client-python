@@ -15,7 +15,8 @@ The command:
 4. Checks if a plan file already exists with pattern `*-fix-and-improve-code.plan.md`
 5. If a plan exists, updates the existing plan file
 6. If no plan exists, creates a new plan file with format: `<next-number>-fix-and-improve-code.plan.md`
-7. Documents all violations and required improvements based on cursor rules in one plan file
+7. **Immediately starts implementing the plan right after creation/update**, applying fixes automatically unless they are breaking changes that require confirmation
+8. Documents all violations and required improvements based on cursor rules in one plan file
 
 ## Usage
 
@@ -172,7 +173,7 @@ Creates or updates a single plan file in `.cursor/plans/` with:
 
 **Important**: If a plan file with pattern `*-fix-and-improve-code.plan.md` already exists (e.g., `70-fix-and-improve-code.plan.md`), the command will **update** the existing plan instead of creating a new one. This ensures that progress on the single unified plan is preserved and updated with the latest analysis.
 
-**Execution Behavior**: When generating a new plan, it should be clearly identified as a "code improvement plan and execution". The command should execute improvements automatically without asking for user input or showing progress details, unless there are breaking changes or other critical reasons that require user confirmation. The focus is on silent, automated execution of code improvements based on the analysis.
+**Execution Behavior**: When generating or updating a plan, it should be clearly identified as a "code improvement plan and execution". The command must immediately start implementing the plan right after creation/update and execute improvements automatically without asking for user input or showing progress details, unless there are breaking changes or other critical reasons that require user confirmation. The focus is on silent, automated execution of code improvements based on the analysis.
 
 ## Example Plan Structure
 
