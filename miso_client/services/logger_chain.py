@@ -38,20 +38,6 @@ class LoggerChain:
         self.context[key] = value
         return self
 
-    def add_user(self, user_id: str) -> "LoggerChain":
-        """Add user ID."""
-        if self.options is None:
-            self.options = ClientLoggingOptions()
-        self.options.userId = user_id
-        return self
-
-    def add_application(self, application_id: str) -> "LoggerChain":
-        """Add application ID."""
-        if self.options is None:
-            self.options = ClientLoggingOptions()
-        self.options.applicationId = application_id
-        return self
-
     def with_application(self, application: str) -> "LoggerChain":
         """Override application name for this log entry."""
         if self.options is None:
@@ -59,32 +45,11 @@ class LoggerChain:
         self.options.application = application
         return self
 
-    def with_application_id(self, application_id: str) -> "LoggerChain":
-        """Override application ID for this log entry."""
-        if self.options is None:
-            self.options = ClientLoggingOptions()
-        self.options.applicationId = application_id
-        return self
-
     def with_environment(self, environment: str) -> "LoggerChain":
         """Override environment name for this log entry."""
         if self.options is None:
             self.options = ClientLoggingOptions()
         self.options.environment = environment
-        return self
-
-    def add_correlation(self, correlation_id: str) -> "LoggerChain":
-        """Add correlation ID."""
-        if self.options is None:
-            self.options = ClientLoggingOptions()
-        self.options.correlationId = correlation_id
-        return self
-
-    def with_token(self, token: str) -> "LoggerChain":
-        """Add token for context extraction."""
-        if self.options is None:
-            self.options = ClientLoggingOptions()
-        self.options.token = token
         return self
 
     def without_masking(self) -> "LoggerChain":
@@ -119,19 +84,19 @@ class LoggerChain:
         if self.options is None:
             self.options = ClientLoggingOptions()
 
-        # Merge into options (these become top-level LogEntry fields)
+        # Merge auto-computable fields into context (promoted in build_log_entry)
         if ctx.user_id:
-            self.options.userId = ctx.user_id
+            self.context["userId"] = ctx.user_id
         if ctx.session_id:
-            self.options.sessionId = ctx.session_id
+            self.context["sessionId"] = ctx.session_id
         if ctx.correlation_id:
-            self.options.correlationId = ctx.correlation_id
+            self.context["correlationId"] = ctx.correlation_id
         if ctx.request_id:
-            self.options.requestId = ctx.request_id
+            self.context["requestId"] = ctx.request_id
         if ctx.ip_address:
-            self.options.ipAddress = ctx.ip_address
+            self.context["ipAddress"] = ctx.ip_address
         if ctx.user_agent:
-            self.options.userAgent = ctx.user_agent
+            self.context["userAgent"] = ctx.user_agent
 
         # Merge into context (additional request info, not top-level LogEntry fields)
         if ctx.method:
@@ -209,7 +174,6 @@ class LoggerChain:
 
     def with_request_metrics(
         self,
-        request_size: Optional[int] = None,
         response_size: Optional[int] = None,
         duration_ms: Optional[int] = None,
         duration_seconds: Optional[float] = None,
@@ -219,7 +183,6 @@ class LoggerChain:
         """Add request/response metrics.
 
         Args:
-            request_size: Request body size in bytes
             response_size: Response body size in bytes
             duration_ms: Duration in milliseconds
             duration_seconds: Duration in seconds
@@ -232,8 +195,6 @@ class LoggerChain:
         """
         if self.options is None:
             self.options = ClientLoggingOptions()
-        if request_size is not None:
-            self.options.requestSize = request_size
         if response_size is not None:
             self.options.responseSize = response_size
         if duration_ms is not None:
@@ -267,21 +228,6 @@ class LoggerChain:
             self.options.errorCategory = error_category
         if http_status_category:
             self.options.httpStatusCategory = http_status_category
-        return self
-
-    def add_session(self, session_id: str) -> "LoggerChain":
-        """Add session ID to logging context.
-
-        Args:
-            session_id: Session identifier
-
-        Returns:
-            Self for method chaining
-
-        """
-        if self.options is None:
-            self.options = ClientLoggingOptions()
-        self.options.sessionId = session_id
         return self
 
     async def error(self, message: str, stack_trace: Optional[str] = None) -> None:

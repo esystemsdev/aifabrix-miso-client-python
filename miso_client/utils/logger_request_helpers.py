@@ -7,11 +7,11 @@ and building LogEntry objects with request context.
 from typing import TYPE_CHECKING, Any, Dict, Literal, Optional
 
 if TYPE_CHECKING:
-    from ..models.config import ClientLoggingOptions, ForeignKeyReference, LogEntry
+    from ..models.config import ClientLoggingOptions, LogEntry
     from ..services.logger import LoggerService
 
-from ..models.config import ClientLoggingOptions, ForeignKeyReference
-from ..utils.logger_helpers import build_log_entry, extract_metadata
+from ..models.config import ClientLoggingOptions
+from ..utils.logger_helpers import build_log_entry, extract_metadata, split_log_context
 from ..utils.request_context import extract_request_context
 
 
@@ -47,23 +47,20 @@ async def get_log_with_request(
     # Extract request context
     ctx = extract_request_context(request)
 
-    # Build options from extracted context
-    options = ClientLoggingOptions()
-    if ctx.user_id:
-        options.userId = ctx.user_id
-    if ctx.session_id:
-        options.sessionId = ctx.session_id
-    if ctx.correlation_id:
-        options.correlationId = ctx.correlation_id
-    if ctx.request_id:
-        options.requestId = ctx.request_id
-    if ctx.ip_address:
-        options.ipAddress = ctx.ip_address
-    if ctx.user_agent:
-        options.userAgent = ctx.user_agent
-
     # Merge request info into context
     request_context = context or {}
+    if ctx.user_id:
+        request_context["userId"] = ctx.user_id
+    if ctx.session_id:
+        request_context["sessionId"] = ctx.session_id
+    if ctx.correlation_id:
+        request_context["correlationId"] = ctx.correlation_id
+    if ctx.request_id:
+        request_context["requestId"] = ctx.request_id
+    if ctx.ip_address:
+        request_context["ipAddress"] = ctx.ip_address
+    if ctx.user_agent:
+        request_context["userAgent"] = ctx.user_agent
     if ctx.method:
         request_context["method"] = ctx.method
     if ctx.path:
@@ -74,32 +71,25 @@ async def get_log_with_request(
         request_context["requestSize"] = ctx.request_size
 
     # Create log entry using helper function
-    correlation_id = (
-        options.correlationId if options else None
-    ) or logger_service._generate_correlation_id()
+    context_data, auto_fields = split_log_context(request_context)
+    correlation_id = auto_fields.get("correlationId") or logger_service._generate_correlation_id()
 
-    # Get application context (with overwrites from options)
-    application_id_str: Optional[str] = None
-    if options and options.applicationId:
-        if isinstance(options.applicationId, ForeignKeyReference):
-            application_id_str = options.applicationId.id
-        else:
-            application_id_str = options.applicationId
     app_context = await logger_service.application_context_service.get_application_context(
-        overwrite_application=options.application if options else None,
-        overwrite_application_id=application_id_str,
-        overwrite_environment=options.environment if options else None,
+        overwrite_application=None,
+        overwrite_application_id=None,
+        overwrite_environment=None,
     )
 
     return build_log_entry(
         level=level,
         message=message,
-        context=request_context,
+        context=context_data,
         config_client_id=logger_service.config.client_id,
         correlation_id=correlation_id,
-        jwt_token=options.token if options else None,
+        jwt_token=auto_fields.get("token"),
         stack_trace=stack_trace,
-        options=options,
+        options=ClientLoggingOptions(),
+        auto_fields=auto_fields,
         metadata=extract_metadata(),
         mask_sensitive=logger_service.mask_sensitive_data,
         application_context=app_context.to_dict(),
@@ -140,98 +130,25 @@ async def get_with_context(
 
     """
     final_options = options or ClientLoggingOptions()
-    correlation_id = (
-        final_options.correlationId if final_options else None
-    ) or logger_service._generate_correlation_id()
+    context_data, auto_fields = split_log_context(context)
+    correlation_id = auto_fields.get("correlationId") or logger_service._generate_correlation_id()
 
-    # Get application context (with overwrites from options)
-    application_id_str: Optional[str] = None
-    if final_options and final_options.applicationId:
-        if isinstance(final_options.applicationId, ForeignKeyReference):
-            application_id_str = final_options.applicationId.id
-        else:
-            application_id_str = final_options.applicationId
     app_context = await logger_service.application_context_service.get_application_context(
         overwrite_application=final_options.application if final_options else None,
-        overwrite_application_id=application_id_str,
+        overwrite_application_id=None,
         overwrite_environment=final_options.environment if final_options else None,
     )
 
     return build_log_entry(
         level=level,
         message=message,
-        context=context,
+        context=context_data,
         config_client_id=logger_service.config.client_id,
         correlation_id=correlation_id,
-        jwt_token=final_options.token if final_options else None,
+        jwt_token=auto_fields.get("token"),
         stack_trace=stack_trace,
         options=final_options,
-        metadata=extract_metadata(),
-        mask_sensitive=logger_service.mask_sensitive_data,
-        application_context=app_context.to_dict(),
-    )
-
-
-async def get_with_token(
-    logger_service: "LoggerService",
-    token: str,
-    message: str,
-    level: Literal["error", "audit", "info", "debug"] = "info",
-    context: Optional[Dict[str, Any]] = None,
-    stack_trace: Optional[str] = None,
-) -> "LogEntry":
-    """Get LogEntry object with JWT token context extracted.
-
-    Extracts userId, sessionId from JWT token.
-    Returns LogEntry with user context extracted.
-
-    Args:
-        logger_service: LoggerService instance
-        token: JWT token string
-        message: Log message
-        level: Log level (default: "info")
-        context: Additional context data (optional)
-        stack_trace: Stack trace for errors (optional)
-
-    Returns:
-        LogEntry object with user context extracted
-
-    Example:
-        >>> log_entry = await get_with_token(
-        ...     logger,
-        ...     "jwt-token",
-        ...     "User action",
-        ...     level="audit"
-        ... )
-
-    """
-    options = ClientLoggingOptions(token=token)
-    correlation_id = (
-        options.correlationId if options else None
-    ) or logger_service._generate_correlation_id()
-
-    # Get application context (with overwrites from options)
-    application_id_str: Optional[str] = None
-    if options and options.applicationId:
-        if isinstance(options.applicationId, ForeignKeyReference):
-            application_id_str = options.applicationId.id
-        else:
-            application_id_str = options.applicationId
-    app_context = await logger_service.application_context_service.get_application_context(
-        overwrite_application=options.application if options else None,
-        overwrite_application_id=application_id_str,
-        overwrite_environment=options.environment if options else None,
-    )
-
-    return build_log_entry(
-        level=level,
-        message=message,
-        context=context,
-        config_client_id=logger_service.config.client_id,
-        correlation_id=correlation_id,
-        jwt_token=token,
-        stack_trace=stack_trace,
-        options=options,
+        auto_fields=auto_fields,
         metadata=extract_metadata(),
         mask_sensitive=logger_service.mask_sensitive_data,
         application_context=app_context.to_dict(),

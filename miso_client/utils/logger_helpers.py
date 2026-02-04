@@ -6,7 +6,7 @@ Extracted from logger.py to reduce file size and improve maintainability.
 import os
 import sys
 from datetime import datetime, timezone
-from typing import Any, Dict, Literal, Optional, Union
+from typing import Any, Dict, Literal, Optional, Tuple, Union
 
 from ..models.config import ClientLoggingOptions, ForeignKeyReference, LogEntry
 from ..utils.data_masker import DataMasker
@@ -78,6 +78,39 @@ def extract_metadata() -> Dict[str, Any]:
     return metadata
 
 
+AUTO_CONTEXT_KEYS = {
+    "applicationId",
+    "correlationId",
+    "ipAddress",
+    "requestId",
+    "requestSize",
+    "sessionId",
+    "token",
+    "userAgent",
+    "userId",
+}
+
+
+def split_log_context(context: Optional[Dict[str, Any]]) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Split context into additional context and auto-computable fields.
+
+    Args:
+        context: Context dictionary (optional)
+
+    Returns:
+        Tuple of (context_without_auto_fields, auto_fields)
+
+    """
+    if not context:
+        return {}, {}
+
+    auto_fields = {key: value for key, value in context.items() if key in AUTO_CONTEXT_KEYS}
+    remaining_context = {
+        key: value for key, value in context.items() if key not in AUTO_CONTEXT_KEYS
+    }
+    return remaining_context, auto_fields
+
+
 def _convert_to_foreign_key_reference(
     value: Optional[Union[str, ForeignKeyReference]], entity_type: str
 ) -> Optional[ForeignKeyReference]:
@@ -120,6 +153,7 @@ def build_log_entry(
     jwt_token: Optional[str] = None,
     stack_trace: Optional[str] = None,
     options: Optional[ClientLoggingOptions] = None,
+    auto_fields: Optional[Dict[str, Any]] = None,
     metadata: Optional[Dict[str, Any]] = None,
     mask_sensitive: bool = True,
     application_context: Optional[Dict[str, Optional[str]]] = None,
@@ -135,6 +169,7 @@ def build_log_entry(
         jwt_token: Optional JWT token for context extraction
         stack_trace: Stack trace for errors
         options: Logging options
+        auto_fields: Auto-computable fields extracted from context (optional)
         metadata: Environment metadata
         mask_sensitive: Whether to mask sensitive data
         application_context: Optional context dict (application, applicationId, environment)
@@ -143,14 +178,20 @@ def build_log_entry(
         LogEntry object
 
     """
+    if auto_fields is None:
+        context, auto_fields = split_log_context(context)
+
     # Extract JWT context if token provided
-    jwt_context = extract_jwt_context(jwt_token or (options.token if options else None))
+    token_value = jwt_token or (auto_fields.get("token") if auto_fields else None)
+    jwt_context = extract_jwt_context(token_value)
 
     # Extract environment metadata
     env_metadata = metadata or extract_metadata()
 
     # Generate correlation ID if not provided
-    final_correlation_id = correlation_id or (options.correlationId if options else None)
+    final_correlation_id = correlation_id or (
+        auto_fields.get("correlationId") if auto_fields else None
+    )
 
     # Mask sensitive data in context if enabled
     should_mask = (options.maskSensitiveData if options else None) is not False and mask_sensitive
@@ -173,12 +214,14 @@ def build_log_entry(
 
     # Determine applicationId (priority: options > application_context > jwt_context)
     application_id_value = (
-        (options.applicationId if options else None)
+        (auto_fields.get("applicationId") if auto_fields else None)
         or app_context.get("applicationId")
         or jwt_context.get("applicationId")
     )
 
-    user_id_value = (options.userId if options else None) or jwt_context.get("userId")
+    user_id_value = (auto_fields.get("userId") if auto_fields else None) or jwt_context.get(
+        "userId"
+    )
 
     application_id_ref = _convert_to_foreign_key_reference(application_id_value, "Application")
     user_id_ref = _convert_to_foreign_key_reference(user_id_value, "User")
@@ -194,10 +237,11 @@ def build_log_entry(
         "stackTrace": stack_trace,
         "correlationId": final_correlation_id,
         "userId": user_id_ref,
-        "sessionId": (options.sessionId if options else None) or jwt_context.get("sessionId"),
-        "requestId": options.requestId if options else None,
-        "ipAddress": options.ipAddress if options else None,
-        "userAgent": options.userAgent if options else None,
+        "sessionId": (auto_fields.get("sessionId") if auto_fields else None)
+        or jwt_context.get("sessionId"),
+        "requestId": auto_fields.get("requestId") if auto_fields else None,
+        "ipAddress": auto_fields.get("ipAddress") if auto_fields else None,
+        "userAgent": auto_fields.get("userAgent") if auto_fields else None,
         **env_metadata,
         # Indexed context fields from options
         "sourceKey": options.sourceKey if options else None,
@@ -210,7 +254,7 @@ def build_log_entry(
         "credentialId": options.credentialId if options else None,
         "credentialType": options.credentialType if options else None,
         # Request metrics
-        "requestSize": options.requestSize if options else None,
+        "requestSize": auto_fields.get("requestSize") if auto_fields else None,
         "responseSize": options.responseSize if options else None,
         "durationMs": options.durationMs if options else None,
         "durationSeconds": options.durationSeconds if options else None,

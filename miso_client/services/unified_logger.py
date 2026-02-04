@@ -149,41 +149,18 @@ class UnifiedLogger:
         """
         ctx = self._get_context()
 
-        # Extract fields that go into ClientLoggingOptions
         options_dict: Dict[str, Any] = {}
-        context_dict: Dict[str, Any] = {}
+        context_dict: Dict[str, Any] = dict(ctx)
 
-        # Map context fields to ClientLoggingOptions
+        # Only keep non-auto fields in options
         option_fields = {
-            "userId": "userId",
-            "applicationId": "applicationId",
             "application": "application",
             "environment": "environment",
-            "correlationId": "correlationId",
-            "requestId": "requestId",
-            "sessionId": "sessionId",
-            "token": "token",
-            "ipAddress": "ipAddress",
-            "userAgent": "userAgent",
         }
 
         for ctx_key, option_key in option_fields.items():
-            if ctx_key in ctx:
-                options_dict[option_key] = ctx[ctx_key]
-
-        # Remaining fields go into context
-        context_fields = {"method", "path", "hostname"}
-        for key, value in ctx.items():
-            if key not in option_fields and key not in context_fields:
-                context_dict[key] = value
-
-        # Add method, path, hostname to context
-        if "method" in ctx:
-            context_dict["method"] = ctx["method"]
-        if "path" in ctx:
-            context_dict["path"] = ctx["path"]
-        if "hostname" in ctx:
-            context_dict["hostname"] = ctx["hostname"]
+            if ctx_key in context_dict:
+                options_dict[option_key] = context_dict.pop(ctx_key)
 
         options = ClientLoggingOptions(**options_dict) if options_dict else ClientLoggingOptions()
 

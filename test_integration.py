@@ -534,8 +534,6 @@ class TestRunner:
         """Test LoggerService."""
         self.print_header("LoggerService")
 
-        api_key = self.client.config.api_key
-
         # Test 1: info logging
         async def test_info_logging():
             await self.client.log.info("Test info message", {"test": "data"})
@@ -573,25 +571,27 @@ class TestRunner:
 
         await self.run_test("LoggerChain - with_context", test_logger_chain_context)
 
-        # Test 6: LoggerChain - with_token
-        async def test_logger_chain_token():
-            if not api_key:
-                self.skip_test("LoggerChain - with_token", "API_KEY not configured")
-                return
-            await self.client.log.with_token(api_key).info("Chain test with token")
+        # Test 6: LoggerChain - with_application
+        async def test_logger_chain_application():
+            await (
+                self.client.log.with_context({})
+                .with_application("test-app")
+                .info("Chain test with application")
+            )
             return True
 
-        if api_key:
-            await self.run_test("LoggerChain - with_token", test_logger_chain_token)
-        else:
-            self.skip_test("LoggerChain - with_token", "API_KEY not configured")
+        await self.run_test("LoggerChain - with_application", test_logger_chain_application)
 
-        # Test 7: LoggerChain - add_user
-        async def test_logger_chain_user():
-            await self.client.log.with_context({}).add_user("test-user-123").info("Chain test with user")
+        # Test 7: LoggerChain - request metrics
+        async def test_logger_chain_request_metrics():
+            await (
+                self.client.log.with_context({})
+                .with_request_metrics(response_size=256, duration_ms=10)
+                .info("Chain test with request metrics")
+            )
             return True
 
-        await self.run_test("LoggerChain - add_user", test_logger_chain_user)
+        await self.run_test("LoggerChain - request metrics", test_logger_chain_request_metrics)
 
     async def test_http_client(self):
         """Test HttpClient."""

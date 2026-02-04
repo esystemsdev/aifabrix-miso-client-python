@@ -42,34 +42,6 @@ class TestLoggerChain:
         assert logger_chain.context["new_key"] == "new_value"
         assert logger_chain.context["initial"] == "context"  # Preserve existing
 
-    def test_add_user(self, logger_chain):
-        """Test add_user method."""
-        result = logger_chain.add_user("user-123")
-
-        assert result is logger_chain
-        assert logger_chain.options.userId == "user-123"
-
-    def test_add_application(self, logger_chain):
-        """Test add_application method."""
-        result = logger_chain.add_application("app-456")
-
-        assert result is logger_chain
-        assert logger_chain.options.applicationId == "app-456"
-
-    def test_add_correlation(self, logger_chain):
-        """Test add_correlation method."""
-        result = logger_chain.add_correlation("corr-789")
-
-        assert result is logger_chain
-        assert logger_chain.options.correlationId == "corr-789"
-
-    def test_with_token(self, logger_chain):
-        """Test with_token method."""
-        result = logger_chain.with_token("jwt-token-123")
-
-        assert result is logger_chain
-        assert logger_chain.options.token == "jwt-token-123"
-
     def test_without_masking(self, logger_chain):
         """Test without_masking method."""
         result = logger_chain.without_masking()
@@ -80,13 +52,15 @@ class TestLoggerChain:
     def test_chain_methods_composable(self, logger_chain):
         """Test that chain methods can be composed."""
         result = (
-            logger_chain.add_context("key1", "value1").add_user("user-1").add_application("app-1")
+            logger_chain.add_context("key1", "value1")
+            .with_application("app-1")
+            .with_environment("prod")
         )
 
         assert result is logger_chain
         assert logger_chain.context["key1"] == "value1"
-        assert logger_chain.options.userId == "user-1"
-        assert logger_chain.options.applicationId == "app-1"
+        assert logger_chain.options.application == "app-1"
+        assert logger_chain.options.environment == "prod"
 
     @pytest.mark.asyncio
     async def test_error_method(self, logger_service):
@@ -133,10 +107,8 @@ class TestLoggerChain:
         with patch.object(logger_service, "info", new_callable=AsyncMock) as mock_info:
             chain = (
                 LoggerChain(logger_service, {}, ClientLoggingOptions())
-                .add_user("user-123")
-                .add_application("app-456")
-                .add_correlation("corr-789")
-                .with_token("token-abc")
+                .with_application("app-456")
+                .with_environment("production")
                 .without_masking()
             )
 
@@ -145,13 +117,8 @@ class TestLoggerChain:
             mock_info.assert_called_once()
             call_args = mock_info.call_args
             options = call_args[0][2]  # Third argument is options
-            assert options.userId == "user-123"
-            assert options.applicationId == "app-456"
-            assert options.correlationId == "corr-789"
-            assert options.userId == "user-123"
-            assert options.applicationId == "app-456"
-            assert options.correlationId == "corr-789"
-            assert options.token == "token-abc"
+            assert options.application == "app-456"
+            assert options.environment == "production"
             assert options.maskSensitiveData is False
 
     def test_with_indexed_context(self, logger_chain):
@@ -198,7 +165,6 @@ class TestLoggerChain:
     def test_with_request_metrics(self, logger_chain):
         """Test with_request_metrics method."""
         result = logger_chain.with_request_metrics(
-            request_size=1024,
             response_size=2048,
             duration_ms=150,
             duration_seconds=0.15,
@@ -207,7 +173,6 @@ class TestLoggerChain:
         )
 
         assert result is logger_chain
-        assert logger_chain.options.requestSize == 1024
         assert logger_chain.options.responseSize == 2048
         assert logger_chain.options.durationMs == 150
         assert logger_chain.options.durationSeconds == 0.15
@@ -216,12 +181,9 @@ class TestLoggerChain:
 
     def test_with_request_metrics_zero_values(self, logger_chain):
         """Test with_request_metrics with zero values."""
-        result = logger_chain.with_request_metrics(
-            request_size=0, response_size=0, duration_ms=0, retry_count=0
-        )
+        result = logger_chain.with_request_metrics(response_size=0, duration_ms=0, retry_count=0)
 
         assert result is logger_chain
-        assert logger_chain.options.requestSize == 0
         assert logger_chain.options.responseSize == 0
         assert logger_chain.options.durationMs == 0
         assert logger_chain.options.retryCount == 0
@@ -235,13 +197,6 @@ class TestLoggerChain:
         assert result is logger_chain
         assert logger_chain.options.errorCategory == "network"
         assert logger_chain.options.httpStatusCategory == "5xx"
-
-    def test_add_session(self, logger_chain):
-        """Test add_session method."""
-        result = logger_chain.add_session("session-123")
-
-        assert result is logger_chain
-        assert logger_chain.options.sessionId == "session-123"
 
     @pytest.mark.asyncio
     async def test_debug_method(self, logger_service):
@@ -283,12 +238,8 @@ class TestLoggerChain:
                     external_system_key="system-key",
                 )
                 .with_credential_context(credential_id="cred-123", credential_type="oauth2")
-                .with_request_metrics(
-                    request_size=1024, response_size=2048, duration_ms=150, retry_count=1
-                )
+                .with_request_metrics(response_size=2048, duration_ms=150, retry_count=1)
                 .with_error_context(error_category="network", http_status_category="5xx")
-                .add_session("session-123")
-                .add_user("user-456")
             )
 
             await chain.info("Test message")
@@ -301,14 +252,11 @@ class TestLoggerChain:
             assert options.externalSystemKey == "system-key"
             assert options.credentialId == "cred-123"
             assert options.credentialType == "oauth2"
-            assert options.requestSize == 1024
             assert options.responseSize == 2048
             assert options.durationMs == 150
             assert options.retryCount == 1
             assert options.errorCategory == "network"
             assert options.httpStatusCategory == "5xx"
-            assert options.sessionId == "session-123"
-            assert options.userId == "user-456"
 
     def test_with_request(self, logger_chain):
         """Test with_request method extracts context from request."""
@@ -336,13 +284,13 @@ class TestLoggerChain:
         result = logger_chain.with_request(request)
 
         assert result is logger_chain
-        # Top-level LogEntry fields
-        assert logger_chain.options.userId == "user-123"
-        assert logger_chain.options.sessionId == "session-456"
-        assert logger_chain.options.correlationId == "corr-123"
-        assert logger_chain.options.ipAddress == "192.168.1.1"
-        assert logger_chain.options.userAgent == "Mozilla/5.0"
-        # Context fields (not top-level)
+        # Auto-computable fields are stored in context for promotion
+        assert logger_chain.context["userId"] == "user-123"
+        assert logger_chain.context["sessionId"] == "session-456"
+        assert logger_chain.context["correlationId"] == "corr-123"
+        assert logger_chain.context["ipAddress"] == "192.168.1.1"
+        assert logger_chain.context["userAgent"] == "Mozilla/5.0"
+        # Additional context fields
         assert logger_chain.context["method"] == "POST"
         assert logger_chain.context["path"] == "/api/test"
         assert logger_chain.context["referer"] == "https://example.com"
@@ -359,7 +307,7 @@ class TestLoggerChain:
 
         assert result is logger_chain
         assert logger_chain.context["method"] == "GET"
-        assert logger_chain.options.userId is None
+        assert "userId" not in logger_chain.context
 
     def test_with_request_composable(self, logger_chain):
         """Test with_request can be composed with other chain methods."""
@@ -377,12 +325,12 @@ class TestLoggerChain:
             }.get(k, d)
         )
 
-        result = logger_chain.with_request(request).add_application("app-123")
+        result = logger_chain.with_request(request).with_application("app-123")
 
         assert result is logger_chain
-        assert logger_chain.options.ipAddress == "192.168.1.1"
-        assert logger_chain.options.userAgent == "Mozilla/5.0"
-        assert logger_chain.options.applicationId == "app-123"
+        assert logger_chain.context["ipAddress"] == "192.168.1.1"
+        assert logger_chain.context["userAgent"] == "Mozilla/5.0"
+        assert logger_chain.options.application == "app-123"
 
     @pytest.mark.asyncio
     async def test_for_request_shortcut(self, logger_service):
@@ -413,51 +361,13 @@ class TestLoggerChain:
 
             mock_info.assert_called_once()
             call_args = mock_info.call_args
-            options = call_args[0][2]  # Third argument is options
-            assert options.userId == "user-789"
-            assert options.ipAddress == "10.0.0.1"
-            assert options.userAgent == "TestAgent/1.0"
-            assert options.correlationId == "corr-999"
-            # Check context was also set
             context = call_args[0][1]  # Second argument is context
+            assert context["userId"] == "user-789"
+            assert context["ipAddress"] == "10.0.0.1"
+            assert context["userAgent"] == "TestAgent/1.0"
+            assert context["correlationId"] == "corr-999"
             assert context["method"] == "GET"
             assert context["path"] == "/api/users"
-
-    def test_add_user_with_none_options(self, logger_service):
-        """Test add_user when options is None."""
-        chain = LoggerChain(logger_service, {}, None)
-        result = chain.add_user("user-123")
-
-        assert result is chain
-        assert chain.options is not None
-        assert chain.options.userId == "user-123"
-
-    def test_add_application_with_none_options(self, logger_service):
-        """Test add_application when options is None."""
-        chain = LoggerChain(logger_service, {}, None)
-        result = chain.add_application("app-456")
-
-        assert result is chain
-        assert chain.options is not None
-        assert chain.options.applicationId == "app-456"
-
-    def test_add_correlation_with_none_options(self, logger_service):
-        """Test add_correlation when options is None."""
-        chain = LoggerChain(logger_service, {}, None)
-        result = chain.add_correlation("corr-789")
-
-        assert result is chain
-        assert chain.options is not None
-        assert chain.options.correlationId == "corr-789"
-
-    def test_with_token_with_none_options(self, logger_service):
-        """Test with_token when options is None."""
-        chain = LoggerChain(logger_service, {}, None)
-        result = chain.with_token("jwt-token-123")
-
-        assert result is chain
-        assert chain.options is not None
-        assert chain.options.token == "jwt-token-123"
 
     def test_without_masking_with_none_options(self, logger_service):
         """Test without_masking when options is None."""
@@ -511,11 +421,10 @@ class TestLoggerChain:
     def test_with_request_metrics_with_none_options(self, logger_service):
         """Test with_request_metrics when options is None."""
         chain = LoggerChain(logger_service, {}, None)
-        result = chain.with_request_metrics(request_size=1024, response_size=2048, duration_ms=150)
+        result = chain.with_request_metrics(response_size=2048, duration_ms=150)
 
         assert result is chain
         assert chain.options is not None
-        assert chain.options.requestSize == 1024
         assert chain.options.responseSize == 2048
         assert chain.options.durationMs == 150
 
@@ -529,15 +438,6 @@ class TestLoggerChain:
         assert chain.options.errorCategory == "network"
         assert chain.options.httpStatusCategory == "5xx"
 
-    def test_add_session_with_none_options(self, logger_service):
-        """Test add_session when options is None."""
-        chain = LoggerChain(logger_service, {}, None)
-        result = chain.add_session("session-123")
-
-        assert result is chain
-        assert chain.options is not None
-        assert chain.options.sessionId == "session-123"
-
     def test_with_application_with_none_options(self, logger_service):
         """Test with_application when options is None."""
         chain = LoggerChain(logger_service, {}, None)
@@ -546,15 +446,6 @@ class TestLoggerChain:
         assert result is chain
         assert chain.options is not None
         assert chain.options.application == "my-app"
-
-    def test_with_application_id_with_none_options(self, logger_service):
-        """Test with_application_id when options is None."""
-        chain = LoggerChain(logger_service, {}, None)
-        result = chain.with_application_id("app-id-123")
-
-        assert result is chain
-        assert chain.options is not None
-        assert chain.options.applicationId == "app-id-123"
 
     def test_with_environment_with_none_options(self, logger_service):
         """Test with_environment when options is None."""
@@ -597,24 +488,7 @@ class TestLoggerChain:
             result = logger_chain.with_request(request)
 
             assert result is logger_chain
-            assert logger_chain.options.requestId == "req-999"
-
-    def test_chain_methods_with_empty_strings(self, logger_chain):
-        """Test chain methods handle empty strings gracefully."""
-        result = (
-            logger_chain.add_user("")
-            .add_application("")
-            .add_correlation("")
-            .add_session("")
-            .with_token("")
-        )
-
-        assert result is logger_chain
-        assert logger_chain.options.userId == ""
-        assert logger_chain.options.applicationId == ""
-        assert logger_chain.options.correlationId == ""
-        assert logger_chain.options.sessionId == ""
-        assert logger_chain.options.token == ""
+            assert logger_chain.context["requestId"] == "req-999"
 
     def test_add_context_with_none_value(self, logger_chain):
         """Test add_context with None value."""
@@ -627,16 +501,13 @@ class TestLoggerChain:
         """Test that all chain methods return self for chaining."""
         result = (
             logger_chain.add_context("key", "value")
-            .add_user("user-1")
-            .add_application("app-1")
-            .add_correlation("corr-1")
-            .with_token("token-1")
+            .with_application("app-1")
+            .with_environment("prod")
             .without_masking()
             .with_indexed_context(source_key="source-1")
             .with_credential_context(credential_id="cred-1")
-            .with_request_metrics(request_size=1024)
+            .with_request_metrics(response_size=1024)
             .with_error_context(error_category="network")
-            .add_session("session-1")
         )
 
         assert result is logger_chain

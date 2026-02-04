@@ -359,9 +359,8 @@ from miso_client import get_logger, set_logger_context
 async def background_job():
     # Set context for this async execution context
     set_logger_context({
-        "userId": "system",
-        "correlationId": "job-123",
-        "ipAddress": "127.0.0.1",
+        "jobId": "job-123",
+        "jobType": "sync",
     })
     
     logger = get_logger()
@@ -384,6 +383,12 @@ async def background_job():
 - `get_logger() -> UnifiedLogger` - Get logger instance with automatic context detection
 - `set_logger_context(context: Dict[str, Any]) -> None` - Set context manually for background jobs
 - `clear_logger_context() -> None` - Clear context
+
+**Async Context Notes:**
+
+- Context is stored via `contextvars`, so it flows through `await` in the same async call chain.
+- Middleware (`fastapi_logger_context_middleware` / `flask_logger_context_middleware`) sets and clears context per request.
+- For background tasks or separate event loops/threads, call `set_logger_context(...)` inside that task to ensure context is available.
 
 **Context Fields Automatically Extracted:**
 
@@ -420,9 +425,6 @@ user = await client.get_user(token)
 
 # Audit: User actions
 await client.log.audit('user.login', 'authentication', {
-    'userId': user.id if user else None,
-    'ip': req.get('ip', ''),
-    'userAgent': req.get('headers', {}).get('user-agent', ''),
 })
 
 # Audit: Content changes
@@ -434,7 +436,6 @@ await client.log.audit('post.created', 'content', {
 
 # Audit: Permission checks
 await client.log.audit('access.denied', 'authorization', {
-    'userId': user.id if user else None,
     'requiredPermission': 'edit:content',
     'resource': 'posts',
 })

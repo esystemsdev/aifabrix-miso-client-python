@@ -14,23 +14,20 @@ if TYPE_CHECKING:
     # Avoid import at runtime for frameworks not installed
     pass
 
-from ..models.config import ClientLoggingOptions, ForeignKeyReference, LogEntry
+from ..models.config import ClientLoggingOptions, LogEntry
 from ..services.application_context import ApplicationContextService
 from ..services.redis import RedisService
 from ..utils.audit_log_queue import AuditLogQueue
 from ..utils.circuit_breaker import CircuitBreaker
 from ..utils.internal_http_client import InternalHttpClient
+from ..utils.logger_context_storage import get_logger_context
 from ..utils.logger_helpers import (
     build_log_entry,
     extract_metadata,
+    split_log_context,
     transform_log_entry_to_request,
 )
-from ..utils.logger_request_helpers import (
-    get_for_request,
-    get_log_with_request,
-    get_with_context,
-    get_with_token,
-)
+from ..utils.logger_request_helpers import get_for_request, get_log_with_request, get_with_context
 
 if TYPE_CHECKING:
     from ..api import ApiClient
@@ -290,16 +287,9 @@ class LoggerService:
     async def _get_app_context(self, options: Optional[ClientLoggingOptions]) -> Dict[str, Any]:
         """Get application context with option overwrites."""
         try:
-            app_id = None
-            if options and options.applicationId:
-                app_id = (
-                    options.applicationId.id
-                    if isinstance(options.applicationId, ForeignKeyReference)
-                    else options.applicationId
-                )
             ctx = await self.application_context_service.get_application_context(
                 overwrite_application=options.application if options else None,
-                overwrite_application_id=app_id,
+                overwrite_application_id=None,
                 overwrite_environment=options.environment if options else None,
             )
             return ctx.to_dict()
@@ -309,7 +299,7 @@ class LoggerService:
                 "application": (
                     options.application if options and options.application else "unknown"
                 ),
-                "applicationId": app_id if app_id else None,
+                "applicationId": None,
                 "environment": (
                     options.environment if options and options.environment else "unknown"
                 ),
@@ -324,22 +314,32 @@ class LoggerService:
         options: Optional[ClientLoggingOptions],
     ) -> LogEntry:
         """Build log entry with all context."""
-        correlation_id = (
-            options.correlationId if options else None
-        ) or self._generate_correlation_id()
+        merged_context = self._merge_context(context)
+        context_data, auto_fields = split_log_context(merged_context)
+        correlation_id = auto_fields.get("correlationId") or self._generate_correlation_id()
         return build_log_entry(
             level=level,
             message=message,
-            context=context,
+            context=context_data,
             config_client_id=self.config.client_id,
             correlation_id=correlation_id,
-            jwt_token=options.token if options else None,
+            jwt_token=auto_fields.get("token"),
             stack_trace=stack_trace,
             options=options,
+            auto_fields=auto_fields,
             metadata=extract_metadata(),
             mask_sensitive=self.mask_sensitive_data,
             application_context=await self._get_app_context(options),
         )
+
+    def _merge_context(self, context: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """Merge request contextvars with explicit context."""
+        stored_context = get_logger_context()
+        if stored_context is None:
+            return context or {}
+        if context:
+            return {**stored_context, **context}
+        return dict(stored_context)
 
     async def _log(
         self,
@@ -364,10 +364,6 @@ class LoggerService:
     def with_context(self, context: Dict[str, Any]) -> "LoggerChain":
         """Create logger chain with context."""
         return LoggerChain(self, context, ClientLoggingOptions())
-
-    def with_token(self, token: str) -> "LoggerChain":
-        """Create logger chain with token."""
-        return LoggerChain(self, {}, ClientLoggingOptions(token=token))
 
     def without_masking(self) -> "LoggerChain":
         """Create logger chain without data masking."""
@@ -441,26 +437,6 @@ class LoggerService:
 
         """
         return await get_with_context(self, context, message, level, stack_trace, options)
-
-    async def get_with_token(
-        self,
-        token: str,
-        message: str,
-        level: Literal["error", "audit", "info", "debug"] = "info",
-        context: Optional[Dict[str, Any]] = None,
-        stack_trace: Optional[str] = None,
-    ) -> LogEntry:
-        """Get LogEntry with JWT token context (userId, sessionId) extracted.
-
-        Args:
-            token: JWT token string
-            message: Log message
-            level: Log level (default: "info")
-            context: Additional context data
-            stack_trace: Stack trace for errors
-
-        """
-        return await get_with_token(self, token, message, level, context, stack_trace)
 
     async def get_for_request(
         self,

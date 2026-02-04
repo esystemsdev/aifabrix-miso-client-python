@@ -2294,17 +2294,15 @@ class TestLoggerService:
 
     @pytest.mark.asyncio
     async def test_log_with_custom_correlation_id(self, logger_service):
-        """Test logging with custom correlation ID in options."""
+        """Test logging with custom correlation ID in context."""
         logger_service.redis.is_connected.return_value = False
-
-        from miso_client.models.config import ClientLoggingOptions
-
-        options = ClientLoggingOptions(correlationId="custom-corr-123")
 
         with patch.object(
             logger_service.internal_http_client, "request", new_callable=AsyncMock
         ) as mock_request:
-            await logger_service.info("Test message", {"key": "value"}, options=options)
+            await logger_service.info(
+                "Test message", {"key": "value", "correlationId": "custom-corr-123"}
+            )
 
             mock_request.assert_called_once()
             call_args = mock_request.call_args
@@ -2314,10 +2312,8 @@ class TestLoggerService:
 
     @pytest.mark.asyncio
     async def test_log_with_jwt_token_in_options(self, logger_service):
-        """Test logging with JWT token in options for context extraction."""
+        """Test logging with JWT token in context for extraction."""
         logger_service.redis.is_connected.return_value = False
-
-        from miso_client.models.config import ClientLoggingOptions
 
         with patch("miso_client.utils.logger_helpers.decode_token") as mock_decode:
             mock_decode.return_value = {
@@ -2325,12 +2321,12 @@ class TestLoggerService:
                 "roles": ["admin"],
             }
 
-            options = ClientLoggingOptions(token="jwt-token-123")
-
             with patch.object(
                 logger_service.internal_http_client, "request", new_callable=AsyncMock
             ) as mock_request:
-                await logger_service.info("Test message", {"key": "value"}, options=options)
+                await logger_service.info(
+                    "Test message", {"key": "value", "token": "jwt-token-123"}
+                )
 
                 mock_request.assert_called_once()
                 call_args = mock_request.call_args
@@ -2511,7 +2507,7 @@ class TestLoggerService:
         assert log_entry.context["method"] == "POST"
         assert log_entry.context["path"] == "/api/test"
         assert log_entry.context["referer"] == "https://example.com"
-        assert log_entry.context["requestSize"] == 1024
+        assert log_entry.requestSize == 1024
 
     @pytest.mark.asyncio
     async def test_get_with_context(self, logger_service):
@@ -2523,23 +2519,6 @@ class TestLoggerService:
         assert log_entry.level == "info"
         assert log_entry.context["customField"] == "value"
         assert log_entry.context["anotherField"] == 123
-
-    @pytest.mark.asyncio
-    async def test_get_with_token(self, logger_service):
-        """Test get_with_token extracts user context from JWT."""
-        import jwt
-
-        payload = {"sub": "user-789", "sessionId": "session-abc"}
-        token = jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
-
-        log_entry = await logger_service.get_with_token(token, "User action", "audit")
-
-        assert log_entry.message == "User action"
-        assert log_entry.level == "audit"
-        # userId is now a ForeignKeyReference object
-        assert log_entry.userId is not None
-        assert log_entry.userId.id == "user-789"
-        assert log_entry.sessionId == "session-abc"
 
     @pytest.mark.asyncio
     async def test_get_for_request(self, logger_service):
@@ -2614,13 +2593,6 @@ class TestLoggerChain:
         assert isinstance(chain, LoggerChain)
         assert chain.context == {"key": "value"}
 
-    def test_with_token(self, logger_service):
-        """Test with_token chain method."""
-        chain = logger_service.with_token("test-token")
-
-        assert isinstance(chain, LoggerChain)
-        assert chain.options.token == "test-token"
-
     def test_without_masking(self, logger_service):
         """Test without_masking chain method."""
         chain = logger_service.without_masking()
@@ -2635,20 +2607,13 @@ class TestLoggerChain:
         assert chain is logger_chain  # Should return self
         assert logger_chain.context["new_key"] == "new_value"
 
-    def test_add_user(self, logger_chain):
-        """Test add_user chain method."""
-        chain = logger_chain.add_user("user-123")
-
-        assert chain is logger_chain
-        assert logger_chain.options.userId == "user-123"
-
     @pytest.mark.asyncio
     async def test_chain_error(self, logger_service):
         """Test chain error logging."""
         logger_service.redis.is_connected.return_value = False
 
         with patch.object(logger_service, "error", new_callable=AsyncMock) as mock_error:
-            chain = logger_service.with_token("token")
+            chain = logger_service.with_context({"key": "value"})
             await chain.error("Error message", "stack trace")
 
             mock_error.assert_called_once()

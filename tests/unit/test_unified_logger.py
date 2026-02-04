@@ -218,14 +218,16 @@ class TestUnifiedLogger:
 
         context, options = unified_logger._build_context_and_options()
 
-        # Check options
-        assert options.userId == "user-123"
-        assert options.applicationId == "app-456"
-        assert options.correlationId == "corr-789"
-        assert options.ipAddress == "127.0.0.1"
-        assert options.userAgent == "test-agent"
+        # Check options (only non-auto fields)
+        assert options.application is None
+        assert options.environment is None
 
-        # Check context
+        # Check context (auto-computable fields remain in context)
+        assert context["userId"] == "user-123"
+        assert context["applicationId"] == "app-456"
+        assert context["correlationId"] == "corr-789"
+        assert context["ipAddress"] == "127.0.0.1"
+        assert context["userAgent"] == "test-agent"
         assert context["method"] == "GET"
         assert context["path"] == "/api/test"
         assert context["hostname"] == "example.com"

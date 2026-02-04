@@ -373,7 +373,7 @@ class TestLoggerServiceGetMethods:
         assert log_entry.context["method"] == "POST"
         assert log_entry.context["path"] == "/api/test"
         assert log_entry.context["referer"] == "https://example.com"
-        assert log_entry.context["requestSize"] == 1024
+        assert log_entry.requestSize == 1024
 
     @pytest.mark.asyncio
     async def test_get_log_with_request_minimal(self, logger_service):
@@ -429,10 +429,10 @@ class TestLoggerServiceGetMethods:
     @pytest.mark.asyncio
     async def test_get_with_context_with_options(self, logger_service):
         """Test get_with_context with custom options."""
-        context = {"customField": "value"}
+        context = {"customField": "value", "userId": "user-123", "correlationId": "corr-456"}
         options = ClientLoggingOptions()
-        options.userId = "user-123"
-        options.correlationId = "corr-456"
+        options.application = "app-123"
+        options.environment = "production"
 
         log_entry = await logger_service.get_with_context(
             context, "Custom log", "info", options=options
@@ -441,21 +441,8 @@ class TestLoggerServiceGetMethods:
         assert log_entry.userId is not None
         assert log_entry.userId.id == "user-123"
         assert log_entry.correlationId == "corr-456"
-
-    @pytest.mark.asyncio
-    async def test_get_with_token(self, logger_service):
-        """Test get_with_token method."""
-        payload = {"sub": "user-123", "sessionId": "session-456"}
-        token = jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
-
-        log_entry = await logger_service.get_with_token(token, "User action", "audit")
-
-        assert isinstance(log_entry, LogEntry)
-        assert log_entry.message == "User action"
-        assert log_entry.level == "audit"
-        assert log_entry.userId is not None
-        assert log_entry.userId.id == "user-123"
-        assert log_entry.sessionId == "session-456"
+        assert log_entry.application == "app-123"
+        assert log_entry.environment == "production"
 
     @pytest.mark.asyncio
     async def test_get_for_request(self, logger_service):

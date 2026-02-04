@@ -4,7 +4,7 @@ This module contains Pydantic models that define the configuration structure
 and data types used throughout the MisoClient SDK.
 """
 
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -285,27 +285,11 @@ class ClientTokenResponse(BaseModel):
 class ClientLoggingOptions(BaseModel):
     """Options for client logging.
 
-    Supports both string IDs (for backward compatibility) and ForeignKeyReference objects.
-    When string IDs are provided, they will be converted to ForeignKeyReference objects
-    in LogEntry if needed (requires additional context from API responses).
-
     Supports overwriting application context for dataplane use cases where external
     applications need logging on their behalf.
     """
 
-    applicationId: Optional[Union[str, "ForeignKeyReference"]] = Field(
-        default=None, description="Application ID (string) or Application reference (object)"
-    )
-    userId: Optional[Union[str, "ForeignKeyReference"]] = Field(
-        default=None, description="User ID (string) or User reference (object)"
-    )
-    correlationId: Optional[str] = Field(default=None, description="Correlation ID")
-    requestId: Optional[str] = Field(default=None, description="Request ID")
-    sessionId: Optional[str] = Field(default=None, description="Session ID")
-    token: Optional[str] = Field(default=None, description="JWT token for context extraction")
     maskSensitiveData: Optional[bool] = Field(default=None, description="Enable data masking")
-    ipAddress: Optional[str] = Field(default=None, description="Client IP address")
-    userAgent: Optional[str] = Field(default=None, description="User agent string")
     # Application context overwrites (for dataplane use cases)
     application: Optional[str] = Field(
         default=None, description="Override application name (for dataplane logging)"
@@ -331,7 +315,6 @@ class ClientLoggingOptions(BaseModel):
     credentialType: Optional[str] = Field(default=None, description="Credential type")
 
     # Request metrics
-    requestSize: Optional[int] = Field(default=None, description="Request body size in bytes")
     responseSize: Optional[int] = Field(default=None, description="Response body size in bytes")
     durationMs: Optional[int] = Field(default=None, description="Duration in milliseconds")
     durationSeconds: Optional[float] = Field(default=None, description="Duration in seconds")
