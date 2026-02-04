@@ -1,6 +1,6 @@
 # validate-code
 
-This command analyzes all core code (`miso_client/services`, `miso_client/utils`, `miso_client/models`) against development rules and creates or updates detailed improvement plans for each module category.
+This command analyzes all core code (`miso_client/services`, `miso_client/utils`, `miso_client/models`) against development rules and creates or updates a single detailed improvement plan with the full list of required fixes.
 
 ## Purpose
 
@@ -11,11 +11,11 @@ The command:
    - `miso_client/utils/` (HTTP client, config loader, data masker, internal HTTP client, JWT tools, pagination, filter, sort)
    - `miso_client/models/` (Pydantic models - config, error_response, filter, pagination, sort)
    - `miso_client/__init__.py` (Main MisoClient class exports)
-3. Groups code by module category (e.g., "Services - Authentication", "Services - Authorization", "Utils - HTTP", "Models - Configuration")
-4. For each category, checks if a plan file already exists with pattern `*-fix-and-improve-code.<category>.plan.md`
+3. Aggregates all findings across modules into a single unified list of required fixes
+4. Checks if a plan file already exists with pattern `*-fix-and-improve-code.plan.md`
 5. If a plan exists, updates the existing plan file
-6. If no plan exists, creates a new plan file with format: `<next-number>-fix-and-improve-code.<category>.plan.md`
-7. Documents all violations and required improvements based on cursor rules
+6. If no plan exists, creates a new plan file with format: `<next-number>-fix-and-improve-code.plan.md`
+7. Documents all violations and required improvements based on cursor rules in one plan file
 
 ## Usage
 
@@ -23,7 +23,7 @@ Run this command in chat with `/validate-code`
 
 ## What It Does
 
-For each module category, the command:
+For the single unified plan, the command:
 
 1. **Analyzes Code Reuse**:
    - Checks for code duplication across modules
@@ -161,16 +161,16 @@ For each module category, the command:
 
 ## Output
 
-Creates or updates plan files in `.cursor/plans/` with:
-- Overview of the module category
-- List of all files/modules in the category
-- Detailed violation analysis
-- Specific improvement tasks
+Creates or updates a single plan file in `.cursor/plans/` with:
+- Overview of the overall codebase scope analyzed
+- List of all files/modules analyzed
+- Detailed violation analysis grouped by category and file
+- Specific improvement tasks with file references
 - Code examples for fixes
 - Testing requirements
 - Priority recommendations
 
-**Important**: If a plan file with pattern `*-fix-and-improve-code.<category>.plan.md` already exists (e.g., `70-fix-and-improve-code.services-authentication.plan.md`), the command will **update** the existing plan instead of creating a new one. This ensures that progress on existing plans is preserved and updated with the latest analysis.
+**Important**: If a plan file with pattern `*-fix-and-improve-code.plan.md` already exists (e.g., `70-fix-and-improve-code.plan.md`), the command will **update** the existing plan instead of creating a new one. This ensures that progress on the single unified plan is preserved and updated with the latest analysis.
 
 **Execution Behavior**: When generating a new plan, it should be clearly identified as a "code improvement plan and execution". The command should execute improvements automatically without asking for user input or showing progress details, unless there are breaking changes or other critical reasons that require user confirmation. The focus is on silent, automated execution of code improvements based on the analysis.
 
@@ -214,9 +214,9 @@ Creates or updates plan files in `.cursor/plans/` with:
 ...
 ```
 
-## Module Categories
+## Module Categories (Grouping Only)
 
-The command groups code into the following categories:
+The unified plan groups findings under these categories for readability, but all fixes live in a single plan file:
 
 ### Services - Authentication
 - **Services - Authentication**: `miso_client/services/auth.py`, authentication-related services
@@ -274,15 +274,15 @@ The command groups code into the following categories:
 
 ## Notes
 
-- **Existing Plans**: If a plan file matching pattern `*-fix-and-improve-code.<category>.plan.md` already exists, it will be updated rather than creating a new one
+- **Existing Plans**: If a plan file matching pattern `*-fix-and-improve-code.plan.md` already exists, it will be updated rather than creating a new one
 - **New Plans**: If no existing plan is found, a new plan is created with sequential numbering (starting from biggest number in plan folder plus 1). New plans are **code improvement plans and execution** - they should be executed automatically without user input or progress updates, unless breaking changes or other critical reasons require user confirmation
 - **Execution**: Do NOT ask the user for input or show what's being done unless necessary for breaking changes or other critical reasons. The command should execute improvements silently and automatically
-- Each category gets its own plan file
+- Only one plan file is created or updated
 - Plans include actionable tasks with specific file locations and line numbers where applicable
 - Plans reference specific cursor rules that are violated
 - Focus is on `miso_client/services/` and `miso_client/utils/` as the primary targets, but all core code is analyzed
 - The command prioritizes code reuse violations as they are critical for maintainability
-- When updating existing plans, the command preserves the plan number and updates the content with the latest analysis
+- When updating the existing plan, the command preserves the plan number and updates the content with the latest analysis
 - All analysis should follow the patterns defined in the repository-specific cursor rules (`.cursorrules`)
 - Security and ISO 27001 compliance are critical - all plans must address security concerns
 - File size limits (≤500 lines per file, ≤20-30 lines per method) must be checked and enforced

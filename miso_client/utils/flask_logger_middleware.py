@@ -43,7 +43,7 @@ def logger_context_middleware() -> None:
     hostname = request.host if hasattr(request, "host") else None
 
     # Build context dictionary
-    context_dict: dict[str, str | None] = {}
+    context_dict: dict[str, str | int | None] = {}
 
     # Add request context fields
     if request_context.ip_address:
@@ -62,6 +62,10 @@ def logger_context_middleware() -> None:
         context_dict["sessionId"] = request_context.session_id
     if request_context.request_id:
         context_dict["requestId"] = request_context.request_id
+    if request_context.referer:
+        context_dict["referer"] = request_context.referer
+    if request_context.request_size is not None:
+        context_dict["requestSize"] = request_context.request_size
 
     # Add JWT context fields
     if jwt_context.get("userId"):

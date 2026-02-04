@@ -11,6 +11,8 @@ from miso_client.utils.jwt_tools import (
     extract_user_id,
 )
 
+TEST_JWT_SECRET = "test-secret-key-for-jwt-32-bytes!!"
+
 
 class TestJwtTools:
     """Test cases for JWT tools."""
@@ -19,7 +21,7 @@ class TestJwtTools:
         """Test decoding valid JWT token."""
         # Create a valid JWT token
         payload = {"sub": "user-123", "exp": 9999999999}
-        token = jwt.encode(payload, "secret", algorithm="HS256")
+        token = jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
 
         decoded = decode_token(token)
 
@@ -41,7 +43,7 @@ class TestJwtTools:
     def test_extract_user_id_from_sub(self):
         """Test extracting user ID from 'sub' claim."""
         payload = {"sub": "user-123"}
-        token = jwt.encode(payload, "secret", algorithm="HS256")
+        token = jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
 
         user_id = extract_user_id(token)
 
@@ -50,7 +52,7 @@ class TestJwtTools:
     def test_extract_user_id_from_user_id(self):
         """Test extracting user ID from 'userId' claim."""
         payload = {"userId": "user-456"}
-        token = jwt.encode(payload, "secret", algorithm="HS256")
+        token = jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
 
         user_id = extract_user_id(token)
 
@@ -59,7 +61,7 @@ class TestJwtTools:
     def test_extract_user_id_from_user_id_field(self):
         """Test extracting user ID from 'user_id' claim."""
         payload = {"user_id": "user-789"}
-        token = jwt.encode(payload, "secret", algorithm="HS256")
+        token = jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
 
         user_id = extract_user_id(token)
 
@@ -68,7 +70,7 @@ class TestJwtTools:
     def test_extract_user_id_from_id(self):
         """Test extracting user ID from 'id' claim."""
         payload = {"id": "user-999"}
-        token = jwt.encode(payload, "secret", algorithm="HS256")
+        token = jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
 
         user_id = extract_user_id(token)
 
@@ -77,7 +79,7 @@ class TestJwtTools:
     def test_extract_user_id_priority(self):
         """Test that 'sub' has priority over other fields."""
         payload = {"sub": "user-sub", "userId": "user-id", "id": "user-id-value"}
-        token = jwt.encode(payload, "secret", algorithm="HS256")
+        token = jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
 
         user_id = extract_user_id(token)
 
@@ -86,7 +88,7 @@ class TestJwtTools:
     def test_extract_user_id_not_found(self):
         """Test extracting user ID when not present."""
         payload = {"name": "test"}
-        token = jwt.encode(payload, "secret", algorithm="HS256")
+        token = jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
 
         user_id = extract_user_id(token)
 
@@ -101,7 +103,7 @@ class TestJwtTools:
     def test_extract_session_id_from_sid(self):
         """Test extracting session ID from 'sid' claim."""
         payload = {"sid": "session-123"}
-        token = jwt.encode(payload, "secret", algorithm="HS256")
+        token = jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
 
         session_id = extract_session_id(token)
 
@@ -110,7 +112,7 @@ class TestJwtTools:
     def test_extract_session_id_from_session_id(self):
         """Test extracting session ID from 'sessionId' claim."""
         payload = {"sessionId": "session-456"}
-        token = jwt.encode(payload, "secret", algorithm="HS256")
+        token = jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
 
         session_id = extract_session_id(token)
 
@@ -119,7 +121,7 @@ class TestJwtTools:
     def test_extract_session_id_not_found(self):
         """Test extracting session ID when not present."""
         payload = {"sub": "user-123"}
-        token = jwt.encode(payload, "secret", algorithm="HS256")
+        token = jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
 
         session_id = extract_session_id(token)
 
@@ -139,7 +141,7 @@ class TestJwtTokenCache:
         """Test clearing existing token from cache."""
         cache = JwtTokenCache()
         payload = {"sub": "user-123"}
-        token = jwt.encode(payload, "secret", algorithm="HS256")
+        token = jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
 
         # Add token to cache by decoding it
         cache.get_decoded_token(token)
@@ -157,7 +159,7 @@ class TestJwtTokenCache:
         """Test clearing non-existent token (idempotent operation)."""
         cache = JwtTokenCache()
         payload = {"sub": "user-123"}
-        token = jwt.encode(payload, "secret", algorithm="HS256")
+        token = jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
 
         # Token not in cache
         assert token not in cache._cache
@@ -171,8 +173,8 @@ class TestJwtTokenCache:
     def test_clear_token_reduces_cache_size(self):
         """Test that clearing token reduces cache size."""
         cache = JwtTokenCache()
-        token1 = jwt.encode({"sub": "user-1"}, "secret", algorithm="HS256")
-        token2 = jwt.encode({"sub": "user-2"}, "secret", algorithm="HS256")
+        token1 = jwt.encode({"sub": "user-1"}, TEST_JWT_SECRET, algorithm="HS256")
+        token2 = jwt.encode({"sub": "user-2"}, TEST_JWT_SECRET, algorithm="HS256")
 
         # Add tokens to cache
         cache.get_decoded_token(token1)

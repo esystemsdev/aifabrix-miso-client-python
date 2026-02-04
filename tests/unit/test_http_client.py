@@ -21,6 +21,8 @@ from miso_client.utils.http_client import HttpClient
 from miso_client.utils.http_error_handler import parse_error_response
 from miso_client.utils.internal_http_client import InternalHttpClient
 
+TEST_JWT_SECRET = "test-secret-key-for-jwt-32-bytes!!"
+
 
 class TestInternalHttpClient:
     """Test cases for HttpClient."""
@@ -2158,7 +2160,7 @@ class TestHttpClient:
         import jwt
 
         payload = {"sub": "user-123"}
-        token = jwt.encode(payload, "secret", algorithm="HS256")
+        token = jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
 
         # Add token to cache by decoding it
         http_client._jwt_cache.get_decoded_token(token)
@@ -2177,7 +2179,7 @@ class TestHttpClient:
         import jwt
 
         payload = {"sub": "user-123"}
-        token = jwt.encode(payload, "secret", algorithm="HS256")
+        token = jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
 
         # Token not in cache
         assert token not in http_client._jwt_cache._cache

@@ -359,7 +359,12 @@ class TestAuditLogQueue:
         # Note: We can't actually send signals in tests, so we test the handler directly
         with patch("asyncio.get_event_loop") as mock_loop:
             mock_loop.return_value.is_running.return_value = True
-            with patch("asyncio.create_task") as mock_create_task:
+
+            def _capture_task(coro):
+                coro.close()
+                return MagicMock()
+
+            with patch("asyncio.create_task", side_effect=_capture_task) as mock_create_task:
                 audit_queue._signal_handler(signal.SIGTERM, None)
 
                 # Verify create_task was called

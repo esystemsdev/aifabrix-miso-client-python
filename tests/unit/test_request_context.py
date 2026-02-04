@@ -17,6 +17,8 @@ from miso_client.utils.request_context import (
     extract_request_context,
 )
 
+TEST_JWT_SECRET = "test-secret-key-for-jwt-32-bytes!!"
+
 
 class TestRequestContext:
     """Test cases for RequestContext class."""
@@ -272,7 +274,7 @@ class TestExtractUserFromAuthHeader:
     def test_extract_user_from_bearer_token(self):
         """Test user extraction from Bearer token."""
         payload = {"sub": "user-123", "sessionId": "session-456"}
-        token = jwt.encode(payload, "secret", algorithm="HS256")
+        token = jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
 
         request = MagicMock()
         request.headers = MagicMock()
@@ -288,7 +290,7 @@ class TestExtractUserFromAuthHeader:
     def test_extract_user_from_user_id_claim(self):
         """Test user extraction from userId claim."""
         payload = {"userId": "user-789"}
-        token = jwt.encode(payload, "secret", algorithm="HS256")
+        token = jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
 
         request = MagicMock()
         request.headers = MagicMock()
@@ -332,7 +334,7 @@ class TestExtractRequestContext:
     def test_extract_full_context(self):
         """Test full context extraction from request."""
         payload = {"sub": "user-123", "sessionId": "session-456"}
-        token = jwt.encode(payload, "secret", algorithm="HS256")
+        token = jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
 
         request = MagicMock()
         request.method = "POST"

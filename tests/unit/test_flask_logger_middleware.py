@@ -32,6 +32,9 @@ class TestFlaskLoggerContextMiddleware:
                 "authorization": "Bearer test-token",
                 "user-agent": "test-agent",
                 "x-correlation-id": "corr-123",
+                "x-request-id": "req-456",
+                "referer": "https://example.com",
+                "content-length": "1024",
             }.get(k.lower(), d)
         )
         request.headers = headers
@@ -58,7 +61,10 @@ class TestFlaskLoggerContextMiddleware:
             assert context["ipAddress"] == "127.0.0.1"
             assert context["userAgent"] == "test-agent"
             assert context["correlationId"] == "corr-123"
+            assert context["requestId"] == "req-456"
             assert context["hostname"] == "example.com"
+            assert context["referer"] == "https://example.com"
+            assert context["requestSize"] == 1024
             assert context["token"] == "test-token"
         finally:
             clear_logger_context()

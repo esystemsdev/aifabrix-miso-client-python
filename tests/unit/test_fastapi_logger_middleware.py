@@ -28,6 +28,9 @@ class TestFastAPILoggerContextMiddleware:
                 "authorization": "Bearer test-token",
                 "user-agent": "test-agent",
                 "x-correlation-id": "corr-123",
+                "x-request-id": "req-456",
+                "referer": "https://example.com",
+                "content-length": "1024",
             }.get(k.lower(), d)
         )
         request.headers = headers
@@ -76,7 +79,10 @@ class TestFastAPILoggerContextMiddleware:
             assert captured_context["ipAddress"] == "127.0.0.1"
             assert captured_context["userAgent"] == "test-agent"
             assert captured_context["correlationId"] == "corr-123"
+            assert captured_context["requestId"] == "req-456"
             assert captured_context["hostname"] == "example.com"
+            assert captured_context["referer"] == "https://example.com"
+            assert captured_context["requestSize"] == 1024
             assert captured_context["token"] == "test-token"
 
             mock_call_next.assert_called_once_with(mock_request)

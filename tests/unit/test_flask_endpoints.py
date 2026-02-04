@@ -41,10 +41,15 @@ class TestFlaskEndpoints:
 
         try:
             # Mock asyncio.run to return the token directly
-            with patch("miso_client.utils.flask_endpoints.asyncio.run") as mock_asyncio_run:
-                mock_asyncio_run.return_value = "test-token-123"
-                handler = create_flask_client_token_endpoint(mock_client)
-                response, status_code = handler()
+            with patch(
+                "miso_client.utils.flask_endpoints.get_environment_token",
+                new_callable=MagicMock,
+            ) as mock_get_token:
+                mock_get_token.return_value = "test-token-123"
+                with patch("miso_client.utils.flask_endpoints.asyncio.run") as mock_asyncio_run:
+                    mock_asyncio_run.return_value = "test-token-123"
+                    handler = create_flask_client_token_endpoint(mock_client)
+                    response, status_code = handler()
         finally:
             if flask_original:
                 sys.modules["flask"] = flask_original
@@ -100,12 +105,17 @@ class TestFlaskEndpoints:
 
         try:
             # Mock asyncio.run to raise AuthenticationError
-            with patch("miso_client.utils.flask_endpoints.asyncio.run") as mock_asyncio_run:
-                mock_asyncio_run.side_effect = AuthenticationError(
-                    "Origin validation failed: Invalid origin"
-                )
-                handler = create_flask_client_token_endpoint(mock_client)
-                response, status_code = handler()
+            with patch(
+                "miso_client.utils.flask_endpoints.get_environment_token",
+                new_callable=MagicMock,
+            ) as mock_get_token:
+                mock_get_token.return_value = "test-token-123"
+                with patch("miso_client.utils.flask_endpoints.asyncio.run") as mock_asyncio_run:
+                    mock_asyncio_run.side_effect = AuthenticationError(
+                        "Origin validation failed: Invalid origin"
+                    )
+                    handler = create_flask_client_token_endpoint(mock_client)
+                    response, status_code = handler()
         finally:
             if flask_original:
                 sys.modules["flask"] = flask_original
@@ -143,10 +153,15 @@ class TestFlaskEndpoints:
         sys.modules["flask"] = mock_flask
 
         try:
-            with patch("miso_client.utils.flask_endpoints.asyncio.run") as mock_asyncio_run:
-                mock_asyncio_run.return_value = "test-token"
-                handler = create_flask_client_token_endpoint(mock_client, options)
-                response, status_code = handler()
+            with patch(
+                "miso_client.utils.flask_endpoints.get_environment_token",
+                new_callable=MagicMock,
+            ) as mock_get_token:
+                mock_get_token.return_value = "test-token"
+                with patch("miso_client.utils.flask_endpoints.asyncio.run") as mock_asyncio_run:
+                    mock_asyncio_run.return_value = "test-token"
+                    handler = create_flask_client_token_endpoint(mock_client, options)
+                    response, status_code = handler()
         finally:
             if flask_original:
                 sys.modules["flask"] = flask_original
@@ -181,10 +196,15 @@ class TestFlaskEndpoints:
         sys.modules["flask"] = mock_flask
 
         try:
-            with patch("miso_client.utils.flask_endpoints.asyncio.run") as mock_asyncio_run:
-                mock_asyncio_run.return_value = "test-token"
-                handler = create_flask_client_token_endpoint(mock_client)
-                response, status_code = handler()
+            with patch(
+                "miso_client.utils.flask_endpoints.get_environment_token",
+                new_callable=MagicMock,
+            ) as mock_get_token:
+                mock_get_token.return_value = "test-token"
+                with patch("miso_client.utils.flask_endpoints.asyncio.run") as mock_asyncio_run:
+                    mock_asyncio_run.return_value = "test-token"
+                    handler = create_flask_client_token_endpoint(mock_client)
+                    response, status_code = handler()
         finally:
             if flask_original:
                 sys.modules["flask"] = flask_original

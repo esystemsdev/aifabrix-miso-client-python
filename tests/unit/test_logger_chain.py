@@ -10,6 +10,8 @@ import pytest
 from miso_client.models.config import ClientLoggingOptions
 from miso_client.services.logger import LoggerChain, LoggerService
 
+TEST_JWT_SECRET = "test-secret-key-for-jwt-32-bytes!!"
+
 
 class TestLoggerChain:
     """Test cases for LoggerChain."""
@@ -312,7 +314,7 @@ class TestLoggerChain:
         """Test with_request method extracts context from request."""
         # Create a mock request with all fields
         payload = {"sub": "user-123", "sessionId": "session-456"}
-        token = jwt.encode(payload, "secret", algorithm="HS256")
+        token = jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
 
         request = MagicMock()
         request.method = "POST"
@@ -388,7 +390,7 @@ class TestLoggerChain:
         logger_service.redis.is_connected.return_value = False
 
         payload = {"sub": "user-789"}
-        token = jwt.encode(payload, "secret", algorithm="HS256")
+        token = jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
 
         request = MagicMock()
         request.method = "GET"

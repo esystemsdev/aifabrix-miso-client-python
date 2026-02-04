@@ -5,7 +5,7 @@ This module contains comprehensive tests for LoggerService including
 event emission mode, log transformation, and get_* methods.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import jwt
@@ -15,6 +15,8 @@ from miso_client.models.config import ClientLoggingOptions, LogEntry
 from miso_client.services.application_context import ApplicationContext
 from miso_client.services.logger import LoggerService
 from miso_client.utils.audit_log_queue import AuditLogQueue
+
+TEST_JWT_SECRET = "test-secret-key-for-jwt-32-bytes!!"
 
 
 class TestLoggerServiceEventEmission:
@@ -194,7 +196,7 @@ class TestLoggerServiceTransformLogEntry:
         from miso_client.utils.logger_helpers import transform_log_entry_to_request
 
         log_entry = LogEntry(
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             level="audit",
             environment="test",
             application=config.client_id,
@@ -226,7 +228,7 @@ class TestLoggerServiceTransformLogEntry:
         from miso_client.utils.logger_helpers import transform_log_entry_to_request
 
         log_entry = LogEntry(
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             level="audit",
             environment="test",
             application=config.client_id,
@@ -250,7 +252,7 @@ class TestLoggerServiceTransformLogEntry:
         from miso_client.utils.logger_helpers import transform_log_entry_to_request
 
         log_entry = LogEntry(
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             level="error",
             environment="test",
             application=config.client_id,
@@ -274,7 +276,7 @@ class TestLoggerServiceTransformLogEntry:
         from miso_client.utils.logger_helpers import transform_log_entry_to_request
 
         log_entry = LogEntry(
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             level="info",
             environment="test",
             application=config.client_id,
@@ -297,7 +299,7 @@ class TestLoggerServiceTransformLogEntry:
         from miso_client.utils.logger_helpers import transform_log_entry_to_request
 
         log_entry = LogEntry(
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             level="debug",
             environment="test",
             application=config.client_id,
@@ -338,7 +340,7 @@ class TestLoggerServiceGetMethods:
     async def test_get_log_with_request_fastapi(self, logger_service):
         """Test get_log_with_request with FastAPI request."""
         payload = {"sub": "user-123", "sessionId": "session-456"}
-        token = jwt.encode(payload, "secret", algorithm="HS256")
+        token = jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
 
         request = MagicMock()
         request.method = "POST"
@@ -444,7 +446,7 @@ class TestLoggerServiceGetMethods:
     async def test_get_with_token(self, logger_service):
         """Test get_with_token method."""
         payload = {"sub": "user-123", "sessionId": "session-456"}
-        token = jwt.encode(payload, "secret", algorithm="HS256")
+        token = jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
 
         log_entry = await logger_service.get_with_token(token, "User action", "audit")
 

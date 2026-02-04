@@ -22,6 +22,8 @@ from miso_client.services.permission import PermissionService
 from miso_client.services.role import RoleService
 from miso_client.utils.logger_helpers import extract_jwt_context, extract_metadata
 
+TEST_JWT_SECRET = "test-secret-key-for-jwt-32-bytes!!"
+
 
 class TestMisoClient:
     """Test cases for MisoClient main class."""
@@ -110,7 +112,7 @@ class TestMisoClient:
         """Test that logout clears all caches (roles, permissions, JWT)."""
         import jwt
 
-        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-123"}, TEST_JWT_SECRET, algorithm="HS256")
 
         with patch.object(client.auth, "logout", new_callable=AsyncMock) as mock_auth_logout:
             # Mock response matches OpenAPI spec: {"data": null} for logout
@@ -141,7 +143,7 @@ class TestMisoClient:
         """Test that caches are cleared even if logout API call fails."""
         import jwt
 
-        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-123"}, TEST_JWT_SECRET, algorithm="HS256")
 
         with patch.object(client.auth, "logout", new_callable=AsyncMock) as mock_auth_logout:
             mock_auth_logout.return_value = {}  # Logout failed
@@ -169,7 +171,7 @@ class TestMisoClient:
         """Test that logout clears refresh tokens and callbacks."""
         import jwt
 
-        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-123"}, TEST_JWT_SECRET, algorithm="HS256")
 
         # Register refresh callback and token
         async def refresh_callback(token: str) -> str:
@@ -992,7 +994,7 @@ class TestRoleService:
         """Test getting roles using JWT userId extraction."""
         import jwt
 
-        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-123"}, TEST_JWT_SECRET, algorithm="HS256")
 
         # Mock application context to return environment
         with patch.object(
@@ -1023,7 +1025,7 @@ class TestRoleService:
         """Test getting roles from controller when cache miss."""
         import jwt
 
-        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-123"}, TEST_JWT_SECRET, algorithm="HS256")
 
         # Mock application context to return environment
         with patch.object(
@@ -1075,7 +1077,7 @@ class TestRoleService:
         """Test getting roles when userId not in token."""
         import jwt
 
-        token = jwt.encode({"name": "test"}, "secret", algorithm="HS256")
+        token = jwt.encode({"name": "test"}, TEST_JWT_SECRET, algorithm="HS256")
 
         # Mock application context to return environment
         with patch.object(
@@ -1235,7 +1237,7 @@ class TestRoleService:
         """Test clearing roles cache when userId is in JWT token."""
         import jwt
 
-        token = jwt.encode({"sub": "user-456"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-456"}, TEST_JWT_SECRET, algorithm="HS256")
 
         with patch.object(role_service.cache, "delete", new_callable=AsyncMock) as mock_delete:
             await role_service.clear_roles_cache(token)
@@ -1245,10 +1247,10 @@ class TestRoleService:
     @pytest.mark.asyncio
     async def test_clear_roles_cache_validate_fails(self, role_service):
         """Test clear_roles_cache when validate fails."""
-        with patch.object(
-            role_service.http_client, "authenticated_request", new_callable=AsyncMock
-        ) as mock_request:
-            mock_request.side_effect = Exception("Validate failed")
+        with patch(
+            "miso_client.services.role.validate_token_request", new_callable=AsyncMock
+        ) as mock_validate:
+            mock_validate.side_effect = Exception("Validate failed")
 
             # Should silently fail
             await role_service.clear_roles_cache("token")
@@ -1261,10 +1263,10 @@ class TestRoleService:
     @pytest.mark.asyncio
     async def test_clear_roles_cache_user_id_none(self, role_service):
         """Test clear_roles_cache when user_id is None."""
-        with patch.object(
-            role_service.http_client, "authenticated_request", new_callable=AsyncMock
-        ) as mock_request:
-            mock_request.return_value = {"user": {}}  # No id field
+        with patch(
+            "miso_client.services.role.validate_token_request", new_callable=AsyncMock
+        ) as mock_validate:
+            mock_validate.return_value = {"data": {"user": {}}}  # No id field
 
             # Should silently fail
             await role_service.clear_roles_cache("token")
@@ -1277,10 +1279,10 @@ class TestRoleService:
     @pytest.mark.asyncio
     async def test_clear_roles_cache_exception_handling(self, role_service):
         """Test clear_roles_cache exception handling (should silently fail)."""
-        with patch.object(
-            role_service.http_client, "authenticated_request", new_callable=AsyncMock
-        ) as mock_request:
-            mock_request.side_effect = Exception("Unexpected error")
+        with patch(
+            "miso_client.services.role.validate_token_request", new_callable=AsyncMock
+        ) as mock_validate:
+            mock_validate.side_effect = Exception("Unexpected error")
 
             # Should not raise exception
             await role_service.clear_roles_cache("token")
@@ -1290,7 +1292,7 @@ class TestRoleService:
         """Test automatic environment extraction from application context."""
         import jwt
 
-        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-123"}, TEST_JWT_SECRET, algorithm="HS256")
 
         # Mock application context to return environment
         with patch.object(
@@ -1345,7 +1347,7 @@ class TestRoleService:
         """Test that cache hits don't trigger controller calls (including token refresh)."""
         import jwt
 
-        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-123"}, TEST_JWT_SECRET, algorithm="HS256")
 
         # Mock application context service with synchronous method
         mock_app_context_service = MagicMock()
@@ -1376,7 +1378,7 @@ class TestRoleService:
         """Test that cache misses only trigger one controller call (for roles, not context)."""
         import jwt
 
-        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-123"}, TEST_JWT_SECRET, algorithm="HS256")
 
         # Mock application context service with synchronous method
         mock_app_context_service = MagicMock()
@@ -1435,7 +1437,7 @@ class TestPermissionService:
         """Test getting permissions using JWT userId extraction."""
         import jwt
 
-        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-123"}, TEST_JWT_SECRET, algorithm="HS256")
 
         # Mock application context to return environment
         with patch.object(
@@ -1585,10 +1587,10 @@ class TestPermissionService:
         """Test refresh_permissions when user info fetch fails."""
         # Mock application context (won't be called if user info fails)
         with patch.object(permission_service, "_get_app_context_service", return_value=MagicMock()):
-            with patch.object(
-                permission_service.http_client, "authenticated_request", new_callable=AsyncMock
-            ) as mock_request:
-                mock_request.side_effect = Exception("Network error")
+            with patch(
+                "miso_client.services.permission.validate_token_request", new_callable=AsyncMock
+            ) as mock_validate:
+                mock_validate.side_effect = Exception("Network error")
 
                 permissions = await permission_service.refresh_permissions("token")
 
@@ -1599,10 +1601,10 @@ class TestPermissionService:
         """Test refresh_permissions when user_id is None after validate."""
         # Mock application context (won't be called if user_id is None)
         with patch.object(permission_service, "_get_app_context_service", return_value=MagicMock()):
-            with patch.object(
-                permission_service.http_client, "authenticated_request", new_callable=AsyncMock
-            ) as mock_request:
-                mock_request.return_value = {"user": {}}  # No id field
+            with patch(
+                "miso_client.services.permission.validate_token_request", new_callable=AsyncMock
+            ) as mock_validate:
+                mock_validate.return_value = {"data": {"user": {}}}  # No id field
 
                 permissions = await permission_service.refresh_permissions("token")
 
@@ -1626,10 +1628,10 @@ class TestPermissionService:
             )
             mock_get_service.return_value = mock_app_context_service
 
-            with patch.object(
-                permission_service.http_client, "authenticated_request", new_callable=AsyncMock
-            ) as mock_request:
-                mock_request.return_value = {"user": {"id": "user-123"}}
+            with patch(
+                "miso_client.services.permission.validate_token_request", new_callable=AsyncMock
+            ) as mock_validate:
+                mock_validate.return_value = {"data": {"user": {"id": "user-123"}}}
 
                 with patch.object(
                     permission_service.api_client.permissions,
@@ -1647,10 +1649,10 @@ class TestPermissionService:
         """Test refresh_permissions exception handling."""
         # Mock application context (won't be called if exception happens early)
         with patch.object(permission_service, "_get_app_context_service", return_value=MagicMock()):
-            with patch.object(
-                permission_service.http_client, "authenticated_request", new_callable=AsyncMock
-            ) as mock_request:
-                mock_request.side_effect = Exception("Unexpected error")
+            with patch(
+                "miso_client.services.permission.validate_token_request", new_callable=AsyncMock
+            ) as mock_validate:
+                mock_validate.side_effect = Exception("Unexpected error")
 
                 permissions = await permission_service.refresh_permissions("token")
 
@@ -1659,10 +1661,10 @@ class TestPermissionService:
     @pytest.mark.asyncio
     async def test_clear_permissions_cache_validate_fails(self, permission_service):
         """Test clear_permissions_cache when validate fails."""
-        with patch.object(
-            permission_service.http_client, "authenticated_request", new_callable=AsyncMock
-        ) as mock_request:
-            mock_request.side_effect = Exception("Validate failed")
+        with patch(
+            "miso_client.services.permission.validate_token_request", new_callable=AsyncMock
+        ) as mock_validate:
+            mock_validate.side_effect = Exception("Validate failed")
 
             # Should silently fail
             await permission_service.clear_permissions_cache("token")
@@ -1677,10 +1679,10 @@ class TestPermissionService:
     @pytest.mark.asyncio
     async def test_clear_permissions_cache_user_id_none(self, permission_service):
         """Test clear_permissions_cache when user_id is None."""
-        with patch.object(
-            permission_service.http_client, "authenticated_request", new_callable=AsyncMock
-        ) as mock_request:
-            mock_request.return_value = {"user": {}}  # No id field
+        with patch(
+            "miso_client.services.permission.validate_token_request", new_callable=AsyncMock
+        ) as mock_validate:
+            mock_validate.return_value = {"data": {"user": {}}}  # No id field
 
             # Should silently fail
             await permission_service.clear_permissions_cache("token")
@@ -1695,10 +1697,10 @@ class TestPermissionService:
     @pytest.mark.asyncio
     async def test_clear_permissions_cache_exception_handling(self, permission_service):
         """Test clear_permissions_cache exception handling (should silently fail)."""
-        with patch.object(
-            permission_service.http_client, "authenticated_request", new_callable=AsyncMock
-        ) as mock_request:
-            mock_request.side_effect = Exception("Unexpected error")
+        with patch(
+            "miso_client.services.permission.validate_token_request", new_callable=AsyncMock
+        ) as mock_validate:
+            mock_validate.side_effect = Exception("Unexpected error")
 
             # Should not raise exception
             await permission_service.clear_permissions_cache("token")
@@ -1708,7 +1710,7 @@ class TestPermissionService:
         """Test automatic environment extraction from application context."""
         import jwt
 
-        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-123"}, TEST_JWT_SECRET, algorithm="HS256")
 
         # Mock application context to return environment
         with patch.object(
@@ -1765,7 +1767,7 @@ class TestPermissionService:
         """Test get_permissions when cache returns non-dict value."""
         import jwt
 
-        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-123"}, TEST_JWT_SECRET, algorithm="HS256")
 
         # Mock application context to return environment
         with patch.object(
@@ -1863,7 +1865,7 @@ class TestPermissionService:
         import jwt
 
         # Use token without user_id so validate_token_request is called
-        token = jwt.encode({"name": "test"}, "secret", algorithm="HS256")
+        token = jwt.encode({"name": "test"}, TEST_JWT_SECRET, algorithm="HS256")
 
         # Mock application context (won't be called if validate fails)
         with patch.object(permission_service, "_get_app_context_service", return_value=MagicMock()):
@@ -1885,7 +1887,7 @@ class TestPermissionService:
         """Test that cache hits don't trigger controller calls (including token refresh)."""
         import jwt
 
-        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-123"}, TEST_JWT_SECRET, algorithm="HS256")
 
         # Mock application context service with synchronous method
         mock_app_context_service = MagicMock()
@@ -1916,7 +1918,7 @@ class TestPermissionService:
         """Test that cache misses only trigger one controller call (for permissions)."""
         import jwt
 
-        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-123"}, TEST_JWT_SECRET, algorithm="HS256")
 
         # Mock application context service with synchronous method
         mock_app_context_service = MagicMock()
@@ -2476,7 +2478,7 @@ class TestLoggerService:
         import jwt
 
         payload = {"sub": "user-123", "sessionId": "session-456"}
-        token = jwt.encode(payload, "secret", algorithm="HS256")
+        token = jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
 
         request = MagicMock()
         request.method = "POST"
@@ -2528,7 +2530,7 @@ class TestLoggerService:
         import jwt
 
         payload = {"sub": "user-789", "sessionId": "session-abc"}
-        token = jwt.encode(payload, "secret", algorithm="HS256")
+        token = jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
 
         log_entry = await logger_service.get_with_token(token, "User action", "audit")
 
@@ -2953,7 +2955,7 @@ class TestRoleServiceAdditional:
 
         from miso_client.models.config import AuthStrategy
 
-        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-123"}, TEST_JWT_SECRET, algorithm="HS256")
         auth_strategy = AuthStrategy(methods=["bearer", "client-token"])
 
         with patch.object(
@@ -3001,7 +3003,7 @@ class TestRoleServiceAdditional:
         """Test get_roles error handling returns empty list."""
         import jwt
 
-        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-123"}, TEST_JWT_SECRET, algorithm="HS256")
 
         with patch.object(
             role_service, "_get_app_context_service", return_value=MagicMock()
@@ -3035,7 +3037,7 @@ class TestRoleServiceAdditional:
         """Test get_roles with empty roles list from API."""
         import jwt
 
-        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-123"}, TEST_JWT_SECRET, algorithm="HS256")
 
         with patch.object(
             role_service, "_get_app_context_service", return_value=MagicMock()
@@ -3078,7 +3080,7 @@ class TestRoleServiceAdditional:
         """Test get_roles with None roles from API (should return empty list)."""
         import jwt
 
-        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-123"}, TEST_JWT_SECRET, algorithm="HS256")
 
         with patch.object(
             role_service, "_get_app_context_service", return_value=MagicMock()
@@ -3127,7 +3129,7 @@ class TestRoleServiceAdditional:
         # Create role service without api_client
         role_service_no_api = RoleService(mock_http_client, mock_cache, None)
 
-        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-123"}, TEST_JWT_SECRET, algorithm="HS256")
 
         with patch.object(
             role_service_no_api, "_get_app_context_service", return_value=MagicMock()
@@ -3171,7 +3173,7 @@ class TestRoleServiceAdditional:
         import jwt
 
         # Test with userId field
-        token_userid = jwt.encode({"userId": "user-456"}, "secret", algorithm="HS256")
+        token_userid = jwt.encode({"userId": "user-456"}, TEST_JWT_SECRET, algorithm="HS256")
 
         with patch.object(
             role_service, "_get_app_context_service", return_value=MagicMock()
@@ -3197,7 +3199,7 @@ class TestRoleServiceAdditional:
                 mock_get.assert_called_once_with("roles:user-456")
 
         # Test with user_id field
-        token_user_id = jwt.encode({"user_id": "user-789"}, "secret", algorithm="HS256")
+        token_user_id = jwt.encode({"user_id": "user-789"}, TEST_JWT_SECRET, algorithm="HS256")
 
         with patch.object(
             role_service, "_get_app_context_service", return_value=MagicMock()
@@ -3224,7 +3226,7 @@ class TestRoleServiceAdditional:
         """Test get_roles with invalid cache data format (not a dict)."""
         import jwt
 
-        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-123"}, TEST_JWT_SECRET, algorithm="HS256")
 
         with patch.object(
             role_service, "_get_app_context_service", return_value=MagicMock()
@@ -3271,7 +3273,7 @@ class TestRoleServiceAdditional:
         """Test get_roles with application context returning unknown environment."""
         import jwt
 
-        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-123"}, TEST_JWT_SECRET, algorithm="HS256")
 
         with patch.object(
             role_service, "_get_app_context_service", return_value=MagicMock()
@@ -3447,7 +3449,7 @@ class TestRoleServiceAdditional:
         """Test clear_roles_cache when userId is in JWT (should not call validate)."""
         import jwt
 
-        token = jwt.encode({"sub": "user-789"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-789"}, TEST_JWT_SECRET, algorithm="HS256")
 
         with patch.object(role_service.cache, "delete", new_callable=AsyncMock) as mock_delete:
             # Should not call validate_token_request when userId is in token
@@ -3476,7 +3478,7 @@ class TestPermissionServiceAdditional:
         """Test getting permissions from controller when cache miss."""
         import jwt
 
-        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-123"}, TEST_JWT_SECRET, algorithm="HS256")
 
         with patch.object(
             permission_service, "_get_app_context_service", return_value=MagicMock()
@@ -3528,7 +3530,7 @@ class TestPermissionServiceAdditional:
         """Test getting permissions when userId not in token."""
         import jwt
 
-        token = jwt.encode({"name": "test"}, "secret", algorithm="HS256")
+        token = jwt.encode({"name": "test"}, TEST_JWT_SECRET, algorithm="HS256")
 
         with patch.object(
             permission_service, "_get_app_context_service", return_value=MagicMock()
@@ -3582,7 +3584,7 @@ class TestPermissionServiceAdditional:
 
         from miso_client.models.config import AuthStrategy
 
-        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-123"}, TEST_JWT_SECRET, algorithm="HS256")
         auth_strategy = AuthStrategy(methods=["bearer", "client-token"])
 
         with patch.object(
@@ -3634,7 +3636,7 @@ class TestPermissionServiceAdditional:
         """Test get_permissions error handling returns empty list."""
         import jwt
 
-        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-123"}, TEST_JWT_SECRET, algorithm="HS256")
 
         with patch.object(
             permission_service, "_get_app_context_service", return_value=MagicMock()
@@ -3670,7 +3672,7 @@ class TestPermissionServiceAdditional:
         """Test get_permissions with empty permissions list from API."""
         import jwt
 
-        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-123"}, TEST_JWT_SECRET, algorithm="HS256")
 
         with patch.object(
             permission_service, "_get_app_context_service", return_value=MagicMock()
@@ -3715,7 +3717,7 @@ class TestPermissionServiceAdditional:
         """Test get_permissions with None permissions from API (should return empty list)."""
         import jwt
 
-        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-123"}, TEST_JWT_SECRET, algorithm="HS256")
 
         with patch.object(
             permission_service, "_get_app_context_service", return_value=MagicMock()
@@ -3766,7 +3768,7 @@ class TestPermissionServiceAdditional:
         # Create permission service without api_client
         permission_service_no_api = PermissionService(mock_http_client, mock_cache, None)
 
-        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-123"}, TEST_JWT_SECRET, algorithm="HS256")
 
         with patch.object(
             permission_service_no_api, "_get_app_context_service", return_value=MagicMock()
@@ -3814,7 +3816,7 @@ class TestPermissionServiceAdditional:
         import jwt
 
         # Test with userId field
-        token_userid = jwt.encode({"userId": "user-456"}, "secret", algorithm="HS256")
+        token_userid = jwt.encode({"userId": "user-456"}, TEST_JWT_SECRET, algorithm="HS256")
 
         with patch.object(
             permission_service, "_get_app_context_service", return_value=MagicMock()
@@ -3844,7 +3846,7 @@ class TestPermissionServiceAdditional:
         """Test get_permissions with invalid cache data format (not a dict)."""
         import jwt
 
-        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-123"}, TEST_JWT_SECRET, algorithm="HS256")
 
         with patch.object(
             permission_service, "_get_app_context_service", return_value=MagicMock()
@@ -3893,7 +3895,7 @@ class TestPermissionServiceAdditional:
         """Test get_permissions with application context returning unknown environment."""
         import jwt
 
-        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-123"}, TEST_JWT_SECRET, algorithm="HS256")
 
         with patch.object(
             permission_service, "_get_app_context_service", return_value=MagicMock()
@@ -3943,7 +3945,7 @@ class TestPermissionServiceAdditional:
         """Test that cache hits don't trigger controller calls."""
         import jwt
 
-        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-123"}, TEST_JWT_SECRET, algorithm="HS256")
 
         mock_app_context_service = MagicMock()
         mock_app_context = MagicMock()
@@ -3976,7 +3978,7 @@ class TestPermissionServiceAdditional:
         """Test that cache misses only trigger one controller call."""
         import jwt
 
-        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-123"}, TEST_JWT_SECRET, algorithm="HS256")
 
         mock_app_context_service = MagicMock()
         mock_app_context = MagicMock()
@@ -4176,7 +4178,7 @@ class TestPermissionServiceAdditional:
         # Create permission service without api_client to test HttpClient path
         permission_service_no_api = PermissionService(mock_http_client, mock_cache, None)
 
-        token = jwt.encode({}, "secret", algorithm="HS256")  # No userId in token
+        token = jwt.encode({}, TEST_JWT_SECRET, algorithm="HS256")  # No userId in token
 
         with patch.object(
             permission_service_no_api, "_get_app_context_service", return_value=MagicMock()
@@ -4222,7 +4224,7 @@ class TestPermissionServiceAdditional:
         # Create permission service without api_client
         permission_service_no_api = PermissionService(mock_http_client, mock_cache, None)
 
-        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-123"}, TEST_JWT_SECRET, algorithm="HS256")
         auth_strategy = AuthStrategy(methods=["bearer", "client-token"])
 
         with patch.object(
@@ -4339,7 +4341,7 @@ class TestPermissionServiceAdditional:
         # Create permission service without api_client
         permission_service_no_api = PermissionService(mock_http_client, mock_cache, None)
 
-        token = jwt.encode({"sub": "user-123"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-123"}, TEST_JWT_SECRET, algorithm="HS256")
 
         with patch.object(
             permission_service_no_api, "_get_app_context_service", return_value=MagicMock()
@@ -4483,7 +4485,7 @@ class TestPermissionServiceAdditional:
         """Test clear_permissions_cache when userId is in JWT (should not call validate)."""
         import jwt
 
-        token = jwt.encode({"sub": "user-789"}, "secret", algorithm="HS256")
+        token = jwt.encode({"sub": "user-789"}, TEST_JWT_SECRET, algorithm="HS256")
 
         with patch.object(
             permission_service.cache, "delete", new_callable=AsyncMock

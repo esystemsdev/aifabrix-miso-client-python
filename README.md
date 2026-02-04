@@ -390,11 +390,14 @@ async def background_job():
 - `ipAddress` - Client IP address
 - `userAgent` - User agent string
 - `correlationId` - Request correlation ID
+- `requestId` - Request ID from headers
 - `userId` - Authenticated user ID (from JWT token)
 - `sessionId` - Session ID (from JWT token)
 - `method` - HTTP method
 - `path` - Request path
 - `hostname` - Request hostname
+- `referer` - Referrer URL
+- `requestSize` - Request size in bytes
 - `applicationId` - Application identifier (from JWT token)
 
 ---
