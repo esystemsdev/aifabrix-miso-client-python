@@ -5,7 +5,7 @@ This module contains tests for HttpClient filter and pagination helper methods:
 get_with_filters and get_paginated.
 """
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -13,9 +13,15 @@ from miso_client.models.config import MisoClientConfig
 from miso_client.models.filter import FilterBuilder, FilterOption, FilterQuery, JsonFilter
 from miso_client.models.pagination import PaginatedListResponse
 from miso_client.services.logger import LoggerService
-from miso_client.services.redis import RedisService
 from miso_client.utils.http_client import HttpClient
-from miso_client.utils.internal_http_client import InternalHttpClient
+
+
+def _make_mock_logger():
+    """Create mock logger to avoid real HTTP/Redis calls during audit logging."""
+    mock = MagicMock(spec=LoggerService)
+    mock.audit = AsyncMock()
+    mock.debug = AsyncMock()
+    return mock
 
 
 class TestHttpClientGetWithFilters:
@@ -31,20 +37,8 @@ class TestHttpClientGetWithFilters:
         )
 
     @pytest.fixture
-    def redis_service(self, config):
-        return RedisService(config.redis)
-
-    @pytest.fixture
-    def internal_http_client(self, config):
-        return InternalHttpClient(config)
-
-    @pytest.fixture
-    def logger_service(self, internal_http_client, redis_service):
-        return LoggerService(internal_http_client, redis_service)
-
-    @pytest.fixture
-    def http_client(self, config, logger_service):
-        return HttpClient(config, logger_service)
+    def http_client(self, config):
+        return HttpClient(config, _make_mock_logger())
 
     @pytest.mark.asyncio
     async def test_get_with_filters_single_filter(self, http_client):
@@ -137,20 +131,8 @@ class TestHttpClientGetPaginated:
         )
 
     @pytest.fixture
-    def redis_service(self, config):
-        return RedisService(config.redis)
-
-    @pytest.fixture
-    def internal_http_client(self, config):
-        return InternalHttpClient(config)
-
-    @pytest.fixture
-    def logger_service(self, internal_http_client, redis_service):
-        return LoggerService(internal_http_client, redis_service)
-
-    @pytest.fixture
-    def http_client(self, config, logger_service):
-        return HttpClient(config, logger_service)
+    def http_client(self, config):
+        return HttpClient(config, _make_mock_logger())
 
     @pytest.mark.asyncio
     async def test_get_paginated_basic(self, http_client):
@@ -301,20 +283,8 @@ class TestHttpClientPostWithFilters:
         )
 
     @pytest.fixture
-    def redis_service(self, config):
-        return RedisService(config.redis)
-
-    @pytest.fixture
-    def internal_http_client(self, config):
-        return InternalHttpClient(config)
-
-    @pytest.fixture
-    def logger_service(self, internal_http_client, redis_service):
-        return LoggerService(internal_http_client, redis_service)
-
-    @pytest.fixture
-    def http_client(self, config, logger_service):
-        return HttpClient(config, logger_service)
+    def http_client(self, config):
+        return HttpClient(config, _make_mock_logger())
 
     @pytest.mark.asyncio
     async def test_post_with_filters_json_filter(self, http_client):

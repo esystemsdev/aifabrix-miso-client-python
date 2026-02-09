@@ -4466,3 +4466,153 @@ class TestPermissionServiceAdditional:
                 mock_validate.assert_not_called()
                 # Should delete cache directly
                 mock_delete.assert_called_once_with("permissions:user-789")
+
+
+class TestMisoClientApplicationStatus:
+    """Test cases for MisoClient application status methods."""
+
+    @pytest.fixture
+    def config(self):
+        from miso_client.models.config import MisoClientConfig
+
+        return MisoClientConfig(
+            controller_url="https://controller.aifabrix.ai",
+            client_id="miso-controller-dev-my-app",
+            client_secret="test-secret",
+        )
+
+    @pytest.fixture
+    def miso_client(self, config, mock_redis):
+        """MisoClient with mocked dependencies."""
+        with patch("miso_client.client.RedisService", return_value=mock_redis):
+            from miso_client import MisoClient
+
+            client = MisoClient(config)
+            # Mock api_client.applications
+            client.api_client.applications.update_self_status = AsyncMock()
+            client.api_client.applications.get_application_status = AsyncMock()
+            return client
+
+    @pytest.mark.asyncio
+    async def test_update_my_application_status_with_env_key(self, miso_client):
+        """Test update_my_application_status forwards to API when env_key provided."""
+        from miso_client.api.types.applications_types import (
+            UpdateSelfStatusRequest,
+            UpdateSelfStatusResponse,
+        )
+
+        body = UpdateSelfStatusRequest(status="running", url="https://app.example.com")
+        mock_response = UpdateSelfStatusResponse(
+            success=True,
+            application=None,
+            message="Updated",
+        )
+        miso_client.api_client.applications.update_self_status.return_value = mock_response
+
+        result = await miso_client.update_my_application_status(body, env_key="dev")
+
+        assert result.success is True
+        miso_client.api_client.applications.update_self_status.assert_called_once_with(
+            "dev", body, None
+        )
+
+    @pytest.mark.asyncio
+    async def test_update_my_application_status_uses_context_when_env_key_omitted(
+        self, miso_client
+    ):
+        """Test update_my_application_status uses context when env_key omitted."""
+        from miso_client.api.types.applications_types import (
+            UpdateSelfStatusRequest,
+            UpdateSelfStatusResponse,
+        )
+        from miso_client.services.application_context import ApplicationContext
+
+        body = UpdateSelfStatusRequest(status="ready")
+        mock_response = UpdateSelfStatusResponse(success=True)
+        miso_client.api_client.applications.update_self_status.return_value = mock_response
+
+        mock_context = ApplicationContext(
+            application="my-app", application_id=None, environment="dev"
+        )
+        with patch.object(
+            miso_client, "_get_app_context_service", return_value=MagicMock()
+        ) as mock_get_service:
+            mock_get_service.return_value.get_application_context_sync.return_value = mock_context
+
+            result = await miso_client.update_my_application_status(body)
+
+            assert result.success is True
+            miso_client.api_client.applications.update_self_status.assert_called_once_with(
+                "dev", body, None
+            )
+
+    @pytest.mark.asyncio
+    async def test_update_my_application_status_context_missing_raises(self, miso_client):
+        """Test update_my_application_status raises when context cannot be resolved."""
+        from miso_client.api.types.applications_types import UpdateSelfStatusRequest
+
+        body = UpdateSelfStatusRequest(status="ready")
+        mock_context = MagicMock()
+        mock_context.environment = None
+        mock_context.application = "unknown"
+        with patch.object(
+            miso_client, "_get_app_context_service", return_value=MagicMock()
+        ) as mock_get_service:
+            mock_get_service.return_value.get_application_context_sync.return_value = mock_context
+
+            with pytest.raises(ValueError, match="env_key is required"):
+                await miso_client.update_my_application_status(body)
+
+    @pytest.mark.asyncio
+    async def test_get_application_status_forwards_to_api(self, miso_client):
+        """Test get_application_status forwards to API with env_key and app_key."""
+        from miso_client.api.types.applications_types import ApplicationStatusResponse
+
+        mock_response = ApplicationStatusResponse(id="app-123", key="my-app", status="running")
+        miso_client.api_client.applications.get_application_status.return_value = mock_response
+
+        result = await miso_client.get_application_status("dev", "my-app")
+
+        assert result.key == "my-app"
+        assert result.status == "running"
+        miso_client.api_client.applications.get_application_status.assert_called_once_with(
+            "dev", "my-app", None
+        )
+
+    @pytest.mark.asyncio
+    async def test_get_application_status_uses_context_when_both_omitted(self, miso_client):
+        """Test get_application_status uses context when env_key and app_key omitted."""
+        from miso_client.api.types.applications_types import ApplicationStatusResponse
+        from miso_client.services.application_context import ApplicationContext
+
+        mock_response = ApplicationStatusResponse(key="my-app", status="running")
+        miso_client.api_client.applications.get_application_status.return_value = mock_response
+
+        mock_context = ApplicationContext(
+            application="my-app", application_id=None, environment="dev"
+        )
+        with patch.object(
+            miso_client, "_get_app_context_service", return_value=MagicMock()
+        ) as mock_get_service:
+            mock_get_service.return_value.get_application_context_sync.return_value = mock_context
+
+            result = await miso_client.get_application_status()
+
+            assert result.key == "my-app"
+            miso_client.api_client.applications.get_application_status.assert_called_once_with(
+                "dev", "my-app", None
+            )
+
+    @pytest.mark.asyncio
+    async def test_get_application_status_context_missing_raises(self, miso_client):
+        """Test get_application_status raises when context cannot be resolved."""
+        mock_context = MagicMock()
+        mock_context.environment = None
+        mock_context.application = None
+        with patch.object(
+            miso_client, "_get_app_context_service", return_value=MagicMock()
+        ) as mock_get_service:
+            mock_get_service.return_value.get_application_context_sync.return_value = mock_context
+
+            with pytest.raises(ValueError, match="env_key and app_key are required"):
+                await miso_client.get_application_status()

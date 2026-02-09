@@ -5,6 +5,27 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.4.1] - 2026-02-09
+
+
+### Added
+
+- **Application status and URLs** - Server-side SDK support for updating and fetching application status
+  - `MisoClient.update_my_application_status(body, env_key=None, auth_strategy=None)` - Update own application status/URLs via POST self/status
+  - `MisoClient.get_application_status(env_key, app_key, auth_strategy=None)` - Fetch any application's status/URLs (no configuration)
+  - New types: `UpdateSelfStatusRequest`, `UpdateSelfStatusResponse`, `ApplicationStatusResponse`
+  - `ApplicationsApi` in API layer with `update_self_status` and `get_application_status`
+  - When `env_key`/`app_key` omitted, uses `ApplicationContextService` for current app context
+
+### Removed
+
+- **Makefile.ps1** - Removed PowerShell Makefile; use `make` commands for all platforms (Windows users can use Git Bash or WSL)
+
+### Technical
+
+- **Circular import fix** - API package uses lazy imports so `api.types.applications_types` can be imported without pulling in `HttpClient` (fixes import cycle with services/logger).
+
+
 ## [4.4.0] - 2026-02-04
 
 ### Changed

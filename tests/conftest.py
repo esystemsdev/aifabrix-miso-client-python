@@ -104,6 +104,7 @@ def mock_http_client(config):
 @pytest.fixture
 def mock_api_client(mock_http_client):
     """Mock API client."""
+    from miso_client.api.applications_api import ApplicationsApi
     from miso_client.api.auth_api import AuthApi
     from miso_client.api.logs_api import LogsApi
     from miso_client.api.permissions_api import PermissionsApi
@@ -117,6 +118,7 @@ def mock_api_client(mock_http_client):
     api_client.roles = MagicMock(spec=RolesApi)
     api_client.permissions = MagicMock(spec=PermissionsApi)
     api_client.logs = MagicMock(spec=LogsApi)
+    api_client.applications = MagicMock(spec=ApplicationsApi)
 
     return api_client
 

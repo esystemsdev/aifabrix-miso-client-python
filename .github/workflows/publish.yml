@@ -14,7 +14,9 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    
+    permissions:
+      contents: write   # Required to create and push tags on manual run
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -116,3 +118,16 @@ jobs:
         echo "🌐 Registry: https://pypi.org"
         echo ""
         echo "Installation: pip install miso-client==$VERSION"
+
+    - name: Tag release (manual run only)
+      if: github.event_name == "workflow_dispatch"
+      env:
+        VERSION: ${{ steps.get_version.outputs.VERSION }}
+      run: |
+        TAG="v${VERSION}"
+        if [[ "$VERSION" == v* ]]; then TAG="$VERSION"; fi
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git tag -a "$TAG" -m "Release $TAG"
+        git push origin "$TAG"
+        echo "Tagged and pushed $TAG"

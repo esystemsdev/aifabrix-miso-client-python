@@ -3,6 +3,11 @@
 Exports all request and response types for the API layer.
 """
 
+from .applications_types import (
+    ApplicationStatusResponse,
+    UpdateSelfStatusRequest,
+    UpdateSelfStatusResponse,
+)
 from .auth_types import (
     DeviceCodeRequest,
     DeviceCodeResponse,
@@ -103,6 +108,9 @@ __all__ = [
     "ListAuditLogsResponse",
     "ListJobLogsResponse",
     "GetJobLogResponse",
+    "ApplicationStatusResponse",
+    "UpdateSelfStatusRequest",
+    "UpdateSelfStatusResponse",
     # Logs types - Statistics
     "LogStatsSummaryData",
     "LogStatsSummaryResponse",

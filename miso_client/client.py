@@ -21,6 +21,11 @@ from .utils.internal_http_client import InternalHttpClient
 from .utils.jwt_tools import extract_user_id
 
 if TYPE_CHECKING:
+    from .api.types.applications_types import (
+        ApplicationStatusResponse,
+        UpdateSelfStatusRequest,
+        UpdateSelfStatusResponse,
+    )
     from .models.encryption import EncryptResult
 
 
@@ -293,4 +298,88 @@ class MisoClient:
         """Make request with authentication strategy (priority-based fallback)."""
         return await self.http_client.request_with_auth_strategy(
             method, url, auth_strategy, data, **kwargs
+        )
+
+    # ==================== APPLICATION STATUS METHODS ====================
+
+    def _get_app_context_service(self):
+        """Get or create ApplicationContextService (lazy initialization)."""
+        if not hasattr(self, "_app_context_service") or self._app_context_service is None:
+            from .services.application_context import ApplicationContextService
+
+            self._app_context_service = ApplicationContextService(self._internal_http_client)
+        return self._app_context_service
+
+    async def update_my_application_status(
+        self,
+        body: "UpdateSelfStatusRequest",
+        env_key: Optional[str] = None,
+        auth_strategy: Optional[AuthStrategy] = None,
+    ) -> "UpdateSelfStatusResponse":
+        """Update own application status and URLs.
+
+        Args:
+            body: Update request (status, url, internalUrl, port)
+            env_key: Environment key (if omitted, uses ApplicationContextService)
+            auth_strategy: Optional authentication strategy
+
+        Returns:
+            UpdateSelfStatusResponse with success and application data
+
+        Raises:
+            ValueError: If env_key is omitted and application context cannot be resolved
+
+        """
+
+        resolved_env_key = env_key
+        if resolved_env_key is None:
+            context = self._get_app_context_service().get_application_context_sync()
+            resolved_env_key = context.environment
+            if not resolved_env_key or resolved_env_key == "unknown":
+                raise ValueError(
+                    "env_key is required when application context cannot be resolved "
+                    "(clientId format: miso-controller-{env}-{app})"
+                )
+
+        return await self.api_client.applications.update_self_status(
+            resolved_env_key, body, auth_strategy
+        )
+
+    async def get_application_status(
+        self,
+        env_key: Optional[str] = None,
+        app_key: Optional[str] = None,
+        auth_strategy: Optional[AuthStrategy] = None,
+    ) -> "ApplicationStatusResponse":
+        """Get application status and URLs.
+
+        Args:
+            env_key: Environment key (if both omitted, uses context for current app)
+            app_key: Application key (if both omitted, uses context for current app)
+            auth_strategy: Optional authentication strategy
+
+        Returns:
+            ApplicationStatusResponse with application metadata (no configuration)
+
+        Raises:
+            ValueError: If env_key/app_key cannot be resolved when both omitted
+
+        """
+
+        resolved_env_key = env_key
+        resolved_app_key = app_key
+
+        if resolved_env_key is None or resolved_app_key is None:
+            context = self._get_app_context_service().get_application_context_sync()
+            if resolved_env_key is None:
+                resolved_env_key = context.environment
+            if resolved_app_key is None:
+                resolved_app_key = context.application
+            if not resolved_env_key or not resolved_app_key:
+                raise ValueError(
+                    "env_key and app_key are required when application context cannot be resolved"
+                )
+
+        return await self.api_client.applications.get_application_status(
+            resolved_env_key, resolved_app_key, auth_strategy
         )

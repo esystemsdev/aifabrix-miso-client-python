@@ -159,29 +159,8 @@ is_valid = await client.validate_token(token)
 
 ## Development Setup
 
-### Windows Development
+Use `make` for development commands (works on Linux, macOS, and Windows with Git Bash/WSL):
 
-For Windows users, we provide a PowerShell Makefile to replace the `make` commands:
-
-**PowerShell (Recommended):**
-```powershell
-# Install with development dependencies
-.\Makefile.ps1 install-dev
-
-# Run all checks and build
-.\Makefile.ps1 all
-
-# Run validation (lint + format + test)
-.\Makefile.ps1 validate
-
-# Individual commands
-.\Makefile.ps1 test
-.\Makefile.ps1 lint
-.\Makefile.ps1 format
-.\Makefile.ps1 build
-```
-
-**Unix/Linux/macOS (Using Make):**
 ```bash
 # Install with development dependencies
 make install-dev
@@ -199,18 +178,6 @@ make format
 make build
 ```
 
-**Direct Python commands:**
-```cmd
-# Install with development dependencies
-pip install -e ".[dev]"
-
-# Run tests
-python -m pytest tests/ -v
-
-# Build package
-python -m build
-```
-
 ### 1. Clone and Install
 
 ```bash
@@ -226,85 +193,22 @@ pip install -e ".[dev]"
 
 ### 2. Run Tests
 
-**Linux/macOS:**
 ```bash
-# Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=miso_client --cov-report=html
-
-# Run specific test file
-pytest tests/unit/test_auth.py
-```
-
-**Windows:**
-```powershell
-# Using PowerShell Makefile
-.\Makefile.ps1 test
-.\Makefile.ps1 test-cov
-
-# Or directly with Python
-python -m pytest tests/ -v
-python -m pytest tests/ -v --cov=miso_client --cov-report=html
-```
-
-**Unix/Linux/macOS:**
-```bash
-# Using Make
 make test
 make test-cov
 
-# Or directly with Python
-python -m pytest tests/ -v
-python -m pytest tests/ -v --cov=miso_client --cov-report=html
+# Or directly with pytest
+pytest tests/ -v
+pytest tests/ -v --cov=miso_client --cov-report=html
 ```
 
 ### 3. Code Quality
 
-**Linux/macOS:**
 ```bash
-# Format code
-black miso_client/ tests/
-
-# Sort imports
-isort miso_client/ tests/
-
-# Lint code
-ruff check miso_client/ tests/
-
-# Type check
-mypy miso_client/
-```
-
-**Windows:**
-```powershell
-# Using PowerShell Makefile
-.\Makefile.ps1 format
-.\Makefile.ps1 lint
-.\Makefile.ps1 type-check
-.\Makefile.ps1 validate  # Runs lint + format + test
-
-# Or directly with Python
-python -m black miso_client/ tests/
-python -m isort miso_client/ tests/
-python -m ruff check miso_client/ tests/
-python -m mypy miso_client/ --ignore-missing-imports
-```
-
-**Unix/Linux/macOS:**
-```bash
-# Using Make
 make format
 make lint
 make type-check
 make validate  # Runs lint + format + test
-
-# Or directly with Python
-python -m black miso_client/ tests/
-python -m isort miso_client/ tests/
-python -m ruff check miso_client/ tests/
-python -m mypy miso_client/ --ignore-missing-imports
 ```
 
 ## Release Process

@@ -4,6 +4,13 @@ This package provides a reusable client SDK for integrating with the Miso Contro
 for authentication, role-based access control, permission management, and logging.
 """
 
+# Applications API types (after http_client to avoid circular import)
+from .api.types.applications_types import (
+    ApplicationStatusResponse,
+    UpdateSelfStatusRequest,
+    UpdateSelfStatusResponse,
+)
+
 # Core client
 from .client import MisoClient
 
@@ -135,7 +142,7 @@ from .utils.token_utils import extract_client_token_info
 from .utils.unified_logger_factory import clear_logger_context, get_logger, set_logger_context
 from .utils.url_validator import validate_url
 
-__version__ = "4.4.0"
+__version__ = "4.4.1"
 __author__ = "AI Fabrix Team"
 __license__ = "MIT"
 
@@ -183,6 +190,10 @@ __all__ = [
     "CompiledFilter",
     # Sort models
     "SortOption",
+    # Applications API types
+    "ApplicationStatusResponse",
+    "UpdateSelfStatusRequest",
+    "UpdateSelfStatusResponse",
     # Pagination utilities
     "parsePaginationParams",
     "parse_pagination_params",
