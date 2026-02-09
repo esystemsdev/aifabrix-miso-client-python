@@ -1,9 +1,8 @@
 name: Publish to PyPI
 
 on:
-  push:
-    tags:
-      - 'v*'   # Trigger on version tag push (e.g., v4.1.0)
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       version:
@@ -15,7 +14,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: write   # Required to create and push tags on manual run
+      contents: write   # Required to create and push tag on manual run
 
     steps:
     - name: Checkout code
@@ -119,8 +118,8 @@ jobs:
         echo ""
         echo "Installation: pip install miso-client==$VERSION"
 
-    - name: Tag release (manual run only)
-      if: github.event_name == "workflow_dispatch"
+    - name: Create and push tag (manual run only)
+      if: github.event_name == 'workflow_dispatch'
       env:
         VERSION: ${{ steps.get_version.outputs.VERSION }}
       run: |
@@ -131,3 +130,24 @@ jobs:
         git tag -a "$TAG" -m "Release $TAG"
         git push origin "$TAG"
         echo "Tagged and pushed $TAG"
+
+    - name: Update GitHub Release
+      if: github.event_name == 'release'
+      run: |
+        VERSION="${{ steps.get_version.outputs.VERSION }}"
+        
+        gh release edit "v$VERSION" \
+          --notes "## miso-client v$VERSION
+        
+        ✅ **Published to PyPI**: \`miso-client==$VERSION\`
+        
+        ### Installation
+        \`\`\`bash
+        pip install miso-client==$VERSION
+        \`\`\`
+        
+        ### Package Information
+        - **Registry**: https://pypi.org
+        - **Package URL**: https://pypi.org/project/miso-client/$VERSION/"
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
