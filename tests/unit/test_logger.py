@@ -78,6 +78,51 @@ class TestLoggerServiceEventEmission:
         assert callback_called[0].message == "Test message"
 
     @pytest.mark.asyncio
+    async def test_event_emission_includes_context_fields(self, logger_service):
+        """Test emitted log entry includes request and app context fields."""
+        callback_called = []
+
+        def callback(log_entry: LogEntry):
+            callback_called.append(log_entry)
+
+        logger_service.on(callback)
+
+        context = {
+            "method": "POST",
+            "path": "/api/test",
+            "correlationId": "corr-123",
+            "requestId": "req-456",
+            "sessionId": "session-789",
+            "ipAddress": "203.0.113.10",
+            "userAgent": "Mozilla/5.0",
+            "requestSize": 512,
+            "userId": "user-999",
+            "applicationId": "app-001",
+        }
+
+        with patch(
+            "miso_client.services.logger.extract_metadata",
+            return_value={"hostname": "test-host"},
+        ):
+            await logger_service.info("Test message", context)
+
+        assert len(callback_called) == 1
+        log_entry = callback_called[0]
+        assert log_entry.correlationId == "corr-123"
+        assert log_entry.requestId == "req-456"
+        assert log_entry.sessionId == "session-789"
+        assert log_entry.ipAddress == "203.0.113.10"
+        assert log_entry.userAgent == "Mozilla/5.0"
+        assert log_entry.requestSize == 512
+        assert log_entry.hostname == "test-host"
+        assert log_entry.userId is not None
+        assert log_entry.userId.id == "user-999"
+        assert log_entry.applicationId is not None
+        assert log_entry.applicationId.id == "app-001"
+        assert log_entry.context["method"] == "POST"
+        assert log_entry.context["path"] == "/api/test"
+
+    @pytest.mark.asyncio
     async def test_event_emission_with_multiple_callbacks(self, logger_service):
         """Test event emission mode with multiple callbacks."""
         callback1_called = []
@@ -579,3 +624,49 @@ class TestLoggerServiceEdgeCases:
             mock_request.assert_called_once()
             assert mock_request.call_args[0][0] == "POST"
             assert mock_request.call_args[0][1] == "/api/v1/logs"
+
+    @pytest.mark.asyncio
+    async def test_http_payload_preserves_log_fields(self, logger_service):
+        """Test HTTP payload includes expected log entry fields."""
+        logger_service.api_client = None
+        logger_service.redis.is_connected.return_value = False
+
+        context = {
+            "method": "PUT",
+            "path": "/api/resource",
+            "correlationId": "corr-999",
+            "requestId": "req-000",
+            "sessionId": "session-111",
+            "ipAddress": "198.51.100.5",
+            "userAgent": "pytest-agent",
+            "requestSize": 256,
+            "userId": "user-123",
+            "applicationId": "app-456",
+        }
+
+        with patch(
+            "miso_client.services.logger.extract_metadata",
+            return_value={"hostname": "test-host"},
+        ), patch.object(
+            logger_service.circuit_breaker, "is_open", return_value=False
+        ), patch.object(
+            logger_service.internal_http_client, "request", new_callable=AsyncMock
+        ) as mock_request:
+            await logger_service.info("Payload test", context)
+
+        mock_request.assert_called_once()
+        payload = mock_request.call_args[0][2]
+
+        assert "environment" not in payload
+        assert "application" not in payload
+        assert payload["correlationId"] == "corr-999"
+        assert payload["requestId"] == "req-000"
+        assert payload["sessionId"] == "session-111"
+        assert payload["ipAddress"] == "198.51.100.5"
+        assert payload["userAgent"] == "pytest-agent"
+        assert payload["requestSize"] == 256
+        assert payload["hostname"] == "test-host"
+        assert payload["userId"]["id"] == "user-123"
+        assert payload["applicationId"]["id"] == "app-456"
+        assert payload["context"]["method"] == "PUT"
+        assert payload["context"]["path"] == "/api/resource"

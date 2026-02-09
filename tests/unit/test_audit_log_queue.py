@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from miso_client.models.config import AuditConfig, LogEntry, MisoClientConfig
+from miso_client.models.config import AuditConfig, ForeignKeyReference, LogEntry, MisoClientConfig
 from miso_client.services.redis import RedisService
 from miso_client.utils.audit_log_queue import AuditLogQueue, QueuedLogEntry
 
@@ -302,6 +302,84 @@ class TestAuditLogQueue:
         assert "application" not in logs[0]
         assert logs[0]["message"] == "Test message"
         assert logs[0]["context"] == {"key": "value"}
+
+    @pytest.mark.asyncio
+    async def test_batch_payload_preserves_entry_fields(
+        self, audit_queue, mock_http_client, mock_redis
+    ):
+        """Test that batch payload keeps per-entry fields intact."""
+        audit_queue.redis.is_connected.return_value = False
+
+        entry_one = LogEntry(
+            timestamp="2024-01-01T12:00:00Z",
+            level="audit",
+            environment="test-env",
+            application="test-app",
+            message="Entry one",
+            correlationId="corr-1",
+            requestId="req-1",
+            sessionId="session-1",
+            ipAddress="203.0.113.10",
+            userAgent="agent-1",
+            requestSize=123,
+            userId=ForeignKeyReference(id="user-1", key="user-1", name="user-1", type="User"),
+            applicationId=ForeignKeyReference(
+                id="app-1", key="app-1", name="app-1", type="Application"
+            ),
+            context={"method": "POST", "path": "/api/one"},
+        )
+        entry_two = LogEntry(
+            timestamp="2024-01-01T12:00:01Z",
+            level="audit",
+            environment="test-env",
+            application="test-app",
+            message="Entry two",
+            correlationId="corr-2",
+            requestId="req-2",
+            sessionId="session-2",
+            ipAddress="203.0.113.11",
+            userAgent="agent-2",
+            requestSize=456,
+            userId=ForeignKeyReference(id="user-2", key="user-2", name="user-2", type="User"),
+            applicationId=ForeignKeyReference(
+                id="app-2", key="app-2", name="app-2", type="Application"
+            ),
+            context={"method": "PUT", "path": "/api/two"},
+        )
+
+        await audit_queue.add(entry_one)
+        await audit_queue.add(entry_two)
+        await audit_queue.flush()
+
+        mock_http_client.request.assert_called_once()
+        payload_logs = mock_http_client.request.call_args[0][2]["logs"]
+
+        assert len(payload_logs) == 2
+        assert payload_logs[0]["correlationId"] == "corr-1"
+        assert payload_logs[0]["requestId"] == "req-1"
+        assert payload_logs[0]["sessionId"] == "session-1"
+        assert payload_logs[0]["ipAddress"] == "203.0.113.10"
+        assert payload_logs[0]["userAgent"] == "agent-1"
+        assert payload_logs[0]["requestSize"] == 123
+        assert payload_logs[0]["userId"]["id"] == "user-1"
+        assert payload_logs[0]["applicationId"]["id"] == "app-1"
+        assert payload_logs[0]["context"]["method"] == "POST"
+        assert payload_logs[0]["context"]["path"] == "/api/one"
+        assert "environment" not in payload_logs[0]
+        assert "application" not in payload_logs[0]
+
+        assert payload_logs[1]["correlationId"] == "corr-2"
+        assert payload_logs[1]["requestId"] == "req-2"
+        assert payload_logs[1]["sessionId"] == "session-2"
+        assert payload_logs[1]["ipAddress"] == "203.0.113.11"
+        assert payload_logs[1]["userAgent"] == "agent-2"
+        assert payload_logs[1]["requestSize"] == 456
+        assert payload_logs[1]["userId"]["id"] == "user-2"
+        assert payload_logs[1]["applicationId"]["id"] == "app-2"
+        assert payload_logs[1]["context"]["method"] == "PUT"
+        assert payload_logs[1]["context"]["path"] == "/api/two"
+        assert "environment" not in payload_logs[1]
+        assert "application" not in payload_logs[1]
 
     @pytest.mark.asyncio
     async def test_flush_handles_http_error_silently(
