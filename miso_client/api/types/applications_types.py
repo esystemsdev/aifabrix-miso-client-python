@@ -3,9 +3,23 @@
 All types follow OpenAPI specification with camelCase field names.
 """
 
+from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel, Field
+
+
+class ApplicationStatus(str, Enum):
+    """Allowed values for application status (update and response).
+
+    API expects one of: healthy | degraded | deploying | error | maintenance.
+    """
+
+    HEALTHY = "healthy"
+    DEGRADED = "degraded"
+    DEPLOYING = "deploying"
+    ERROR = "error"
+    MAINTENANCE = "maintenance"
 
 
 class UpdateSelfStatusRequest(BaseModel):
@@ -14,7 +28,10 @@ class UpdateSelfStatusRequest(BaseModel):
     All fields optional; at least one typically sent when updating status.
     """
 
-    status: Optional[str] = Field(default=None, description="Application status")
+    status: Optional[ApplicationStatus] = Field(
+        default=None,
+        description="Application status (healthy, degraded, deploying, error, maintenance)",
+    )
     url: Optional[str] = Field(default=None, description="Application public URL")
     internalUrl: Optional[str] = Field(default=None, description="Application internal URL")
     port: Optional[int] = Field(

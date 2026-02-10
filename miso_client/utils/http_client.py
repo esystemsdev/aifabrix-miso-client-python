@@ -43,17 +43,26 @@ class HttpClient:
     before logging to ensure ISO 27001 compliance.
     """
 
-    def __init__(self, config: MisoClientConfig, logger: LoggerService):
+    def __init__(
+        self,
+        config: MisoClientConfig,
+        logger: LoggerService,
+        internal_client: Optional[InternalHttpClient] = None,
+    ):
         """Initialize public HTTP client with configuration and logger.
 
         Args:
             config: MisoClient configuration
             logger: LoggerService instance for audit and debug logging
+            internal_client: Optional shared InternalHttpClient (e.g. same as logger).
+                When provided, all requests use this client and the same client token.
 
         """
         self.config = config
         self.logger = logger
-        self._internal_client = InternalHttpClient(config)
+        self._internal_client = (
+            internal_client if internal_client is not None else InternalHttpClient(config)
+        )
         self._jwt_cache = JwtTokenCache(max_size=1000)
         self._user_token_refresh = UserTokenRefreshManager()
 

@@ -219,9 +219,9 @@ class TestRunner:
         # Test 2: Client token in headers (via internal client)
         async def test_token_in_headers():
             internal_client = self.client._internal_http_client
-            # Make a request to trigger token fetch
-            await internal_client._get_client_token()
-            assert internal_client.client_token is not None, "Client token should be set"
+            # Make a request to trigger token fetch (token is on token_manager)
+            await internal_client.token_manager.get_client_token()
+            assert internal_client.token_manager.client_token is not None, "Client token should be set"
             # Verify token is in headers when making a request
             await internal_client._ensure_client_token()
             assert "x-client-token" in internal_client.client.headers, "x-client-token should be in headers"
@@ -231,15 +231,15 @@ class TestRunner:
 
         # Test 3: Client token refresh
         async def test_token_refresh():
-            internal_client = self.client._internal_http_client
-            # Get initial token
-            token1 = await internal_client._get_client_token()
-            # Force refresh by setting expiration in the past
             from datetime import datetime, timedelta
 
-            internal_client.token_expires_at = datetime.now() - timedelta(seconds=1)
+            internal_client = self.client._internal_http_client
+            # Get initial token (token is on token_manager)
+            token1 = await internal_client.token_manager.get_client_token()
+            # Force refresh by setting expiration in the past
+            internal_client.token_manager.token_expires_at = datetime.now() - timedelta(seconds=1)
             # Get token again (should refresh)
-            token2 = await internal_client._get_client_token()
+            token2 = await internal_client.token_manager.get_client_token()
             assert token2 is not None, "Refreshed token should not be None"
             return True
 
@@ -247,10 +247,10 @@ class TestRunner:
 
         # Test 4: Client token with client ID and secret
         async def test_token_with_credentials():
-            # Test that token fetch uses correct headers
+            # Test that token fetch uses correct headers (token is on token_manager)
             internal_client = self.client._internal_http_client
-            await internal_client._fetch_client_token()
-            assert internal_client.client_token is not None, "Token should be fetched with client credentials"
+            await internal_client.token_manager.fetch_client_token()
+            assert internal_client.token_manager.client_token is not None, "Token should be fetched with client credentials"
             return True
 
         await self.run_test("Client token with client ID and secret", test_token_with_credentials)
@@ -750,14 +750,16 @@ class TestRunner:
         """Test EncryptionService."""
         self.print_header("EncryptionService")
 
-        # Test 1: encrypt
-        def test_encrypt():
+        # Test 1: encrypt (encrypt returns EncryptResult; requires parameter_name)
+        _encryption_param = "integration-test-param"
+
+        async def test_encrypt():
             try:
                 plaintext = "sensitive-data-123"
-                encrypted = self.client.encrypt(plaintext)
-                assert encrypted is not None, "encrypt should return value"
-                assert encrypted != plaintext, "encrypted should be different from plaintext"
-                assert len(encrypted) > 0, "encrypted should not be empty"
+                result = await self.client.encrypt(plaintext, _encryption_param)
+                assert result is not None, "encrypt should return value"
+                assert result.value != plaintext, "encrypted should be different from plaintext"
+                assert len(result.value) > 0, "encrypted should not be empty"
                 return True
             except Exception as e:
                 if "ENCRYPTION_KEY" in str(e):
@@ -768,11 +770,11 @@ class TestRunner:
         await self.run_test("encrypt", test_encrypt)
 
         # Test 2: decrypt
-        def test_decrypt():
+        async def test_decrypt():
             try:
                 plaintext = "sensitive-data-456"
-                encrypted = self.client.encrypt(plaintext)
-                decrypted = self.client.decrypt(encrypted)
+                enc_result = await self.client.encrypt(plaintext, _encryption_param)
+                decrypted = await self.client.decrypt(enc_result.value, _encryption_param)
                 assert decrypted == plaintext, "decrypt should return original plaintext"
                 return True
             except Exception as e:
@@ -784,7 +786,7 @@ class TestRunner:
         await self.run_test("decrypt", test_decrypt)
 
         # Test 3: encryption/decryption roundtrip
-        def test_encryption_roundtrip():
+        async def test_encryption_roundtrip():
             try:
                 test_data = [
                     "simple string",
@@ -793,8 +795,8 @@ class TestRunner:
                     "very long string " * 100,
                 ]
                 for data in test_data:
-                    encrypted = self.client.encrypt(data)
-                    decrypted = self.client.decrypt(encrypted)
+                    enc_result = await self.client.encrypt(data, _encryption_param)
+                    decrypted = await self.client.decrypt(enc_result.value, _encryption_param)
                     assert decrypted == data, f"Roundtrip failed for: {data[:50]}"
                 return True
             except Exception as e:

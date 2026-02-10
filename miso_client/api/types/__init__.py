@@ -4,6 +4,7 @@ Exports all request and response types for the API layer.
 """
 
 from .applications_types import (
+    ApplicationStatus,
     ApplicationStatusResponse,
     UpdateSelfStatusRequest,
     UpdateSelfStatusResponse,
@@ -108,6 +109,7 @@ __all__ = [
     "ListAuditLogsResponse",
     "ListJobLogsResponse",
     "GetJobLogResponse",
+    "ApplicationStatus",
     "ApplicationStatusResponse",
     "UpdateSelfStatusRequest",
     "UpdateSelfStatusResponse",

@@ -89,9 +89,11 @@ class TestInternalHttpClient:
 
     @pytest.mark.asyncio
     async def test_get_client_token_refresh_needed(self, http_client):
-        """Test token refresh when about to expire."""
+        """Test token refresh when token is expired."""
         http_client.token_manager.client_token = "old-token"
-        http_client.token_manager.token_expires_at = datetime.now() + timedelta(seconds=30)  # < 60s
+        http_client.token_manager.token_expires_at = datetime.now() - timedelta(
+            seconds=1
+        )  # expired
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -647,10 +649,10 @@ class TestInternalHttpClient:
 
     @pytest.mark.asyncio
     async def test_get_client_token_double_check_after_lock(self, http_client):
-        """Test double-check after acquiring lock in _get_client_token."""
-        # Set token that will expire soon (fails first check, will need to acquire lock)
+        """Test double-check after acquiring lock in get_client_token."""
+        # Set token expired so get_client_token enters lock and runs double-check
         http_client.token_manager.client_token = "old-token"
-        http_client.token_manager.token_expires_at = datetime.now() + timedelta(seconds=30)
+        http_client.token_manager.token_expires_at = datetime.now() - timedelta(seconds=1)
 
         # Mock response for token fetch (in case it's needed)
         mock_response = MagicMock()

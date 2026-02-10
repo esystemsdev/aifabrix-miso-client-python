@@ -1,4 +1,4 @@
-.PHONY: help install install-dev test test-cov test-integration lint format type-check build clean clean-venv publish test-publish venv venv
+.PHONY: help install install-dev test test-cov test-integration lint format type-check build clean clean-venv publish test-publish venv all venv
 
 help: ## Show this help message
 	@echo "Available commands:"
@@ -31,8 +31,8 @@ test: venv ## Run tests (excludes integration tests)
 test-cov: venv ## Run tests with coverage (excludes integration tests)
 	$(VENV_PYTHON) -m pytest tests/ -v --ignore=tests/integration/ --cov=miso_client --cov-report=html --cov-report=xml
 
-test-integration: venv ## Run integration tests against real controller (pytest)
-	$(VENV_PYTHON) -m pytest tests/integration/test_api_endpoints.py -v --no-cov
+test-integration: venv ## Run integration tests against real controller (pytest, uses .env)
+	$(VENV_PYTHON) -m pytest tests/integration/ -v --no-cov
 
 test-integration-legacy: venv ## Run legacy integration test script
 	$(VENV_PYTHON) test_integration.py
@@ -71,10 +71,10 @@ validate: venv ## Run lint + format + test (excludes integration tests)
 	$(VENV_PYTHON) -m isort miso_client/ tests/
 	$(VENV_PYTHON) -m pytest tests/ -v --ignore=tests/integration/
 
-validate-api: venv ## Validate API endpoints via integration tests
+validate-api: venv ## Validate API endpoints via integration tests (uses .env)
 	@echo "Running API endpoint integration tests..."
 	@echo "Note: Tests require MISO_CLIENTID, MISO_CLIENTSECRET, and MISO_CONTROLLER_URL in .env"
-	$(VENV_PYTHON) -m pytest tests/integration/test_api_endpoints.py -v --no-cov
+	$(VENV_PYTHON) -m pytest tests/integration/ -v --no-cov
 
 publish: venv ## Publish to PyPI
 	$(VENV_PYTHON) -m twine upload dist/*
@@ -82,7 +82,7 @@ publish: venv ## Publish to PyPI
 test-publish: venv ## Publish to Test PyPI
 	$(VENV_PYTHON) -m twine upload --repository testpypi dist/*
 
-all: clean venv install-dev lint type-check test-cov build check ## Run all checks and build
+all: venv format lint test test-integration ## Format, lint, and run all tests (unit + integration)
 
 dev: venv install-dev ## Set up development environment
 	@echo "Development environment set up. Run 'make test' to run tests."

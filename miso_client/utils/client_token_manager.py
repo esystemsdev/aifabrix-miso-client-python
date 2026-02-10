@@ -71,7 +71,9 @@ class ClientTokenManager:
     async def get_client_token(self) -> str:
         """Get client token, fetching if needed.
 
-        Proactively refreshes if token will expire within 60 seconds.
+        Returns cached token while it is not expired so that the same token
+        is reused for all client-credential requests (e.g. logger and application
+        status). Refetches only when token is actually expired (or missing).
 
         Returns:
             Client token string
@@ -82,23 +84,15 @@ class ClientTokenManager:
         """
         now = datetime.now()
 
-        # If token exists and not expired (with 60s buffer for proactive refresh), return it
-        if (
-            self.client_token
-            and self.token_expires_at
-            and self.token_expires_at > now + timedelta(seconds=60)
-        ):
+        # If token exists and not yet expired, return it (same auth as other calls)
+        if self.client_token and self.token_expires_at and self.token_expires_at > now:
             assert self.client_token is not None
             return self.client_token
 
         # Acquire lock to prevent concurrent token fetches
         async with self.token_refresh_lock:
             # Double-check after acquiring lock
-            if (
-                self.client_token
-                and self.token_expires_at
-                and self.token_expires_at > now + timedelta(seconds=60)
-            ):
+            if self.client_token and self.token_expires_at and self.token_expires_at > now:
                 assert self.client_token is not None
                 return self.client_token
 

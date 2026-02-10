@@ -12,9 +12,9 @@ import sys
 from miso_client import MisoClient, load_config
 
 
-async def test_permissions(token: str) -> None:
+async def run_permission_diagnosis(token: str) -> None:
     """
-    Test user permissions and diagnose access issues.
+    Run permission diagnostic (not a pytest test - use as script with token).
 
     Args:
         token: JWT token to test
@@ -191,7 +191,7 @@ async def main():
         "RF2Oh1n5EAXo7EUo8QDiCVZwFlwc_TDpXUhm1g-LghazCaFX_LltxKq8ddDXGsNnMg"
     )
 
-    await test_permissions(token)
+    await run_permission_diagnosis(token)
 
 
 if __name__ == "__main__":

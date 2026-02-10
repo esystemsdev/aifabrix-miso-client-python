@@ -6,6 +6,7 @@ for authentication, role-based access control, permission management, and loggin
 
 # Applications API types (after http_client to avoid circular import)
 from .api.types.applications_types import (
+    ApplicationStatus,
     ApplicationStatusResponse,
     UpdateSelfStatusRequest,
     UpdateSelfStatusResponse,
@@ -142,7 +143,7 @@ from .utils.token_utils import extract_client_token_info
 from .utils.unified_logger_factory import clear_logger_context, get_logger, set_logger_context
 from .utils.url_validator import validate_url
 
-__version__ = "4.4.1"
+__version__ = "4.4.2"
 __author__ = "AI Fabrix Team"
 __license__ = "MIT"
 
@@ -191,6 +192,7 @@ __all__ = [
     # Sort models
     "SortOption",
     # Applications API types
+    "ApplicationStatus",
     "ApplicationStatusResponse",
     "UpdateSelfStatusRequest",
     "UpdateSelfStatusResponse",

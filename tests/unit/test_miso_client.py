@@ -4497,11 +4497,14 @@ class TestMisoClientApplicationStatus:
     async def test_update_my_application_status_with_env_key(self, miso_client):
         """Test update_my_application_status forwards to API when env_key provided."""
         from miso_client.api.types.applications_types import (
+            ApplicationStatus,
             UpdateSelfStatusRequest,
             UpdateSelfStatusResponse,
         )
 
-        body = UpdateSelfStatusRequest(status="running", url="https://app.example.com")
+        body = UpdateSelfStatusRequest(
+            status=ApplicationStatus.HEALTHY, url="https://app.example.com"
+        )
         mock_response = UpdateSelfStatusResponse(
             success=True,
             application=None,
@@ -4522,12 +4525,13 @@ class TestMisoClientApplicationStatus:
     ):
         """Test update_my_application_status uses context when env_key omitted."""
         from miso_client.api.types.applications_types import (
+            ApplicationStatus,
             UpdateSelfStatusRequest,
             UpdateSelfStatusResponse,
         )
         from miso_client.services.application_context import ApplicationContext
 
-        body = UpdateSelfStatusRequest(status="ready")
+        body = UpdateSelfStatusRequest(status=ApplicationStatus.HEALTHY)
         mock_response = UpdateSelfStatusResponse(success=True)
         miso_client.api_client.applications.update_self_status.return_value = mock_response
 
@@ -4549,9 +4553,12 @@ class TestMisoClientApplicationStatus:
     @pytest.mark.asyncio
     async def test_update_my_application_status_context_missing_raises(self, miso_client):
         """Test update_my_application_status raises when context cannot be resolved."""
-        from miso_client.api.types.applications_types import UpdateSelfStatusRequest
+        from miso_client.api.types.applications_types import (
+            ApplicationStatus,
+            UpdateSelfStatusRequest,
+        )
 
-        body = UpdateSelfStatusRequest(status="ready")
+        body = UpdateSelfStatusRequest(status=ApplicationStatus.HEALTHY)
         mock_context = MagicMock()
         mock_context.environment = None
         mock_context.application = "unknown"

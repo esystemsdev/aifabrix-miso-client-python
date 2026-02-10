@@ -45,7 +45,9 @@ class MisoClient:
         self._internal_http_client = InternalHttpClient(config)
         self.redis = RedisService(config.redis)
         self.logger = LoggerService(self._internal_http_client, self.redis)
-        self.http_client = HttpClient(config, self.logger)
+        self.http_client = HttpClient(
+            config, self.logger, internal_client=self._internal_http_client
+        )
 
         from .api import ApiClient
 

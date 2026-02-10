@@ -10,6 +10,7 @@ import pytest
 
 from miso_client.api.applications_api import ApplicationsApi
 from miso_client.api.types.applications_types import (
+    ApplicationStatus,
     ApplicationStatusResponse,
     UpdateSelfStatusRequest,
     UpdateSelfStatusResponse,
@@ -48,13 +49,15 @@ class TestApplicationsApi:
     @pytest.mark.asyncio
     async def test_update_self_status_client_credentials(self, applications_api, mock_http_client):
         """Test update_self_status without auth_strategy (client credentials)."""
-        body = UpdateSelfStatusRequest(status="running", url="https://app.example.com")
+        body = UpdateSelfStatusRequest(
+            status=ApplicationStatus.HEALTHY, url="https://app.example.com"
+        )
         mock_response = {
             "success": True,
             "application": {
                 "id": "app-123",
                 "key": "my-app",
-                "status": "running",
+                "status": "healthy",
                 "url": "https://app.example.com",
             },
             "message": "Updated",
@@ -66,11 +69,11 @@ class TestApplicationsApi:
         assert isinstance(result, UpdateSelfStatusResponse)
         assert result.success is True
         assert result.application is not None
-        assert result.application.status == "running"
+        assert result.application.status == "healthy"
         mock_http_client.post.assert_called_once()
         call_args = mock_http_client.post.call_args
         assert call_args[0][0] == "/api/v1/environments/dev/applications/self/status"
-        assert call_args[1]["data"] == {"status": "running", "url": "https://app.example.com"}
+        assert call_args[1]["data"] == {"status": "healthy", "url": "https://app.example.com"}
 
     @pytest.mark.asyncio
     async def test_update_self_status_with_bearer_auth_strategy(
@@ -173,7 +176,7 @@ class TestApplicationsApi:
     async def test_update_self_status_with_all_fields(self, applications_api, mock_http_client):
         """Test update_self_status with all optional fields."""
         body = UpdateSelfStatusRequest(
-            status="ready",
+            status=ApplicationStatus.DEPLOYING,
             url="https://app.example.com",
             internalUrl="http://internal:9000",
             port=9000,
@@ -181,7 +184,7 @@ class TestApplicationsApi:
         mock_response = {
             "success": True,
             "application": {
-                "status": "ready",
+                "status": "deploying",
                 "url": "https://app.example.com",
                 "internalUrl": "http://internal:9000",
                 "port": 9000,
@@ -192,10 +195,10 @@ class TestApplicationsApi:
         result = await applications_api.update_self_status("dev", body)
 
         assert result.success is True
-        assert result.application.status == "ready"
+        assert result.application.status == "deploying"
         assert result.application.port == 9000
         call_data = mock_http_client.post.call_args[1]["data"]
-        assert call_data["status"] == "ready"
+        assert call_data["status"] == "deploying"
         assert call_data["url"] == "https://app.example.com"
         assert call_data["internalUrl"] == "http://internal:9000"
         assert call_data["port"] == 9000
