@@ -1,8 +1,12 @@
-.PHONY: help install install-dev test test-cov test-integration lint format type-check build clean clean-venv publish test-publish venv all venv
+.DEFAULT_GOAL := help
 
-help: ## Show this help message
-	@echo "Available commands:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+.PHONY: help install install-dev test test-cov test-integration test-integration-legacy lint format type-check build check clean clean-venv validate validate-api publish test-publish venv all dev
+
+help: ## Show all commands
+	@echo "Usage: make [target]"
+	@echo ""
+	@echo "Targets:"
+	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-24s\033[0m %s\n", $$1, $$2}'
 
 PYTHON := python3
 VENV := venv
