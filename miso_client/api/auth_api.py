@@ -36,7 +36,7 @@ class AuthApi:
     USER_ENDPOINT = "/api/v1/auth/user"
     LOGOUT_ENDPOINT = "/api/v1/auth/logout"
     REFRESH_ENDPOINT = "/api/v1/auth/refresh"
-    DEVICE_CODE_ENDPOINT = "/api/v1/auth/login/device"
+    # Device code initiation is POST /api/v1/auth/login (openapi-complete.yaml); no /device path
     DEVICE_CODE_TOKEN_ENDPOINT = "/api/v1/auth/login/device/token"
     DEVICE_CODE_REFRESH_ENDPOINT = "/api/v1/auth/login/device/refresh"
     ROLES_ENDPOINT = "/api/v1/auth/roles"
@@ -185,7 +185,9 @@ class AuthApi:
     async def initiate_device_code(
         self, environment: Optional[str] = None, scope: Optional[str] = None
     ) -> DeviceCodeResponseWrapper:
-        """Initiate device code flow (POST).
+        """Initiate device code flow (POST /api/v1/auth/login per OpenAPI spec).
+
+        Request body may include environment and scope. Controller often requires environment.
 
         Args:
             environment: Optional environment key
@@ -198,14 +200,13 @@ class AuthApi:
             MisoClientError: If request fails
 
         """
-        # Build request data
         request_data = {}
         if environment:
             request_data["environment"] = environment
         if scope:
             request_data["scope"] = scope
         response = await self.http_client.post(
-            self.DEVICE_CODE_ENDPOINT, data=request_data if request_data else None
+            self.LOGIN_ENDPOINT, data=request_data if request_data else None
         )
         return DeviceCodeResponseWrapper(**response)
 

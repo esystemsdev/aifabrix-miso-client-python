@@ -71,8 +71,8 @@ class EncryptionService:
         """
         if not self._encryption_key:
             raise EncryptionError(
-                "Encryption key is required. Set MISO_ENCRYPTION_KEY environment "
-                "variable or provide encryption_key in config.",
+                "Encryption key is required. Set MISO_ENCRYPTION_KEY or ENCRYPTION_KEY "
+                "environment variable or provide encryption_key in config.",
                 code="ENCRYPTION_KEY_REQUIRED",
             )
 

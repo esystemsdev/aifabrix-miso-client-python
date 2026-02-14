@@ -230,7 +230,7 @@ def test_api_coverage():
 
     # Skip if no API methods were found (e.g. wrong cwd or package not installed)
     if not coverage_map:
-        pytest.skip(
+        pytest.fail(
             "No API methods found (api_dir may be wrong). "
             "Run from project root: pytest tests/integration/test_api_validation.py"
         )

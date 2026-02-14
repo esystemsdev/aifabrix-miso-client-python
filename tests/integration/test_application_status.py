@@ -52,7 +52,7 @@ def config():
     try:
         return load_config()
     except ConfigurationError as e:
-        pytest.skip(f"Failed to load config from .env: {e}")
+        pytest.fail(f"Failed to load config from .env: {e}")
 
 
 @pytest.fixture
@@ -62,7 +62,7 @@ def client(config):
         client_instance = MisoClient(config)
         yield client_instance
     except Exception as e:
-        pytest.skip(f"Failed to initialize MisoClient: {e}")
+        pytest.fail(f"Failed to initialize MisoClient: {e}")
     finally:
         # Disconnect is async; fixture teardown runs sync - tests disconnect in finally
         pass
@@ -122,11 +122,11 @@ class TestApplicationStatus:
     async def test_logger_send_log(self, client, config):
         """Send log via client.log (client credentials / x-client-token)."""
         if should_skip(config):
-            pytest.skip("Config not available")
+            pytest.fail("Config not available")
 
         env_key, app_key = get_env_key_app_key(config.client_id)
         if not env_key or not app_key:
-            pytest.skip("MISO_CLIENTID must be miso-controller-{env}-{app}")
+            pytest.fail("MISO_CLIENTID must be miso-controller-{env}-{app}")
 
         try:
             await client.initialize()
@@ -144,11 +144,11 @@ class TestApplicationStatus:
     async def test_get_application_status(self, client, config):
         """GET application status (client credentials / x-client-token, same as logger)."""
         if should_skip(config):
-            pytest.skip("Config not available")
+            pytest.fail("Config not available")
 
         env_key, app_key = get_env_key_app_key(config.client_id)
         if not env_key or not app_key:
-            pytest.skip("MISO_CLIENTID must be miso-controller-{env}-{app}")
+            pytest.fail("MISO_CLIENTID must be miso-controller-{env}-{app}")
 
         try:
             await client.initialize()
@@ -164,11 +164,11 @@ class TestApplicationStatus:
     async def test_update_my_application_status(self, client, config):
         """UPDATE my application status (client credentials / x-client-token)."""
         if should_skip(config):
-            pytest.skip("Config not available")
+            pytest.fail("Config not available")
 
         env_key, app_key = get_env_key_app_key(config.client_id)
         if not env_key or not app_key:
-            pytest.skip("MISO_CLIENTID must be miso-controller-{env}-{app}")
+            pytest.fail("MISO_CLIENTID must be miso-controller-{env}-{app}")
 
         try:
             await client.initialize()

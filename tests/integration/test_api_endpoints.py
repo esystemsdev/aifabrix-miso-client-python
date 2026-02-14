@@ -52,7 +52,7 @@ def config():
     try:
         return load_config()
     except ConfigurationError as e:
-        pytest.skip(f"Failed to load config from .env: {e}")
+        pytest.fail(f"Failed to load config from .env: {e}")
 
 
 @pytest.fixture(scope="module")
@@ -66,7 +66,7 @@ def client(config):
         # Teardown: Ensure client is properly closed to prevent event loop errors
         # This runs after all tests in the module complete
     except Exception as e:
-        pytest.skip(f"Failed to initialize MisoClient: {e}")
+        pytest.fail(f"Failed to initialize MisoClient: {e}")
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -172,7 +172,7 @@ class TestAuthEndpoints:
     async def test_client_token_generation_legacy(self, client, config):
         """Test POST /api/v1/auth/token - Generate client token (legacy)."""
         if should_skip(config):
-            pytest.skip("Config not available")
+            pytest.fail("Config not available")
 
         try:
             await client.initialize()
@@ -189,7 +189,7 @@ class TestAuthEndpoints:
     async def test_get_user_info(self, client, config, user_token):
         """Test GET /api/v1/auth/user - Get user info."""
         if should_skip(config) or not user_token:
-            pytest.skip("Config or user token not available")
+            pytest.fail("Config or user token not available")
 
         try:
             await client.initialize()
@@ -209,7 +209,7 @@ class TestAuthEndpoints:
     async def test_validate_token(self, client, config, user_token):
         """Test POST /api/v1/auth/validate - Validate token."""
         if should_skip(config) or not user_token:
-            pytest.skip("Config or user token not available")
+            pytest.fail("Config or user token not available")
 
         try:
             await client.initialize()
@@ -224,7 +224,7 @@ class TestAuthEndpoints:
     async def test_logout(self, client, config, user_token):
         """Test POST /api/v1/auth/logout - Logout."""
         if should_skip(config) or not user_token:
-            pytest.skip("Config or user token not available")
+            pytest.fail("Config or user token not available")
 
         try:
             await client.initialize()
@@ -240,7 +240,7 @@ class TestAuthEndpoints:
     async def test_login_initiation(self, client, config):
         """Test GET /api/v1/auth/login - Initiate login flow."""
         if should_skip(config):
-            pytest.skip("Config not available")
+            pytest.fail("Config not available")
 
         try:
             await client.initialize()
@@ -267,14 +267,14 @@ class TestAuthEndpoints:
     async def test_get_roles(self, client, config, user_token):
         """Test GET /api/v1/auth/roles - Get roles."""
         if should_skip(config) or not user_token:
-            pytest.skip("Config or user token not available")
+            pytest.fail("Config or user token not available")
 
         try:
             await client.initialize()
             # First validate the token to ensure it's valid
             is_valid = await client.validate_token(user_token)
             if not is_valid:
-                pytest.skip("User token is invalid - cannot test roles")
+                pytest.fail("User token is invalid - cannot test roles")
 
             roles = await client.get_roles(user_token)
             assert roles is not None
@@ -294,14 +294,14 @@ class TestAuthEndpoints:
     async def test_refresh_roles(self, client, config, user_token):
         """Test GET /api/v1/auth/roles/refresh - Refresh roles."""
         if should_skip(config) or not user_token:
-            pytest.skip("Config or user token not available")
+            pytest.fail("Config or user token not available")
 
         try:
             await client.initialize()
             # First validate the token to ensure it's valid
             is_valid = await client.validate_token(user_token)
             if not is_valid:
-                pytest.skip("User token is invalid - cannot test roles")
+                pytest.fail("User token is invalid - cannot test roles")
 
             roles = await client.refresh_roles(user_token)
             assert roles is not None
@@ -321,14 +321,14 @@ class TestAuthEndpoints:
     async def test_get_permissions(self, client, config, user_token):
         """Test GET /api/v1/auth/permissions - Get permissions."""
         if should_skip(config) or not user_token:
-            pytest.skip("Config or user token not available")
+            pytest.fail("Config or user token not available")
 
         try:
             await client.initialize()
             # First validate the token to ensure it's valid
             is_valid = await client.validate_token(user_token)
             if not is_valid:
-                pytest.skip("User token is invalid - cannot test permissions")
+                pytest.fail("User token is invalid - cannot test permissions")
 
             permissions = await client.get_permissions(user_token)
             assert permissions is not None
@@ -352,14 +352,14 @@ class TestAuthEndpoints:
     async def test_refresh_permissions(self, client, config, user_token):
         """Test GET /api/v1/auth/permissions/refresh - Refresh permissions."""
         if should_skip(config) or not user_token:
-            pytest.skip("Config or user token not available")
+            pytest.fail("Config or user token not available")
 
         try:
             await client.initialize()
             # First validate the token to ensure it's valid
             is_valid = await client.validate_token(user_token)
             if not is_valid:
-                pytest.skip("User token is invalid - cannot test permissions")
+                pytest.fail("User token is invalid - cannot test permissions")
 
             permissions = await client.refresh_permissions(user_token)
             assert permissions is not None
@@ -383,7 +383,7 @@ class TestAuthEndpoints:
     async def test_refresh_token(self, client, config, user_token):
         """Test POST /api/v1/auth/refresh - Refresh user access token."""
         if should_skip(config) or not user_token:
-            pytest.skip("Config or user token not available")
+            pytest.fail("Config or user token not available")
 
         try:
             await client.initialize()
@@ -391,7 +391,9 @@ class TestAuthEndpoints:
             # Skip if we don't have a refresh token in the environment
             refresh_token = os.getenv("TEST_REFRESH_TOKEN")
             if not refresh_token:
-                pytest.skip("TEST_REFRESH_TOKEN not available - cannot test token refresh")
+                pytest.fail(
+                    "TEST_REFRESH_TOKEN (or REFRESH_TOKEN / MISO_REFRESH_TOKEN / TEST_REFRESH_TOKEN_FILE) not set - cannot test token refresh"
+                )
 
             # Use API client directly to test the API layer
             response = await client.api_client.auth.refresh_token(refresh_token)
@@ -403,7 +405,7 @@ class TestAuthEndpoints:
         except Exception as e:
             # Token refresh may fail if refresh token is expired or invalid
             if "401" in str(e) or "Unauthorized" in str(e) or "invalid" in str(e).lower():
-                pytest.skip("Refresh token is invalid or expired")
+                pytest.fail("Refresh token is invalid or expired")
             pytest.fail(f"Refresh token failed: {e}")
         finally:
             await client.disconnect()
@@ -412,12 +414,13 @@ class TestAuthEndpoints:
     async def test_initiate_device_code(self, client, config):
         """Test POST /api/v1/auth/login - Initiate device code flow."""
         if should_skip(config):
-            pytest.skip("Config not available")
+            pytest.fail("Config not available")
 
         try:
             await client.initialize()
-            # Use API client directly to test the API layer
-            response = await client.api_client.auth.initiate_device_code()
+            # OpenAPI spec: POST /api/v1/auth/login body may include environment, scope; controller often requires environment
+            environment = os.getenv("MISO_ENVIRONMENT") or os.getenv("TEST_ENVIRONMENT") or "miso"
+            response = await client.api_client.auth.initiate_device_code(environment=environment)
             assert response is not None
             assert hasattr(response, "data")
             assert hasattr(response.data, "deviceCode")
@@ -433,14 +436,16 @@ class TestAuthEndpoints:
             from miso_client.errors import ConnectionError as MisoConnectionError
 
             if "404" in str(e) or "Not Found" in str(e):
-                pytest.skip("Device code endpoint not available")
+                pytest.fail(
+                    "Device code endpoint not available: controller may need POST /api/v1/auth/login or /api/v1/auth/login/device"
+                )
             if (
                 isinstance(e, MisoConnectionError)
                 or "timeout" in str(e).lower()
                 or "ReadTimeout" in str(e)
                 or "Connection" in str(e)
             ):
-                pytest.skip("Device code endpoint timeout or connection error")
+                pytest.fail("Device code endpoint timeout or connection error")
             pytest.fail(f"Initiate device code failed: {e}")
         finally:
             await client.disconnect()
@@ -449,12 +454,14 @@ class TestAuthEndpoints:
     async def test_poll_device_code_token(self, client, config):
         """Test POST /api/v1/auth/login/device/token - Poll for device code token."""
         if should_skip(config):
-            pytest.skip("Config not available")
+            pytest.fail("Config not available")
 
         try:
             await client.initialize()
-            # First initiate device code flow to get a device code
-            device_code_response = await client.api_client.auth.initiate_device_code()
+            environment = os.getenv("MISO_ENVIRONMENT") or os.getenv("TEST_ENVIRONMENT") or "miso"
+            device_code_response = await client.api_client.auth.initiate_device_code(
+                environment=environment
+            )
             device_code = device_code_response.data.deviceCode
 
             # Poll for token (may return 202 if still pending)
@@ -472,14 +479,14 @@ class TestAuthEndpoints:
             # - User hasn't authorized yet (202 pending)
             # - Endpoint not available
             if "404" in str(e) or "Not Found" in str(e):
-                pytest.skip("Device code token endpoint not available")
+                pytest.fail("Device code token endpoint not available")
             if (
                 "202" in str(e)
                 or "pending" in str(e).lower()
                 or "authorization_pending" in str(e).lower()
             ):
                 # This is expected - device code requires user interaction
-                pytest.skip("Device code authorization pending (requires user interaction)")
+                pytest.fail("Device code authorization pending (requires user interaction)")
             from miso_client.errors import ConnectionError as MisoConnectionError
 
             if (
@@ -488,7 +495,7 @@ class TestAuthEndpoints:
                 or "ReadTimeout" in str(e)
                 or "Connection" in str(e)
             ):
-                pytest.skip("Device code endpoint timeout or connection error")
+                pytest.fail("Device code endpoint timeout or connection error")
             pytest.fail(f"Poll device code token failed: {e}")
         finally:
             await client.disconnect()
@@ -497,7 +504,7 @@ class TestAuthEndpoints:
     async def test_refresh_device_code_token(self, client, config):
         """Test POST /api/v1/auth/login/device/refresh - Refresh device code token."""
         if should_skip(config):
-            pytest.skip("Config not available")
+            pytest.fail("Config not available")
 
         try:
             await client.initialize()
@@ -505,7 +512,7 @@ class TestAuthEndpoints:
             # Skip if we don't have a device code refresh token in the environment
             device_refresh_token = os.getenv("TEST_DEVICE_REFRESH_TOKEN")
             if not device_refresh_token:
-                pytest.skip("TEST_DEVICE_REFRESH_TOKEN not available - cannot test refresh")
+                pytest.fail("TEST_DEVICE_REFRESH_TOKEN not set - cannot test device code refresh")
 
             # Use API client directly to test the API layer
             response = await client.api_client.auth.refresh_device_code_token(device_refresh_token)
@@ -516,9 +523,9 @@ class TestAuthEndpoints:
         except Exception as e:
             # Token refresh may fail if refresh token is expired or invalid
             if "401" in str(e) or "Unauthorized" in str(e) or "invalid" in str(e).lower():
-                pytest.skip("Device code refresh token is invalid or expired")
+                pytest.fail("Device code refresh token is invalid or expired")
             if "404" in str(e) or "Not Found" in str(e):
-                pytest.skip("Device code refresh endpoint not available")
+                pytest.fail("Device code refresh endpoint not available")
             pytest.fail(f"Refresh device code token failed: {e}")
         finally:
             await client.disconnect()
@@ -531,7 +538,7 @@ class TestLogsEndpoints:
     async def test_create_error_log(self, client, config):
         """Test POST /api/v1/logs - Create error log."""
         if should_skip(config):
-            pytest.skip("Config not available")
+            pytest.fail("Config not available")
 
         try:
             await client.initialize()
@@ -561,7 +568,7 @@ class TestLogsEndpoints:
     async def test_create_general_log(self, client, config):
         """Test POST /api/v1/logs - Create general log."""
         if should_skip(config):
-            pytest.skip("Config not available")
+            pytest.fail("Config not available")
 
         try:
             await client.initialize()
@@ -595,7 +602,7 @@ class TestLogsEndpoints:
     async def test_create_audit_log(self, client, config):
         """Test POST /api/v1/logs - Create audit log with required fields."""
         if should_skip(config):
-            pytest.skip("Config not available")
+            pytest.fail("Config not available")
 
         try:
             await client.initialize()
@@ -623,7 +630,7 @@ class TestLogsEndpoints:
     async def test_create_batch_logs(self, client, config):
         """Test POST /api/v1/logs/batch - Create batch logs (1-100 logs)."""
         if should_skip(config):
-            pytest.skip("Config not available")
+            pytest.fail("Config not available")
 
         try:
             await client.initialize()
@@ -681,7 +688,7 @@ class TestAuthEndpointsExtended:
     async def test_login_diagnostics(self, client, config):
         """Test GET /api/v1/auth/login/diagnostics - Get login diagnostics."""
         if should_skip(config):
-            pytest.skip("Config not available")
+            pytest.fail("Config not available")
 
         try:
             await self._ensure_client_ready(client)
@@ -696,7 +703,7 @@ class TestAuthEndpointsExtended:
                 assert isinstance(data, dict)
         except Exception as e:
             if "404" in str(e) or "Not Found" in str(e):
-                pytest.skip("Diagnostics endpoint not available")
+                pytest.fail("Diagnostics endpoint not available")
             pytest.fail(f"Login diagnostics failed: {e}")
         # Note: Don't disconnect - client fixture is module-scoped
 
@@ -704,7 +711,7 @@ class TestAuthEndpointsExtended:
     async def test_auth_cache_stats(self, client, config, user_token):
         """Test GET /api/v1/auth/cache/stats - Get cache statistics."""
         if should_skip(config) or not user_token:
-            pytest.skip("Config or user token not available")
+            pytest.fail("Config or user token not available")
 
         try:
             await self._ensure_client_ready(client)
@@ -717,11 +724,11 @@ class TestAuthEndpointsExtended:
         except Exception as e:
             # Cache endpoints may require special permissions or not exist
             if "403" in str(e) or "Forbidden" in str(e):
-                pytest.skip("Insufficient permissions for cache stats")
+                pytest.fail("Insufficient permissions for cache stats")
             if "401" in str(e) or "Unauthorized" in str(e):
-                pytest.skip("Authentication not supported for cache stats with API key")
+                pytest.fail("Authentication not supported for cache stats with API key")
             if "404" in str(e) or "Not Found" in str(e):
-                pytest.skip("Cache stats endpoint not available")
+                pytest.fail("Cache stats endpoint not available")
             pytest.fail(f"Cache stats failed: {e}")
         # Note: Don't disconnect - client fixture is module-scoped
 
@@ -729,7 +736,7 @@ class TestAuthEndpointsExtended:
     async def test_auth_cache_performance(self, client, config, user_token):
         """Test GET /api/v1/auth/cache/performance - Get cache performance metrics."""
         if should_skip(config) or not user_token:
-            pytest.skip("Config or user token not available")
+            pytest.fail("Config or user token not available")
 
         try:
             await self._ensure_client_ready(client)
@@ -740,11 +747,11 @@ class TestAuthEndpointsExtended:
             assert isinstance(response, dict)
         except Exception as e:
             if "403" in str(e) or "Forbidden" in str(e):
-                pytest.skip("Insufficient permissions for cache performance")
+                pytest.fail("Insufficient permissions for cache performance")
             if "401" in str(e) or "Unauthorized" in str(e):
-                pytest.skip("Authentication not supported for cache performance with API key")
+                pytest.fail("Authentication not supported for cache performance with API key")
             if "404" in str(e) or "Not Found" in str(e):
-                pytest.skip("Cache performance endpoint not available")
+                pytest.fail("Cache performance endpoint not available")
             pytest.fail(f"Cache performance failed: {e}")
         # Note: Don't disconnect - client fixture is module-scoped
 
@@ -752,7 +759,7 @@ class TestAuthEndpointsExtended:
     async def test_auth_cache_efficiency(self, client, config, user_token):
         """Test GET /api/v1/auth/cache/efficiency - Get cache efficiency metrics."""
         if should_skip(config) or not user_token:
-            pytest.skip("Config or user token not available")
+            pytest.fail("Config or user token not available")
 
         try:
             await self._ensure_client_ready(client)
@@ -763,11 +770,11 @@ class TestAuthEndpointsExtended:
             assert isinstance(response, dict)
         except Exception as e:
             if "403" in str(e) or "Forbidden" in str(e):
-                pytest.skip("Insufficient permissions for cache efficiency")
+                pytest.fail("Insufficient permissions for cache efficiency")
             if "401" in str(e) or "Unauthorized" in str(e):
-                pytest.skip("Authentication not supported for cache efficiency with API key")
+                pytest.fail("Authentication not supported for cache efficiency with API key")
             if "404" in str(e) or "Not Found" in str(e):
-                pytest.skip("Cache efficiency endpoint not available")
+                pytest.fail("Cache efficiency endpoint not available")
             pytest.fail(f"Cache efficiency failed: {e}")
         # Note: Don't disconnect - client fixture is module-scoped
 
@@ -792,7 +799,7 @@ class TestLogsEndpointsExtended:
     async def test_list_general_logs(self, client, config, user_token):
         """Test GET /api/v1/logs/general - List general logs."""
         if should_skip(config) or not user_token:
-            pytest.skip("Config or user token not available")
+            pytest.fail("Config or user token not available")
 
         try:
             await self._ensure_client_ready(client)
@@ -809,9 +816,9 @@ class TestLogsEndpointsExtended:
             await wait_for_client_logging(client)
         except Exception as e:
             if "403" in str(e) or "Forbidden" in str(e):
-                pytest.skip("Insufficient permissions for logs:read")
+                pytest.fail("Insufficient permissions for logs:read")
             if "401" in str(e) or "Unauthorized" in str(e):
-                pytest.skip("Authentication not supported for logs:read with API key")
+                pytest.fail("Authentication not supported for logs:read with API key")
             pytest.fail(f"List general logs failed: {e}")
         # Note: Don't disconnect - client fixture is module-scoped
 
@@ -819,7 +826,7 @@ class TestLogsEndpointsExtended:
     async def test_list_audit_logs(self, client, config, user_token):
         """Test GET /api/v1/logs/audit - List audit logs."""
         if should_skip(config) or not user_token:
-            pytest.skip("Config or user token not available")
+            pytest.fail("Config or user token not available")
 
         try:
             await self._ensure_client_ready(client)
@@ -838,9 +845,9 @@ class TestLogsEndpointsExtended:
                 # Event loop closed during teardown - this is expected and okay
                 pass
             elif "403" in str(e) or "Forbidden" in str(e):
-                pytest.skip("Insufficient permissions for audit:read")
+                pytest.fail("Insufficient permissions for audit:read")
             elif "401" in str(e) or "Unauthorized" in str(e):
-                pytest.skip("Authentication not supported for audit:read with API key")
+                pytest.fail("Authentication not supported for audit:read with API key")
             else:
                 pytest.fail(f"List audit logs failed: {e}")
         # Note: Don't disconnect - client fixture is module-scoped
@@ -849,7 +856,7 @@ class TestLogsEndpointsExtended:
     async def test_list_job_logs(self, client, config, user_token):
         """Test GET /api/v1/logs/jobs - List job logs."""
         if should_skip(config) or not user_token:
-            pytest.skip("Config or user token not available")
+            pytest.fail("Config or user token not available")
 
         try:
             await self._ensure_client_ready(client)
@@ -863,9 +870,9 @@ class TestLogsEndpointsExtended:
             assert hasattr(response, "meta")
         except Exception as e:
             if "403" in str(e) or "Forbidden" in str(e):
-                pytest.skip("Insufficient permissions for jobs:read")
+                pytest.fail("Insufficient permissions for jobs:read")
             if "401" in str(e) or "Unauthorized" in str(e):
-                pytest.skip("Authentication not supported for jobs:read with API key")
+                pytest.fail("Authentication not supported for jobs:read with API key")
             pytest.fail(f"List job logs failed: {e}")
         # Note: Don't disconnect - client fixture is module-scoped
 
@@ -873,7 +880,7 @@ class TestLogsEndpointsExtended:
     async def test_get_logs_stats_summary(self, client, config, user_token):
         """Test GET /api/v1/logs/stats/summary - Get log statistics summary."""
         if should_skip(config) or not user_token:
-            pytest.skip("Config or user token not available")
+            pytest.fail("Config or user token not available")
 
         try:
             await self._ensure_client_ready(client)
@@ -890,9 +897,9 @@ class TestLogsEndpointsExtended:
                 # Event loop closed during teardown - this is expected and okay
                 pass
             elif "403" in str(e) or "Forbidden" in str(e):
-                pytest.skip("Insufficient permissions for logs:read")
+                pytest.fail("Insufficient permissions for logs:read")
             elif "401" in str(e) or "Unauthorized" in str(e):
-                pytest.skip("Authentication not supported for logs:read with API key")
+                pytest.fail("Authentication not supported for logs:read with API key")
             else:
                 pytest.fail(f"Get logs stats summary failed: {e}")
         # Note: Don't disconnect - client fixture is module-scoped
@@ -901,7 +908,7 @@ class TestLogsEndpointsExtended:
     async def test_get_logs_stats_errors(self, client, config, user_token):
         """Test GET /api/v1/logs/stats/errors - Get error statistics."""
         if should_skip(config) or not user_token:
-            pytest.skip("Config or user token not available")
+            pytest.fail("Config or user token not available")
 
         try:
             await self._ensure_client_ready(client)
@@ -913,9 +920,9 @@ class TestLogsEndpointsExtended:
             assert hasattr(response.data, "topErrors")
         except Exception as e:
             if "403" in str(e) or "Forbidden" in str(e):
-                pytest.skip("Insufficient permissions for logs:read")
+                pytest.fail("Insufficient permissions for logs:read")
             if "401" in str(e) or "Unauthorized" in str(e):
-                pytest.skip("Authentication not supported for logs:read with API key")
+                pytest.fail("Authentication not supported for logs:read with API key")
             pytest.fail(f"Get logs stats errors failed: {e}")
         # Note: Don't disconnect - client fixture is module-scoped
 
@@ -923,7 +930,7 @@ class TestLogsEndpointsExtended:
     async def test_get_logs_stats_applications(self, client, config, user_token):
         """Test GET /api/v1/logs/stats/applications - Get application statistics."""
         if should_skip(config) or not user_token:
-            pytest.skip("Config or user token not available")
+            pytest.fail("Config or user token not available")
 
         try:
             await self._ensure_client_ready(client)
@@ -940,9 +947,9 @@ class TestLogsEndpointsExtended:
                 # Event loop closed during teardown - this is expected and okay
                 pass
             elif "403" in str(e) or "Forbidden" in str(e):
-                pytest.skip("Insufficient permissions for logs:read")
+                pytest.fail("Insufficient permissions for logs:read")
             elif "401" in str(e) or "Unauthorized" in str(e):
-                pytest.skip("Authentication not supported for logs:read with API key")
+                pytest.fail("Authentication not supported for logs:read with API key")
             else:
                 pytest.fail(f"Get logs stats applications failed: {e}")
         # Note: Don't disconnect - client fixture is module-scoped
@@ -951,7 +958,7 @@ class TestLogsEndpointsExtended:
     async def test_get_logs_stats_users(self, client, config, user_token):
         """Test GET /api/v1/logs/stats/users - Get user activity statistics."""
         if should_skip(config) or not user_token:
-            pytest.skip("Config or user token not available")
+            pytest.fail("Config or user token not available")
 
         try:
             await self._ensure_client_ready(client)
@@ -963,9 +970,9 @@ class TestLogsEndpointsExtended:
             assert hasattr(response.data, "topUsers")
         except Exception as e:
             if "403" in str(e) or "Forbidden" in str(e):
-                pytest.skip("Insufficient permissions for admin:read")
+                pytest.fail("Insufficient permissions for admin:read")
             if "401" in str(e) or "Unauthorized" in str(e):
-                pytest.skip("Authentication not supported for admin:read with API key")
+                pytest.fail("Authentication not supported for admin:read with API key")
             pytest.fail(f"Get logs stats users failed: {e}")
         # Note: Don't disconnect - client fixture is module-scoped
 
@@ -973,7 +980,7 @@ class TestLogsEndpointsExtended:
     async def test_get_job_log(self, client, config, user_token):
         """Test GET /api/v1/logs/jobs/{id} - Get single job log by ID."""
         if should_skip(config) or not user_token:
-            pytest.skip("Config or user token not available")
+            pytest.fail("Config or user token not available")
 
         try:
             await self._ensure_client_ready(client)
@@ -982,7 +989,9 @@ class TestLogsEndpointsExtended:
                 token=user_token, page=1, page_size=1
             )
             if not list_response.data or len(list_response.data) == 0:
-                pytest.skip("No job logs available - cannot test get_job_log")
+                pytest.fail(
+                    "No job logs available - create job logs in the environment or controller to test get_job_log"
+                )
 
             # Get the first job log ID
             log_id = list_response.data[0].id
@@ -1002,11 +1011,11 @@ class TestLogsEndpointsExtended:
                 # Event loop closed during teardown - this is expected and okay
                 pass
             elif "403" in str(e) or "Forbidden" in str(e):
-                pytest.skip("Insufficient permissions for jobs:read")
+                pytest.fail("Insufficient permissions for jobs:read")
             elif "401" in str(e) or "Unauthorized" in str(e):
-                pytest.skip("Authentication not supported for jobs:read with API key")
+                pytest.fail("Authentication not supported for jobs:read with API key")
             elif "404" in str(e) or "Not Found" in str(e):
-                pytest.skip("Job log not found or endpoint not available")
+                pytest.fail("Job log not found or endpoint not available")
             else:
                 pytest.fail(f"Get job log failed: {e}")
         # Note: Don't disconnect - client fixture is module-scoped
@@ -1015,7 +1024,7 @@ class TestLogsEndpointsExtended:
     async def test_export_logs_json(self, client, config, user_token):
         """Test GET /api/v1/logs/export - Export logs in JSON format."""
         if should_skip(config) or not user_token:
-            pytest.skip("Config or user token not available")
+            pytest.fail("Config or user token not available")
 
         try:
             await self._ensure_client_ready(client)
@@ -1034,11 +1043,11 @@ class TestLogsEndpointsExtended:
             assert response.meta.type == "general"
         except Exception as e:
             if "403" in str(e) or "Forbidden" in str(e):
-                pytest.skip("Insufficient permissions for logs:export")
+                pytest.fail("Insufficient permissions for logs:export")
             if "401" in str(e) or "Unauthorized" in str(e):
-                pytest.skip("Authentication not supported for logs:export with API key")
+                pytest.fail("Authentication not supported for logs:export with API key")
             if "404" in str(e) or "Not Found" in str(e):
-                pytest.skip("Export endpoint not available")
+                pytest.fail("Export endpoint not available")
             pytest.fail(f"Export logs JSON failed: {e}")
         # Note: Don't disconnect - client fixture is module-scoped
 
@@ -1046,7 +1055,7 @@ class TestLogsEndpointsExtended:
     async def test_export_logs_csv(self, client, config, user_token):
         """Test GET /api/v1/logs/export - Export logs in CSV format."""
         if should_skip(config) or not user_token:
-            pytest.skip("Config or user token not available")
+            pytest.fail("Config or user token not available")
 
         try:
             await self._ensure_client_ready(client)
@@ -1070,14 +1079,16 @@ class TestLogsEndpointsExtended:
                 # Event loop closed during teardown - this is expected and okay
                 pass
             elif "403" in str(e) or "Forbidden" in str(e):
-                pytest.skip("Insufficient permissions for logs:export")
+                pytest.fail("Insufficient permissions for logs:export")
             elif "401" in str(e) or "Unauthorized" in str(e):
-                pytest.skip("Authentication not supported for logs:export with API key")
+                pytest.fail(
+                    "logs:export returned 401 - use a JWT user token (TEST_USER_TOKEN) instead of API_KEY, or ensure controller allows export with API key"
+                )
             elif "404" in str(e) or "Not Found" in str(e):
-                pytest.skip("Export endpoint not available")
+                pytest.fail("Export endpoint not available")
             elif "validation" in str(e).lower() or "parse" in str(e).lower():
                 # CSV may return raw text that doesn't parse as JSON
-                pytest.skip("CSV format returns raw text - may not parse as LogExportResponse")
+                pytest.fail("CSV format returns raw text - may not parse as LogExportResponse")
             else:
                 pytest.fail(f"Export logs CSV failed: {e}")
         # Note: Don't disconnect - client fixture is module-scoped
@@ -1103,7 +1114,7 @@ class TestNegativeScenarios:
     async def test_invalid_token_validation(self, client, config):
         """Test POST /api/v1/auth/validate - Validate with invalid token."""
         if should_skip(config):
-            pytest.skip("Config not available")
+            pytest.fail("Config not available")
 
         try:
             await self._ensure_client_ready(client)
@@ -1121,7 +1132,7 @@ class TestNegativeScenarios:
     async def test_expired_token_handling(self, client, config):
         """Test handling of expired JWT token."""
         if should_skip(config):
-            pytest.skip("Config not available")
+            pytest.fail("Config not available")
 
         try:
             await self._ensure_client_ready(client)
@@ -1144,7 +1155,7 @@ class TestNegativeScenarios:
     async def test_empty_token_validation(self, client, config):
         """Test POST /api/v1/auth/validate - Validate with empty token."""
         if should_skip(config):
-            pytest.skip("Config not available")
+            pytest.fail("Config not available")
 
         try:
             await self._ensure_client_ready(client)
@@ -1161,7 +1172,7 @@ class TestNegativeScenarios:
     async def test_roles_with_invalid_token(self, client, config):
         """Test GET /api/v1/auth/roles - Get roles with invalid token."""
         if should_skip(config):
-            pytest.skip("Config not available")
+            pytest.fail("Config not available")
 
         try:
             await self._ensure_client_ready(client)
@@ -1177,7 +1188,7 @@ class TestNegativeScenarios:
     async def test_permissions_with_invalid_token(self, client, config):
         """Test GET /api/v1/auth/permissions - Get permissions with invalid token."""
         if should_skip(config):
-            pytest.skip("Config not available")
+            pytest.fail("Config not available")
 
         try:
             await self._ensure_client_ready(client)
@@ -1193,7 +1204,7 @@ class TestNegativeScenarios:
     async def test_user_info_with_invalid_token(self, client, config):
         """Test GET /api/v1/auth/user - Get user info with invalid token."""
         if should_skip(config):
-            pytest.skip("Config not available")
+            pytest.fail("Config not available")
 
         try:
             await self._ensure_client_ready(client)

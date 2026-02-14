@@ -39,7 +39,7 @@ def config():
     try:
         return load_config()
     except ConfigurationError as e:
-        pytest.skip(f"Failed to load config from .env: {e}")
+        pytest.fail(f"Failed to load config from .env: {e}")
 
 
 @pytest.fixture
@@ -49,7 +49,7 @@ def client(config):
         client_instance = MisoClient(config)
         yield client_instance
     except Exception as e:
-        pytest.skip(f"Failed to initialize MisoClient: {e}")
+        pytest.fail(f"Failed to initialize MisoClient: {e}")
     finally:
         pass
 
@@ -108,14 +108,14 @@ class TestClientToken:
     async def test_client_id_and_token_validation(self, client, config):
         """Obtain client token and send a log (client credentials accepted by controller)."""
         if should_skip(config):
-            pytest.skip("Config not available")
+            pytest.fail("Config not available")
 
         try:
             await client.initialize()
             token = await client.get_environment_token()
-            assert token and isinstance(token, str), (
-                "get_environment_token() must return a non-empty token"
-            )
+            assert token and isinstance(
+                token, str
+            ), "get_environment_token() must return a non-empty token"
             await client.log.info(
                 "Integration test: client token validation",
                 context={"source": "test_client_token"},

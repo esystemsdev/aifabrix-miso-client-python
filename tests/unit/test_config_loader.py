@@ -443,6 +443,7 @@ class TestConfigLoader:
             os.environ.pop("API_KEY", None)
             os.environ.pop("MISO_API_KEY", None)
             os.environ.pop("MISO_ENCRYPTION_KEY", None)
+            os.environ.pop("ENCRYPTION_KEY", None)
             # Mock load_dotenv to prevent loading from .env file
             with patch("dotenv.load_dotenv"):
                 with patch("miso_client.utils.config_loader.load_dotenv", create=True):

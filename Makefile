@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help install install-dev test test-cov test-integration test-integration-legacy lint format type-check build check clean clean-venv validate validate-api publish test-publish venv all dev
+.PHONY: help install install-dev test test-cov test-integration test-integration-legacy test-manual lint format type-check build check clean clean-venv validate validate-api publish test-publish venv all dev
 
 help: ## Show all commands
 	@echo "Usage: make [target]"
@@ -30,16 +30,19 @@ install-dev: venv ## Install the package with development dependencies
 	$(VENV_PIP) install -e ".[dev]"
 
 test: venv ## Run tests (excludes integration tests)
-	$(VENV_PYTHON) -m pytest tests/ -v --ignore=tests/integration/
+	$(VENV_PYTHON) -m pytest tests/ -v --ignore=tests/integration/ --ignore=tests/manual/
 
 test-cov: venv ## Run tests with coverage (excludes integration tests)
-	$(VENV_PYTHON) -m pytest tests/ -v --ignore=tests/integration/ --cov=miso_client --cov-report=html --cov-report=xml
+	$(VENV_PYTHON) -m pytest tests/ -v --ignore=tests/integration/ --ignore=tests/manual/ --cov=miso_client --cov-report=html --cov-report=xml
 
-test-integration: venv ## Run integration tests against real controller (pytest, uses .env)
+test-integration: venv ## Run integration tests (requires: aifabrix auth status --validate succeeds; no skips, failures shown as errors)
 	$(VENV_PYTHON) -m pytest tests/integration/ -v --no-cov
 
 test-integration-legacy: venv ## Run legacy integration test script
+
 	$(VENV_PYTHON) test_integration.py
+test-manual: venv ## Run manual-only tests (not run by make test)
+	$(VENV_PYTHON) -m pytest tests/manual/ -v
 
 lint: venv ## Run linting
 	$(VENV_PYTHON) -m ruff check miso_client/ tests/
@@ -73,7 +76,7 @@ validate: venv ## Run lint + format + test (excludes integration tests)
 	$(VENV_PYTHON) -m ruff check miso_client/ tests/
 	$(VENV_PYTHON) -m black miso_client/ tests/
 	$(VENV_PYTHON) -m isort miso_client/ tests/
-	$(VENV_PYTHON) -m pytest tests/ -v --ignore=tests/integration/
+	$(VENV_PYTHON) -m pytest tests/ -v --ignore=tests/integration/ --ignore=tests/manual/
 
 validate-api: venv ## Validate API endpoints via integration tests (uses .env)
 	@echo "Running API endpoint integration tests..."

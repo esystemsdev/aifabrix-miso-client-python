@@ -13,9 +13,9 @@ The storage backend (Key Vault or local) is determined by the controller's confi
 
 ## Configuration
 
-### ENCRYPTION_KEY Requirement
+### Encryption key requirement
 
-The `MISO_ENCRYPTION_KEY` environment variable is **required** for encrypt/decrypt operations. This key provides a second factor of authorization beyond client credentials.
+The encryption key is **required** for encrypt/decrypt operations. Set **either** `MISO_ENCRYPTION_KEY` or `ENCRYPTION_KEY` in your environment. This key provides a second factor of authorization beyond client credentials.
 
 ### Where to Obtain the Key
 
@@ -27,7 +27,7 @@ The `MISO_ENCRYPTION_KEY` environment variable is **required** for encrypt/decry
 
 ### Security Model
 
-- SDK reads `MISO_ENCRYPTION_KEY` from your `.env` file
+- SDK reads the key from `MISO_ENCRYPTION_KEY` or `ENCRYPTION_KEY` in your `.env`
 - SDK sends `encryptionKey` parameter to miso-controller with each request
 - Controller validates against its configured source (Key Vault or .env)
 - Provides two-level authorization: client credentials alone are insufficient
@@ -40,6 +40,7 @@ MISO_CONTROLLER_URL=https://controller.example.com
 MISO_CLIENTID=your-client-id
 MISO_CLIENTSECRET=your-client-secret
 MISO_ENCRYPTION_KEY=obtain-from-your-environment-administrator
+# or: ENCRYPTION_KEY=obtain-from-your-environment-administrator
 ```
 
 ## Usage
@@ -108,7 +109,7 @@ except EncryptionError as e:
 
 | Code | Description | HTTP Status |
 |------|-------------|-------------|
-| `ENCRYPTION_KEY_REQUIRED` | `MISO_ENCRYPTION_KEY` not configured | N/A (client-side) |
+| `ENCRYPTION_KEY_REQUIRED` | `MISO_ENCRYPTION_KEY` / `ENCRYPTION_KEY` not set | N/A (client-side) |
 | `INVALID_PARAMETER_NAME` | Parameter name doesn't match pattern `^[a-zA-Z0-9._-]{1,128}$` | N/A (client-side) |
 | `ENCRYPTION_FAILED` | Controller encryption failed | 500 |
 | `DECRYPTION_FAILED` | Controller decryption failed (general) | 500 |
@@ -149,6 +150,53 @@ The storage backend is determined by the controller's configuration:
 
 - **Production**: Typically uses Azure Key Vault (`keyvault`)
 - **Development**: Typically uses local encryption (`local`)
+
+## Manual Testing
+
+A manual test script is provided to verify encrypt/decrypt against a real miso-controller.
+
+### Prerequisites
+
+- SDK and dependencies installed (e.g. `pip install -e .` or use the project venv).
+- `.env` in the project root with:
+  - `MISO_CONTROLLER_URL` – controller base URL
+  - `MISO_CLIENTID` / `MISO_CLIENTSECRET` – client credentials
+  - `MISO_ENCRYPTION_KEY` or `ENCRYPTION_KEY` – encryption key (from your environment administrator)
+- miso-controller running and configured for encryption (local or Key Vault)
+
+### Run round-trip test (encrypt → decrypt)
+
+From the project root:
+
+```bash
+python tests/integration/manual_test_encryption.py
+```
+
+This will:
+
+1. Initialize `MisoClient` from `.env`
+2. Encrypt a test value with a fixed parameter name
+3. Decrypt the returned reference
+4. Assert decrypted value equals the original
+
+Success: script exits 0 and prints `round-trip OK`. Failure: exits 1 with error details.
+
+### Run validation-only (no controller required for some checks)
+
+To exercise client-side validation only (e.g. missing `MISO_ENCRYPTION_KEY`, invalid parameter name):
+
+```bash
+python tests/integration/manual_test_encryption.py --validate-only
+```
+
+With `MISO_ENCRYPTION_KEY` unset, this verifies `ENCRYPTION_KEY_REQUIRED`. With it set, this verifies `INVALID_PARAMETER_NAME` for an invalid parameter name.
+
+### What to verify manually
+
+- **Round-trip**: Encrypted reference format matches storage (`kv://...` or `enc://v1:...`), and decrypted value matches the plaintext you encrypted.
+- **Errors**: For invalid controller config or key, you should see `EncryptionError` with an appropriate `code` (e.g. `ACCESS_DENIED`, `ENCRYPTION_FAILED`). See [Error Codes](#error-codes) in this document.
+
+**Note:** The manual test script (and the SDK) accept the key from either `MISO_ENCRYPTION_KEY` or `ENCRYPTION_KEY` in `.env`.
 
 ## API Reference
 

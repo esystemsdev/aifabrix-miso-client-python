@@ -129,7 +129,7 @@ class MisoClientConfig(BaseModel):
     )
     encryption_key: Optional[str] = Field(
         default=None,
-        description="Encryption key for encrypt/decrypt operations (MISO_ENCRYPTION_KEY env var)",
+        description="Encryption key for encrypt/decrypt operations (MISO_ENCRYPTION_KEY or ENCRYPTION_KEY env var)",
     )
 
     @property
