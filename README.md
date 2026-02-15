@@ -580,6 +580,7 @@ Configure audit logging behavior using `AuditConfig` (see Configuration section 
 ## 📚 Read more
 
 - **[Getting Started](docs/getting-started.md)** - Detailed setup guide
+- **[Backend client-token endpoint](docs/backend-client-token.md)** - Simple backend code for any app (FastAPI / Flask)
 - **[API Reference](docs/api-reference.md)** - Complete API documentation
 - **[Configuration](docs/configuration.md)** - Configuration options
 - **[Examples](docs/examples.md)** - Framework-specific examples
