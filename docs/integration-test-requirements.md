@@ -7,6 +7,7 @@ This document summarizes what is required for `make test-integration` to pass an
 | Variable | Purpose | Required for |
 |----------|---------|--------------|
 | `MISO_CLIENTID`, `MISO_CLIENTSECRET`, `MISO_CONTROLLER_URL` | Controller auth | All tests |
+| `MISO_ENCRYPTION_KEY` or `ENCRYPTION_KEY` | Encryption key (must match controller) | `test_encryption.py` |
 | `TEST_USER_TOKEN` or `API_KEY` | User/auth token for protected endpoints | Most auth and logs tests |
 | `TEST_REFRESH_TOKEN` or `REFRESH_TOKEN` or `MISO_REFRESH_TOKEN` or `TEST_REFRESH_TOKEN_FILE` | Refresh token for OAuth2 | `test_refresh_token` |
 | `TEST_DEVICE_REFRESH_TOKEN` | Refresh token from device code flow | `test_refresh_device_code_token` |
@@ -52,6 +53,12 @@ Conftest loads `TEST_REFRESH_TOKEN` from `REFRESH_TOKEN` or `MISO_REFRESH_TOKEN`
 | `test_refresh_device_code_token` | Set `TEST_DEVICE_REFRESH_TOKEN` after completing device code flow once. |
 | `test_get_job_log` | Ensure environment has job logs (or create via controller/jobs). |
 | `test_export_logs_csv` | Use JWT in `TEST_USER_TOKEN` for export, or change controller to allow API_KEY for export. |
+
+## Encryption integration tests (`tests/integration/test_encryption.py`)
+
+- **Round-trip:** Encrypt then decrypt and assert plaintext matches; requires `MISO_ENCRYPTION_KEY` or `ENCRYPTION_KEY` in `.env` and the controller must be configured with the same key.
+- **Skipped when:** No encryption key is set (tests skip so `make test-integration` passes without a key).
+- **Note:** The test file loads `.env` with `override=True` so the project `.env` key is used instead of `tests/conftest.py`’s default.
 
 ## Refresh token from encrypted config.yaml
 
