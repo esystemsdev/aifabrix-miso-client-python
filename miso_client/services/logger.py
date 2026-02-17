@@ -273,9 +273,7 @@ class LoggerService:
                 log_request = transform_log_entry_to_request(log_entry)
                 await self.api_client.logs.send_log(log_request)
             else:
-                log_payload = log_entry.model_dump(
-                    exclude={"environment", "application"}, exclude_none=True
-                )
+                log_payload = log_entry.model_dump(exclude_none=True)
                 await self.internal_http_client.request("POST", "/api/v1/logs", log_payload)
             self.circuit_breaker.record_success()
         except Exception:

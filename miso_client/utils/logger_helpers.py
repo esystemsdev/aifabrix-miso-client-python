@@ -200,16 +200,22 @@ def build_log_entry(
     # Get application context (from parameter, options overwrites, or defaults)
     app_context = application_context or {}
 
-    # Determine application name (priority: options > application_context > config_client_id)
+    context_application = context.get("application") if isinstance(context, dict) else None
+    # Determine application name (priority: options > context > application_context > config_client_id)
     application_name = (
         (options.application if options else None)
+        or (context_application if isinstance(context_application, str) else None)
         or app_context.get("application")
         or config_client_id
     )
 
-    # Determine environment (priority: options > application_context > "unknown")
+    context_environment = context.get("environment") if isinstance(context, dict) else None
+    # Determine environment (priority: options > context > application_context > "unknown")
     environment_name = (
-        (options.environment if options else None) or app_context.get("environment") or "unknown"
+        (options.environment if options else None)
+        or (context_environment if isinstance(context_environment, str) else None)
+        or app_context.get("environment")
+        or "unknown"
     )
 
     # Determine applicationId (priority: options > application_context > jwt_context)

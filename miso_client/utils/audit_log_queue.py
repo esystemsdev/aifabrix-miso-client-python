@@ -181,14 +181,7 @@ class AuditLogQueue:
                 await self.http_client.request(
                     "POST",
                     "/api/v1/logs/batch",
-                    {
-                        "logs": [
-                            entry.model_dump(
-                                exclude={"environment", "application"}, exclude_none=True
-                            )
-                            for entry in log_entries
-                        ]
-                    },
+                    {"logs": [entry.model_dump(exclude_none=True) for entry in log_entries]},
                 )
                 # Record success in circuit breaker
                 self.circuit_breaker.record_success()

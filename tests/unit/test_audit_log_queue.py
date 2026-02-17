@@ -275,8 +275,8 @@ class TestAuditLogQueue:
         assert audit_queue.flush_timer is None
 
     @pytest.mark.asyncio
-    async def test_flush_excludes_environment_and_application(self, audit_queue, mock_http_client):
-        """Test that flush excludes environment and application from log entries."""
+    async def test_flush_preserves_environment_and_application(self, audit_queue, mock_http_client):
+        """Test that flush preserves environment and application in log entries."""
         audit_queue.redis.is_connected.return_value = False
 
         entry = LogEntry(
@@ -296,10 +296,10 @@ class TestAuditLogQueue:
         call_args = mock_http_client.request.call_args
         logs = call_args[0][2]["logs"]
 
-        # Verify environment and application are excluded
+        # Verify environment and application are preserved
         assert len(logs) == 1
-        assert "environment" not in logs[0]
-        assert "application" not in logs[0]
+        assert logs[0]["environment"] == "test-env"
+        assert logs[0]["application"] == "test-app"
         assert logs[0]["message"] == "Test message"
         assert logs[0]["context"] == {"key": "value"}
 
@@ -365,8 +365,8 @@ class TestAuditLogQueue:
         assert payload_logs[0]["applicationId"]["id"] == "app-1"
         assert payload_logs[0]["context"]["method"] == "POST"
         assert payload_logs[0]["context"]["path"] == "/api/one"
-        assert "environment" not in payload_logs[0]
-        assert "application" not in payload_logs[0]
+        assert payload_logs[0]["environment"] == "test-env"
+        assert payload_logs[0]["application"] == "test-app"
 
         assert payload_logs[1]["correlationId"] == "corr-2"
         assert payload_logs[1]["requestId"] == "req-2"
@@ -378,8 +378,8 @@ class TestAuditLogQueue:
         assert payload_logs[1]["applicationId"]["id"] == "app-2"
         assert payload_logs[1]["context"]["method"] == "PUT"
         assert payload_logs[1]["context"]["path"] == "/api/two"
-        assert "environment" not in payload_logs[1]
-        assert "application" not in payload_logs[1]
+        assert payload_logs[1]["environment"] == "test-env"
+        assert payload_logs[1]["application"] == "test-app"
 
     @pytest.mark.asyncio
     async def test_flush_handles_http_error_silently(

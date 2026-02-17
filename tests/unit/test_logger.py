@@ -657,8 +657,6 @@ class TestLoggerServiceEdgeCases:
         mock_request.assert_called_once()
         payload = mock_request.call_args[0][2]
 
-        assert "environment" not in payload
-        assert "application" not in payload
         assert payload["correlationId"] == "corr-999"
         assert payload["requestId"] == "req-000"
         assert payload["sessionId"] == "session-111"
@@ -670,3 +668,28 @@ class TestLoggerServiceEdgeCases:
         assert payload["applicationId"]["id"] == "app-456"
         assert payload["context"]["method"] == "PUT"
         assert payload["context"]["path"] == "/api/resource"
+
+    @pytest.mark.asyncio
+    async def test_http_payload_uses_explicit_context_environment(self, logger_service):
+        """Test explicit context environment/application are sent in payload."""
+        logger_service.api_client = None
+        logger_service.redis.is_connected.return_value = False
+
+        context = {
+            "environment": "dev",
+            "application": "miso-controller",
+            "correlationId": "corr-env-1",
+        }
+
+        with patch.object(
+            logger_service.circuit_breaker, "is_open", return_value=False
+        ), patch.object(
+            logger_service.internal_http_client, "request", new_callable=AsyncMock
+        ) as mock_request:
+            await logger_service.audit("create", "resource", context)
+
+        mock_request.assert_called_once()
+        payload = mock_request.call_args[0][2]
+
+        assert payload["environment"] == "dev"
+        assert payload["application"] == "miso-controller"
