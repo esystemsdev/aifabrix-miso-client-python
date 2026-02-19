@@ -77,10 +77,7 @@ def patch_timeout():
 def should_skip(config) -> bool:
     """Skip when config or controller credentials are missing."""
     return (
-        not config
-        or not config.controller_url
-        or not config.client_id
-        or not config.client_secret
+        not config or not config.controller_url or not config.client_id or not config.client_secret
     )
 
 

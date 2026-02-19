@@ -512,9 +512,7 @@ class TestAuthEndpoints:
             # Skip if we don't have a device code refresh token in the environment
             device_refresh_token = os.getenv("TEST_DEVICE_REFRESH_TOKEN")
             if not device_refresh_token:
-                pytest.skip(
-                    "TEST_DEVICE_REFRESH_TOKEN not set - optional device code refresh test"
-                )
+                pytest.skip("TEST_DEVICE_REFRESH_TOKEN not set - optional device code refresh test")
 
             # Use API client directly to test the API layer
             response = await client.api_client.auth.refresh_device_code_token(device_refresh_token)
@@ -991,9 +989,7 @@ class TestLogsEndpointsExtended:
                 token=user_token, page=1, page_size=1
             )
             if not list_response.data or len(list_response.data) == 0:
-                pytest.skip(
-                    "No job logs available - optional test (create job logs to run)"
-                )
+                pytest.skip("No job logs available - optional test (create job logs to run)")
 
             # Get the first job log ID
             log_id = list_response.data[0].id

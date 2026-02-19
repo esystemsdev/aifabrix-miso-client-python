@@ -5,6 +5,21 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.4.4] - 2026-02-09
+
+### Added
+
+- **Regression tests** - Added coverage for environment/application preservation in audit logging paths.
+
+### Changed
+
+- **Docs** - Updated backend client-token documentation and integration test requirements.
+- **Integration tests** - Added encryption integration coverage.
+
+### Fixed
+
+- **Audit logging** - Preserve top-level `environment` and `application` for single and batch audit logs.
+
 ## [4.4.3] - 2026-02-14
 
 ### Changed
