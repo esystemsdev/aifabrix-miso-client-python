@@ -238,6 +238,10 @@ class LoggerChain:
         """Log info."""
         await self.logger.info(message, self.context, self.options)
 
+    async def warn(self, message: str) -> None:
+        """Log warning."""
+        await self.logger.warn(message, self.context, self.options)
+
     async def audit(self, action: str, resource: str) -> None:
         """Log audit."""
         await self.logger.audit(action, resource, self.context, self.options)

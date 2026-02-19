@@ -78,6 +78,22 @@ class TestLoggerServiceEventEmission:
         assert callback_called[0].message == "Test message"
 
     @pytest.mark.asyncio
+    async def test_event_emission_warn_level(self, logger_service):
+        """Test event emission preserves warn level without remap."""
+        callback_called = []
+
+        def sync_callback(log_entry: LogEntry):
+            callback_called.append(log_entry)
+
+        logger_service.on(sync_callback)
+
+        await logger_service.warn("Warning message", {"key": "value"})
+
+        assert len(callback_called) == 1
+        assert callback_called[0].level == "warn"
+        assert callback_called[0].message == "Warning message"
+
+    @pytest.mark.asyncio
     async def test_event_emission_includes_context_fields(self, logger_service):
         """Test emitted log entry includes request and app context fields."""
         callback_called = []
@@ -359,6 +375,29 @@ class TestLoggerServiceTransformLogEntry:
         assert isinstance(log_request.data, GeneralLogData)
         assert log_request.data.level == "debug"
 
+    def test_transform_warn_log_entry(self, logger_service, config):
+        """Test transforming warn log entry to GeneralLogData."""
+        from miso_client.api.types.logs_types import GeneralLogData, LogRequest
+        from miso_client.utils.logger_helpers import transform_log_entry_to_request
+
+        log_entry = LogEntry(
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            level="warn",
+            environment="test",
+            application=config.client_id,
+            message="Warn message",
+            correlationId="corr-123",
+            context={"key": "value"},
+        )
+
+        log_request = transform_log_entry_to_request(log_entry)
+
+        assert isinstance(log_request, LogRequest)
+        assert log_request.type == "general"
+        assert isinstance(log_request.data, GeneralLogData)
+        assert log_request.data.level == "warn"
+        assert log_request.data.message == "Warn message"
+
 
 class TestLoggerServiceGetMethods:
     """Test cases for LoggerService get_* methods."""
@@ -470,6 +509,17 @@ class TestLoggerServiceGetMethods:
         assert log_entry.message == "Custom log"
         assert log_entry.level == "info"
         assert log_entry.context == context
+
+    @pytest.mark.asyncio
+    async def test_get_with_context_warn_level(self, logger_service):
+        """Test get_with_context supports warn level."""
+        context = {"customField": "value"}
+
+        log_entry = await logger_service.get_with_context(context, "Warn log", "warn")
+
+        assert isinstance(log_entry, LogEntry)
+        assert log_entry.message == "Warn log"
+        assert log_entry.level == "warn"
 
     @pytest.mark.asyncio
     async def test_get_with_context_with_options(self, logger_service):
@@ -693,3 +743,21 @@ class TestLoggerServiceEdgeCases:
 
         assert payload["environment"] == "dev"
         assert payload["application"] == "miso-controller"
+
+    @pytest.mark.asyncio
+    async def test_warn_payload_preserves_level_and_message(self, logger_service):
+        """Test warn payload is sent as warn without message prefix."""
+        logger_service.api_client = None
+        logger_service.redis.is_connected.return_value = False
+
+        with patch.object(
+            logger_service.circuit_breaker, "is_open", return_value=False
+        ), patch.object(
+            logger_service.internal_http_client, "request", new_callable=AsyncMock
+        ) as mock_request:
+            await logger_service.warn("Native warn message")
+
+        mock_request.assert_called_once()
+        payload = mock_request.call_args[0][2]
+        assert payload["level"] == "warn"
+        assert payload["message"] == "Native warn message"

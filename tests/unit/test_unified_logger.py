@@ -23,6 +23,7 @@ class TestUnifiedLogger:
         """Mock LoggerService instance."""
         logger = MagicMock(spec=LoggerService)
         logger.info = AsyncMock()
+        logger.warn = AsyncMock()
         logger.debug = AsyncMock()
         logger.error = AsyncMock()
         logger.audit = AsyncMock()
@@ -89,9 +90,10 @@ class TestUnifiedLogger:
 
         await unified_logger.warn("Warning message")
 
-        mock_logger_service.info.assert_called_once()
-        call_args = mock_logger_service.info.call_args
-        assert call_args[0][0] == "WARNING: Warning message"
+        mock_logger_service.warn.assert_called_once()
+        call_args = mock_logger_service.warn.call_args
+        assert call_args[0][0] == "Warning message"
+        mock_logger_service.info.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_debug_with_context(self, unified_logger, mock_logger_service, context_storage):

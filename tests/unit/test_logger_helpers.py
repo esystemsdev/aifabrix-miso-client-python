@@ -4,7 +4,7 @@ Unit tests for logger helper functions.
 
 from unittest.mock import patch
 
-from miso_client.utils.logger_helpers import build_log_entry
+from miso_client.utils.logger_helpers import build_log_entry, transform_log_entry_to_request
 
 
 def test_build_log_entry_includes_request_metadata_and_app_context(config):
@@ -115,3 +115,18 @@ def test_build_log_entry_context_overrides_token_user(config):
 
     assert log_entry.userId is not None
     assert log_entry.userId.id == "user-context"
+
+
+def test_build_log_entry_warn_level_preserved(config):
+    """Ensure warn level is supported and preserved in transformed request payload."""
+    log_entry = build_log_entry(
+        level="warn",
+        message="Warn message",
+        context={"action": "warn-test"},
+        config_client_id=config.client_id,
+    )
+
+    assert log_entry.level == "warn"
+    log_request = transform_log_entry_to_request(log_entry)
+    assert log_request.type == "general"
+    assert log_request.data.level == "warn"

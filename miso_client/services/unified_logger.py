@@ -57,8 +57,7 @@ class UnifiedLogger:
         """
         try:
             context, options = self._build_context_and_options()
-            # Use info level for warnings (LoggerService doesn't have warn level)
-            await self.logger_service.info(f"WARNING: {message}", context=context, options=options)
+            await self.logger_service.warn(message, context=context, options=options)
         except Exception:
             # Error handling in logger should be silent (catch and swallow)
             pass

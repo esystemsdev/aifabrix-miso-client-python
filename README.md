@@ -373,7 +373,7 @@ async def background_job():
 **UnifiedLogger Methods:**
 
 - `info(message: str) -> None` - Log info message
-- `warn(message: str) -> None` - Log warning message
+- `warn(message: str) -> None` - Log warning message (preserved as `warn` level end-to-end)
 - `debug(message: str) -> None` - Log debug message
 - `error(message: str, error: Optional[Exception] = None) -> None` - Log error message with optional exception
 - `audit(action: str, resource: str, entity_id?: str, old_values?: Dict, new_values?: Dict) -> None` - Log audit event

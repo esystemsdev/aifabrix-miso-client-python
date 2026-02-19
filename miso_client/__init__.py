@@ -37,6 +37,7 @@ from .models.config import (
     ClientTokenResponse,
     DataClientConfigResponse,
     LogEntry,
+    LogLevel,
     MisoClientConfig,
     PermissionResult,
     RedisConfig,
@@ -143,7 +144,7 @@ from .utils.token_utils import extract_client_token_info
 from .utils.unified_logger_factory import clear_logger_context, get_logger, set_logger_context
 from .utils.url_validator import validate_url
 
-__version__ = "4.4.4"
+__version__ = "4.5.0"
 __author__ = "AI Fabrix Team"
 __license__ = "MIT"
 
@@ -161,6 +162,7 @@ __all__ = [
     "AuthStrategy",
     "AuthMethod",
     "LogEntry",
+    "LogLevel",
     "RoleResult",
     "PermissionResult",
     "ClientTokenResponse",

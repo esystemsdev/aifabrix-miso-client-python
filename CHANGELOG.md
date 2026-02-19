@@ -5,6 +5,29 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.5.0] - 2026-02-19
+
+### Added
+
+- **Warn helper test coverage** - Added dedicated unit tests for `logger_request_helpers` to validate warn-level behavior in request helper pathways.
+- **Shared log level contract** - Added exported `LogLevel` type alias to keep logger level contracts synchronized across model and service layers.
+
+### Changed
+
+- **Warn logging parity** - Restored `warn` as a first-class log level across `LoggerService`, `UnifiedLogger`, `LoggerChain`, and logger request/helper pathways.
+- **Unified warn behavior** - `UnifiedLogger.warn()` now uses native warn logging and no longer remaps warnings to `info` with message prefixing.
+- **Public API exports** - Updated top-level exports to include the shared `LogLevel` type.
+
+### Fixed
+
+- **Log level contract mismatch** - Fixed inconsistency where `MisoClientConfig.log_level` accepted `warn` but `LogEntry` and helper/service type annotations excluded it.
+- **Warn transport preservation** - Ensured warn level is preserved unchanged in `transform_log_entry_to_request` payload flow and related regression tests.
+
+### Technical
+
+- **Validation baseline** - Release preparation validated with format/lint/type-check/tests (`black`, `isort`, `ruff`, `mypy`, `pytest`) before version bump.
+- **Regression safeguards** - Expanded warn-focused unit coverage across logger service, chain, unified logger, and helper modules to prevent warn-to-info regressions.
+
 ## [4.4.4] - 2026-02-09
 
 ### Added

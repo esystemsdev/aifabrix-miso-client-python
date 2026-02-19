@@ -87,6 +87,17 @@ class TestLoggerChain:
             mock_info.assert_called_once_with("Info message", {"key": "value"}, chain.options)
 
     @pytest.mark.asyncio
+    async def test_warn_method(self, logger_service):
+        """Test chain warn method."""
+        logger_service.redis.is_connected.return_value = False
+
+        with patch.object(logger_service, "warn", new_callable=AsyncMock) as mock_warn:
+            chain = LoggerChain(logger_service, {"key": "value"}, ClientLoggingOptions())
+            await chain.warn("Warn message")
+
+            mock_warn.assert_called_once_with("Warn message", {"key": "value"}, chain.options)
+
+    @pytest.mark.asyncio
     async def test_audit_method(self, logger_service):
         """Test chain audit method."""
         logger_service.redis.is_connected.return_value = False

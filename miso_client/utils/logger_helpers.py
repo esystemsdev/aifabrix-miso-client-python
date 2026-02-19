@@ -8,7 +8,7 @@ import sys
 from datetime import datetime, timezone
 from typing import Any, Dict, Literal, Optional, Tuple, Union
 
-from ..models.config import ClientLoggingOptions, ForeignKeyReference, LogEntry
+from ..models.config import ClientLoggingOptions, ForeignKeyReference, LogEntry, LogLevel
 from ..utils.data_masker import DataMasker
 from ..utils.jwt_tools import decode_token
 
@@ -145,7 +145,7 @@ def _convert_to_foreign_key_reference(
 
 
 def build_log_entry(
-    level: Literal["error", "audit", "info", "debug"],
+    level: LogLevel,
     message: str,
     context: Optional[Dict[str, Any]],
     config_client_id: str,

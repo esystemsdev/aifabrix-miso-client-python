@@ -4,13 +4,13 @@ This module provides helper functions for extracting logging context from HTTP r
 and building LogEntry objects with request context.
 """
 
-from typing import TYPE_CHECKING, Any, Dict, Literal, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 if TYPE_CHECKING:
     from ..models.config import ClientLoggingOptions, LogEntry
     from ..services.logger import LoggerService
 
-from ..models.config import ClientLoggingOptions
+from ..models.config import ClientLoggingOptions, LogLevel
 from ..utils.logger_helpers import build_log_entry, extract_metadata, split_log_context
 from ..utils.request_context import extract_request_context
 
@@ -19,7 +19,7 @@ async def get_log_with_request(
     logger_service: "LoggerService",
     request: Any,
     message: str,
-    level: Literal["error", "audit", "info", "debug"] = "info",
+    level: LogLevel = "info",
     context: Optional[Dict[str, Any]] = None,
     stack_trace: Optional[str] = None,
 ) -> "LogEntry":
@@ -100,7 +100,7 @@ async def get_with_context(
     logger_service: "LoggerService",
     context: Dict[str, Any],
     message: str,
-    level: Literal["error", "audit", "info", "debug"] = "info",
+    level: LogLevel = "info",
     stack_trace: Optional[str] = None,
     options: Optional[ClientLoggingOptions] = None,
 ) -> "LogEntry":
@@ -159,7 +159,7 @@ async def get_for_request(
     logger_service: "LoggerService",
     request: Any,
     message: str,
-    level: Literal["error", "audit", "info", "debug"] = "info",
+    level: LogLevel = "info",
     context: Optional[Dict[str, Any]] = None,
     stack_trace: Optional[str] = None,
 ) -> "LogEntry":

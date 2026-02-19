@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 # Authentication method types
 AuthMethod = Literal["bearer", "client-token", "client-credentials", "api-key"]
+LogLevel = Literal["error", "warn", "audit", "info", "debug"]
 
 
 class RedisConfig(BaseModel):
@@ -201,7 +202,7 @@ class LogEntry(BaseModel):
     """Log entry structure."""
 
     timestamp: str = Field(..., description="ISO timestamp")
-    level: Literal["error", "audit", "info", "debug"] = Field(..., description="Log level")
+    level: LogLevel = Field(..., description="Log level")
     environment: str = Field(..., description="Environment name (extracted by backend)")
     application: str = Field(..., description="Application identifier (clientId)")
     applicationId: Optional["ForeignKeyReference"] = Field(

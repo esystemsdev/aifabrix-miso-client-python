@@ -8,13 +8,13 @@ import asyncio
 import inspect
 import random
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Literal, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 if TYPE_CHECKING:
     # Avoid import at runtime for frameworks not installed
     pass
 
-from ..models.config import ClientLoggingOptions, LogEntry
+from ..models.config import ClientLoggingOptions, LogEntry, LogLevel
 from ..services.application_context import ApplicationContextService
 from ..services.redis import RedisService
 from ..utils.audit_log_queue import AuditLogQueue
@@ -184,6 +184,22 @@ class LoggerService:
         """
         await self._log("info", message, context, None, options)
 
+    async def warn(
+        self,
+        message: str,
+        context: Optional[Dict[str, Any]] = None,
+        options: Optional[ClientLoggingOptions] = None,
+    ) -> None:
+        """Log warning message with enhanced options.
+
+        Args:
+            message: Warning message
+            context: Additional context data
+            options: Logging options
+
+        """
+        await self._log("warn", message, context, None, options)
+
     async def debug(
         self,
         message: str,
@@ -305,7 +321,7 @@ class LoggerService:
 
     async def _build_log_entry(
         self,
-        level: Literal["error", "audit", "info", "debug"],
+        level: LogLevel,
         message: str,
         context: Optional[Dict[str, Any]],
         stack_trace: Optional[str],
@@ -341,7 +357,7 @@ class LoggerService:
 
     async def _log(
         self,
-        level: Literal["error", "audit", "info", "debug"],
+        level: LogLevel,
         message: str,
         context: Optional[Dict[str, Any]] = None,
         stack_trace: Optional[str] = None,
@@ -390,7 +406,7 @@ class LoggerService:
         self,
         request: Any,
         message: str,
-        level: Literal["error", "audit", "info", "debug"] = "info",
+        level: LogLevel = "info",
         context: Optional[Dict[str, Any]] = None,
         stack_trace: Optional[str] = None,
     ) -> LogEntry:
@@ -420,7 +436,7 @@ class LoggerService:
         self,
         context: Dict[str, Any],
         message: str,
-        level: Literal["error", "audit", "info", "debug"] = "info",
+        level: LogLevel = "info",
         stack_trace: Optional[str] = None,
         options: Optional[ClientLoggingOptions] = None,
     ) -> LogEntry:
@@ -440,7 +456,7 @@ class LoggerService:
         self,
         request: Any,
         message: str,
-        level: Literal["error", "audit", "info", "debug"] = "info",
+        level: LogLevel = "info",
         context: Optional[Dict[str, Any]] = None,
         stack_trace: Optional[str] = None,
     ) -> LogEntry:
