@@ -141,3 +141,38 @@ class TestDataMasker:
         assert DataMasker.contains_sensitive_data("string") is False
         assert DataMasker.contains_sensitive_data(123) is False
         assert DataMasker.contains_sensitive_data(None) is False
+
+    def test_import_from_miso_client(self):
+        """Test that DataMasker can be imported from public miso_client API."""
+        from miso_client import DataMasker as PublicDataMasker
+
+        assert PublicDataMasker is DataMasker
+        masked = PublicDataMasker.mask_sensitive_data({"password": "secret"})
+        assert masked["password"] == DataMasker.MASKED_VALUE
+
+    def test_readme_example(self):
+        """Regression test for README documented usage."""
+        from miso_client import DataMasker
+
+        doc = {"user": "john", "password": "secret123", "email": "john@example.com"}
+        masked = DataMasker.mask_sensitive_data(doc)
+        assert masked["user"] == "john"
+        assert masked["password"] == DataMasker.MASKED_VALUE
+        assert masked["email"] == "john@example.com"
+
+    def test_does_not_mutate_input(self):
+        """Test that mask_sensitive_data returns a copy without modifying the original."""
+        original = {"username": "john", "password": "secret"}
+        masked = DataMasker.mask_sensitive_data(original)
+        assert original["password"] == "secret"
+        assert masked["password"] == DataMasker.MASKED_VALUE
+        assert original is not masked
+
+    def test_public_api_all_symbols(self):
+        """Test that all key DataMasker symbols work via public import."""
+        from miso_client import DataMasker
+
+        assert DataMasker.MASKED_VALUE == "***MASKED***"
+        assert DataMasker.is_sensitive_field("password") is True
+        assert DataMasker.contains_sensitive_data({"token": "x"}) is True
+        assert "***" in DataMasker.mask_value("secret123", show_first=2)

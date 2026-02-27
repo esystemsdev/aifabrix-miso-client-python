@@ -564,6 +564,16 @@ The default configuration includes ISO 27001 compliant sensitive fields:
 - PII: ssn, creditcard, cc, cvv, pin, otp
 - Security: apikey, accesstoken, refreshtoken, privatekey, secretkey, cookie, session
 
+**Masking JSON documents (for other projects):** Use `DataMasker` to mask sensitive fields in any JSON structure before logging or sending to external systems:
+
+```python
+from miso_client import DataMasker
+
+doc = {"user": "john", "password": "secret123", "email": "john@example.com"}
+masked = DataMasker.mask_sensitive_data(doc)
+# {"user": "john", "password": "***MASKED***", "email": "john@example.com"}
+```
+
 **Audit Logging Configuration:**
 
 Configure audit logging behavior using `AuditConfig` (see Configuration section above):

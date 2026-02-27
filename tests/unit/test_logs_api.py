@@ -1082,7 +1082,9 @@ class TestLogsApi:
             await logs_api.list_general_logs("test-token")
 
     @pytest.mark.asyncio
-    async def test_list_general_logs_rejects_minimal_log_create_shape(self, logs_api, mock_http_client):
+    async def test_list_general_logs_rejects_minimal_log_create_shape(
+        self, logs_api, mock_http_client
+    ):
         """Test non-logs-create endpoint still rejects minimal log-create shape."""
         mock_http_client.authenticated_request.return_value = {"processed": 1, "failed": 0}
 

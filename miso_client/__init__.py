@@ -90,6 +90,7 @@ from .services.unified_logger import UnifiedLogger
 from .utils.audit_log_queue import AuditLogQueue
 from .utils.config_loader import load_config
 from .utils.controller_url_resolver import is_browser, resolve_controller_url
+from .utils.data_masker import DataMasker
 from .utils.environment_token import get_environment_token
 from .utils.error_utils import ApiErrorException, handleApiError, transformError
 from .utils.fastapi_endpoints import create_fastapi_client_token_endpoint
@@ -144,7 +145,7 @@ from .utils.token_utils import extract_client_token_info
 from .utils.unified_logger_factory import clear_logger_context, get_logger, set_logger_context
 from .utils.url_validator import validate_url
 
-__version__ = "4.5.0"
+__version__ = "4.5.1"
 __author__ = "AI Fabrix Team"
 __license__ = "MIT"
 
@@ -262,6 +263,7 @@ __all__ = [
     "is_browser",
     "create_flask_client_token_endpoint",
     "create_fastapi_client_token_endpoint",
+    "DataMasker",
     # Request context utilities
     "extract_request_context",
     "RequestContext",
