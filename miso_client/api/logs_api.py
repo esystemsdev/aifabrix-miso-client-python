@@ -117,6 +117,7 @@ class LogsApi:
                 self.LOGS_BATCH_ENDPOINT, data=request_data.model_dump(exclude_none=True)
             )
         response = normalize_api_response(response)
+        response = self._normalize_batch_log_response(response)
         return BatchLogResponse(**response)
 
     # =========================================================================
@@ -486,3 +487,35 @@ class LogsApi:
         if search:
             params["search"] = search
         return params
+
+    def _normalize_batch_log_response(self, response: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize minimal batch log responses for logs endpoints only.
+
+        Accepts controller responses in these minimal forms:
+        - {"data": {"processed": N, "failed": M}}
+        - {"processed": N, "failed": M}
+        - {"data": null}
+
+        Returns:
+            Response normalized to BatchLogResponse-compatible shape.
+        """
+        if "processed" not in response or "failed" not in response:
+            data = response.get("data")
+            if isinstance(data, dict):
+                if "processed" in data:
+                    response["processed"] = data.get("processed")
+                if "failed" in data:
+                    response["failed"] = data.get("failed")
+            elif data is None:
+                response.setdefault("processed", 0)
+                response.setdefault("failed", 0)
+
+        if "processed" in response and response["processed"] is None:
+            response["processed"] = 0
+        if "failed" in response and response["failed"] is None:
+            response["failed"] = 0
+
+        if "message" not in response:
+            response["message"] = "Logs processed"
+
+        return response

@@ -7,6 +7,7 @@ Tests all logging API endpoints with proper mocking.
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from pydantic import ValidationError
 
 from miso_client.api.logs_api import LogsApi
 from miso_client.api.types.logs_types import (
@@ -253,6 +254,65 @@ class TestLogsApi:
 
         with pytest.raises(MisoClientError):
             await logs_api.send_log(log_request)
+
+    @pytest.mark.asyncio
+    async def test_send_log_accepts_minimal_data_null_response(
+        self, logs_api, mock_http_client, general_log_data
+    ):
+        """Test send log accepts minimal response with null data."""
+        log_request = LogRequest(type="general", data=general_log_data)
+        mock_http_client.post.return_value = {"data": None}
+
+        result = await logs_api.send_log(log_request)
+
+        assert isinstance(result, LogResponse)
+        assert result.success is True
+
+    @pytest.mark.asyncio
+    async def test_send_batch_logs_accepts_minimal_nested_processed_failed(
+        self, logs_api, mock_http_client
+    ):
+        """Test batch logs accepts minimal response with processed/failed in data."""
+        logs = [
+            LogEntry(
+                timestamp="2024-01-01T00:00:00Z",
+                level="error",
+                environment="dev",
+                application="app1",
+                message="Error 1",
+            ),
+        ]
+        mock_http_client.post.return_value = {"data": {"processed": 1, "failed": 0}}
+
+        result = await logs_api.send_batch_logs(logs)
+
+        assert isinstance(result, BatchLogResponse)
+        assert result.success is True
+        assert result.processed == 1
+        assert result.failed == 0
+
+    @pytest.mark.asyncio
+    async def test_send_batch_logs_accepts_minimal_top_level_processed_failed(
+        self, logs_api, mock_http_client
+    ):
+        """Test batch logs accepts minimal response with top-level processed/failed."""
+        logs = [
+            LogEntry(
+                timestamp="2024-01-01T00:00:00Z",
+                level="error",
+                environment="dev",
+                application="app1",
+                message="Error 1",
+            ),
+        ]
+        mock_http_client.post.return_value = {"processed": 1, "failed": 0}
+
+        result = await logs_api.send_batch_logs(logs)
+
+        assert isinstance(result, BatchLogResponse)
+        assert result.success is True
+        assert result.processed == 1
+        assert result.failed == 0
 
     @pytest.mark.asyncio
     async def test_send_batch_logs_error(self, logs_api, mock_http_client):
@@ -1019,6 +1079,14 @@ class TestLogsApi:
         mock_http_client.authenticated_request.side_effect = MisoClientError("Failed to list logs")
 
         with pytest.raises(MisoClientError):
+            await logs_api.list_general_logs("test-token")
+
+    @pytest.mark.asyncio
+    async def test_list_general_logs_rejects_minimal_log_create_shape(self, logs_api, mock_http_client):
+        """Test non-logs-create endpoint still rejects minimal log-create shape."""
+        mock_http_client.authenticated_request.return_value = {"processed": 1, "failed": 0}
+
+        with pytest.raises(ValidationError):
             await logs_api.list_general_logs("test-token")
 
     @pytest.mark.asyncio
