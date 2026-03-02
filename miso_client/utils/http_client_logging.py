@@ -76,9 +76,17 @@ def calculate_request_metrics(
 
     status_code: Optional[int] = None
     if response is not None:
-        status_code = 200  # Default assumption if response exists
+        response_status = getattr(response, "status_code", None)
+        if isinstance(response_status, int):
+            status_code = response_status
+        else:
+            status_code = 200  # Default when response payload has no status metadata
     elif error is not None:
-        if hasattr(error, "status_code"):
+        response_obj = getattr(error, "response", None)
+        response_status = getattr(response_obj, "status_code", None)
+        if isinstance(response_status, int):
+            status_code = response_status
+        elif hasattr(error, "status_code"):
             status_code = error.status_code
         else:
             status_code = 500  # Default for errors
@@ -171,6 +179,7 @@ async def log_http_request_audit(
     user_id: Optional[str],
     log_level: str,
     config: Optional[Any] = None,
+    correlation_id: Optional[str] = None,
 ) -> None:
     """Log HTTP request audit event with ISO 27001 compliant data masking.
 
@@ -194,12 +203,12 @@ async def log_http_request_audit(
         if should_skip_logging(url, config):
             return
 
-        # Extract correlation ID from error if available
-        correlation_id: Optional[str] = None
-        if error:
+        # Extract correlation ID from error if not provided by caller
+        resolved_correlation_id = correlation_id
+        if resolved_correlation_id is None and error:
             from ..utils.error_utils import extract_correlation_id_from_error
 
-            correlation_id = extract_correlation_id_from_error(error)
+            resolved_correlation_id = extract_correlation_id_from_error(error)
 
         if config and config.audit:
             audit_config = config.audit
@@ -221,8 +230,8 @@ async def log_http_request_audit(
                 audit_context["userId"] = user_id
             if error:
                 audit_context["error"] = str(error)
-            if correlation_id:
-                audit_context["correlationId"] = correlation_id
+            if resolved_correlation_id:
+                audit_context["correlationId"] = resolved_correlation_id
             action = f"http.request.{method.upper()}"
             await logger.audit(action, url, audit_context)
             return
@@ -245,7 +254,7 @@ async def log_http_request_audit(
             user_id,
             log_level,
             audit_config_dict,
-            correlation_id=correlation_id,
+            correlation_id=resolved_correlation_id,
         )
         if prepared_context is None:
             return
@@ -270,6 +279,7 @@ def _prepare_debug_context(
     request_headers: Optional[Dict[str, Any]],
     base_url: str,
     max_response_size: Optional[int] = None,
+    correlation_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Prepare debug context for logging.
 
@@ -292,6 +302,7 @@ def _prepare_debug_context(
         masked_body=masked_body,
         masked_response=masked_response,
         query_params=query_params,
+        correlation_id=correlation_id,
     )
 
 
@@ -307,6 +318,7 @@ async def log_http_request_debug(
     request_headers: Optional[Dict[str, Any]],
     base_url: str,
     config: Optional[Any] = None,
+    correlation_id: Optional[str] = None,
 ) -> None:
     """Log detailed debug information for HTTP request.
 
@@ -342,6 +354,7 @@ async def log_http_request_debug(
             request_headers,
             base_url,
             max_response_size=max_response_size,
+            correlation_id=correlation_id,
         )
         message = f"HTTP {method} {url} - Status: {status_code}, Duration: {duration_ms}ms"
         await logger.debug(message, debug_context)

@@ -7,7 +7,7 @@ data is automatically masked using DataMasker before logging to comply with ISO 
 
 import asyncio
 import time
-from typing import Any, Dict, Literal, Optional, Union
+from typing import Any, Dict, Literal, Optional, Set, Union
 
 import httpx
 
@@ -15,17 +15,18 @@ from ..models.config import AuthStrategy, MisoClientConfig
 from ..services.logger import LoggerService
 from ..utils.jwt_tools import JwtTokenCache
 from .http_client_auth_helpers import handle_401_refresh, prepare_authenticated_request
-from .http_client_logging_helpers import (
-    handle_logging_task_error,
-    log_http_request,
-    wait_for_logging_tasks,
-)
 from .http_client_query_helpers import (
     add_pagination_params,
     merge_filter_params,
     parse_filter_query_string,
     parse_paginated_response,
     prepare_json_filter_body,
+)
+from .http_client_runtime_helpers import (
+    cancel_pending_logging_tasks,
+    create_logging_task,
+    ensure_correlation_headers,
+    wait_pending_logging_tasks,
 )
 from .internal_http_client import InternalHttpClient
 from .user_token_refresh import UserTokenRefreshManager
@@ -65,6 +66,7 @@ class HttpClient:
         )
         self._jwt_cache = JwtTokenCache(max_size=1000)
         self._user_token_refresh = UserTokenRefreshManager()
+        self._logging_tasks: Set[asyncio.Task[Any]] = set()
 
     async def close(self):
         """Close the HTTP client."""
@@ -74,13 +76,7 @@ class HttpClient:
             await self._wait_for_logging_tasks(timeout=1.0)
         except (RuntimeError, asyncio.CancelledError):
             # Event loop closed or cancelled - cancel remaining tasks
-            if hasattr(self, "_logging_tasks") and self._logging_tasks:
-                for task in list(self._logging_tasks):
-                    if not task.done():
-                        try:
-                            task.cancel()
-                        except Exception:
-                            pass
+            cancel_pending_logging_tasks(self._logging_tasks)
         await self._internal_client.close()
 
     async def __aenter__(self):
@@ -102,17 +98,6 @@ class HttpClient:
         """
         return await self._internal_client.get_environment_token()
 
-    def _handle_logging_task_error(self, task: asyncio.Task) -> None:
-        """Handle errors in background logging tasks.
-
-        Silently swallows all exceptions to prevent logging errors from breaking requests.
-
-        Args:
-            task: The completed logging task
-
-        """
-        handle_logging_task_error(task)
-
     async def _wait_for_logging_tasks(self, timeout: float = 0.5) -> None:
         """Wait for all pending logging tasks to complete.
 
@@ -122,8 +107,7 @@ class HttpClient:
             timeout: Maximum time to wait in seconds
 
         """
-        if hasattr(self, "_logging_tasks") and self._logging_tasks:
-            await wait_for_logging_tasks(self._logging_tasks, timeout)
+        await wait_pending_logging_tasks(self._logging_tasks, timeout)
 
     def _create_logging_task(
         self,
@@ -136,25 +120,19 @@ class HttpClient:
         request_headers: Dict[str, Any],
     ) -> None:
         """Create non-blocking logging task."""
-        task = asyncio.create_task(
-            log_http_request(
-                self.logger,
-                self.config,
-                self._jwt_cache,
-                method,
-                url,
-                response,
-                error,
-                start_time,
-                request_data,
-                request_headers,
-            )
+        create_logging_task(
+            self._logging_tasks,
+            self.logger,
+            self.config,
+            self._jwt_cache,
+            method,
+            url,
+            response,
+            error,
+            start_time,
+            request_data,
+            request_headers,
         )
-        task.add_done_callback(self._handle_logging_task_error)
-        if not hasattr(self, "_logging_tasks"):
-            self._logging_tasks = set()
-        self._logging_tasks.add(task)
-        task.add_done_callback(lambda t: self._logging_tasks.discard(t))
 
     async def _execute_with_logging(
         self,
@@ -162,11 +140,13 @@ class HttpClient:
         url: str,
         request_func,
         request_data: Optional[Dict[str, Any]] = None,
+        request_kwargs: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> Any:
         """Execute HTTP request with automatic audit and debug logging."""
         start_time = time.perf_counter()
-        request_headers = kwargs.get("headers", {})
+        effective_request_kwargs = request_kwargs if request_kwargs is not None else kwargs
+        request_headers = ensure_correlation_headers(effective_request_kwargs)
         try:
             response = await request_func()
             self._create_logging_task(
@@ -194,10 +174,14 @@ class HttpClient:
 
         """
 
-        async def _get():
-            return await self._internal_client.get(url, **kwargs)
+        request_kwargs = dict(kwargs)
 
-        return await self._execute_with_logging("GET", url, _get, **kwargs)
+        async def _get():
+            return await self._internal_client.get(url, **request_kwargs)
+
+        return await self._execute_with_logging(
+            "GET", url, _get, request_kwargs=request_kwargs, **kwargs
+        )
 
     async def post(self, url: str, data: Optional[Dict[str, Any]] = None, **kwargs) -> Any:
         """Make POST request with automatic audit and debug logging.
@@ -217,10 +201,19 @@ class HttpClient:
 
         """
 
-        async def _post():
-            return await self._internal_client.post(url, data, **kwargs)
+        request_kwargs = dict(kwargs)
 
-        return await self._execute_with_logging("POST", url, _post, data, **kwargs)
+        async def _post():
+            return await self._internal_client.post(url, data, **request_kwargs)
+
+        return await self._execute_with_logging(
+            "POST",
+            url,
+            _post,
+            data,
+            request_kwargs=request_kwargs,
+            **kwargs,
+        )
 
     async def put(self, url: str, data: Optional[Dict[str, Any]] = None, **kwargs) -> Any:
         """Make PUT request with automatic audit and debug logging.
@@ -240,10 +233,19 @@ class HttpClient:
 
         """
 
-        async def _put():
-            return await self._internal_client.put(url, data, **kwargs)
+        request_kwargs = dict(kwargs)
 
-        return await self._execute_with_logging("PUT", url, _put, data, **kwargs)
+        async def _put():
+            return await self._internal_client.put(url, data, **request_kwargs)
+
+        return await self._execute_with_logging(
+            "PUT",
+            url,
+            _put,
+            data,
+            request_kwargs=request_kwargs,
+            **kwargs,
+        )
 
     async def delete(self, url: str, **kwargs) -> Any:
         """Make DELETE request with automatic audit and debug logging.
@@ -260,10 +262,14 @@ class HttpClient:
 
         """
 
-        async def _delete():
-            return await self._internal_client.delete(url, **kwargs)
+        request_kwargs = dict(kwargs)
 
-        return await self._execute_with_logging("DELETE", url, _delete, **kwargs)
+        async def _delete():
+            return await self._internal_client.delete(url, **request_kwargs)
+
+        return await self._execute_with_logging(
+            "DELETE", url, _delete, request_kwargs=request_kwargs, **kwargs
+        )
 
     async def request(
         self,
@@ -392,21 +398,36 @@ class HttpClient:
             auto_refresh: Whether to refresh token on 401 (default: True)
 
         """
+        request_kwargs = dict(kwargs)
         valid_token = await self._prepare_authenticated_request(token, auto_refresh, **kwargs)
 
         async def _authenticated_request():
             try:
                 return await self._internal_client.authenticated_request(
-                    method, url, valid_token, data, auth_strategy, **kwargs
+                    method, url, valid_token, data, auth_strategy, **request_kwargs
                 )
             except httpx.HTTPStatusError as e:
                 if e.response.status_code == 401:
                     return await self._handle_401_refresh(
-                        method, url, valid_token, data, auth_strategy, e, auto_refresh, **kwargs
+                        method,
+                        url,
+                        valid_token,
+                        data,
+                        auth_strategy,
+                        e,
+                        auto_refresh,
+                        **request_kwargs,
                     )
                 raise
 
-        return await self._execute_with_logging(method, url, _authenticated_request, data, **kwargs)
+        return await self._execute_with_logging(
+            method,
+            url,
+            _authenticated_request,
+            data,
+            request_kwargs=request_kwargs,
+            **kwargs,
+        )
 
     async def request_with_auth_strategy(
         self,
@@ -417,13 +438,21 @@ class HttpClient:
         **kwargs,
     ) -> Any:
         """Make request with auth strategy, trying methods in priority order on 401."""
+        request_kwargs = dict(kwargs)
 
         async def _request():
             return await self._internal_client.request_with_auth_strategy(
-                method, url, auth_strategy, data, **kwargs
+                method, url, auth_strategy, data, **request_kwargs
             )
 
-        return await self._execute_with_logging(method, url, _request, data, **kwargs)
+        return await self._execute_with_logging(
+            method,
+            url,
+            _request,
+            data,
+            request_kwargs=request_kwargs,
+            **kwargs,
+        )
 
     async def get_with_filters(
         self, url: str, filter_builder: Optional[Any] = None, **kwargs

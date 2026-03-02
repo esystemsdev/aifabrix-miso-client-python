@@ -20,6 +20,7 @@ from miso_client.utils.data_masker import DataMasker
 from miso_client.utils.http_client import HttpClient
 from miso_client.utils.http_error_handler import parse_error_response
 from miso_client.utils.internal_http_client import InternalHttpClient
+from miso_client.utils.logger_context_storage import clear_logger_context, set_logger_context
 
 TEST_JWT_SECRET = "test-secret-key-for-jwt-32-bytes!!"
 
@@ -163,6 +164,77 @@ class TestInternalHttpClient:
 
         assert http_client.token_manager.client_token is None
         assert http_client.token_manager.token_expires_at is None
+
+    @pytest.mark.asyncio
+    async def test_get_request_429_returns_structured_client_error(self, http_client):
+        """Test 429 rate-limit is converted to MisoClientError with status."""
+        await http_client._initialize_client()
+        http_client.token_manager.client_token = "test-token"
+
+        mock_response = MagicMock()
+        mock_response.status_code = 429
+        mock_response.text = "Too Many Requests"
+        mock_response.headers = {"content-type": "application/json", "x-correlation-id": "corr-429"}
+        mock_response.json.return_value = {
+            "errors": ["Rate limit exceeded"],
+            "type": "/Errors/RateLimit",
+            "title": "Too Many Requests",
+            "statusCode": 429,
+        }
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "429", request=MagicMock(), response=mock_response
+        )
+        http_client.client.get = AsyncMock(return_value=mock_response)
+
+        with patch.object(http_client, "_ensure_client_token", new_callable=AsyncMock):
+            with pytest.raises(MisoClientError) as exc_info:
+                await http_client.get("/test")
+
+        assert exc_info.value.status_code == 429
+        assert exc_info.value.error_response is not None
+        assert exc_info.value.error_response.correlationId == "corr-429"
+
+    @pytest.mark.asyncio
+    async def test_get_request_503_returns_server_error(self, http_client):
+        """Test 503 service-unavailable is converted to MisoClientError."""
+        await http_client._initialize_client()
+        http_client.token_manager.client_token = "test-token"
+
+        mock_response = MagicMock()
+        mock_response.status_code = 503
+        mock_response.text = "Service Unavailable"
+        mock_response.headers = {"content-type": "application/json"}
+        mock_response.json.return_value = {
+            "errors": ["Service unavailable"],
+            "type": "/Errors/ServiceUnavailable",
+            "title": "Service Unavailable",
+            "statusCode": 503,
+        }
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "503", request=MagicMock(), response=mock_response
+        )
+        http_client.client.get = AsyncMock(return_value=mock_response)
+
+        with patch.object(http_client, "_ensure_client_token", new_callable=AsyncMock):
+            with pytest.raises(MisoClientError) as exc_info:
+                await http_client.get("/test")
+
+        assert exc_info.value.status_code == 503
+
+    @pytest.mark.asyncio
+    async def test_get_request_timeout_maps_to_connection_error(self, http_client):
+        """Test timeout RequestError is mapped to ConnectionError."""
+        await http_client._initialize_client()
+        http_client.token_manager.client_token = "test-token"
+
+        timeout_request = MagicMock()
+        http_client.client.get = AsyncMock(
+            side_effect=httpx.RequestError("Request timeout", request=timeout_request)
+        )
+
+        with patch.object(http_client, "_ensure_client_token", new_callable=AsyncMock):
+            with pytest.raises(ConnectionError, match="Request failed"):
+                await http_client.get("/test")
 
     @pytest.mark.asyncio
     async def test_post_request(self, http_client):
@@ -1084,6 +1156,33 @@ class TestInternalHttpClient:
                 assert call_count == 2  # Should retry with second method
 
     @pytest.mark.asyncio
+    async def test_request_with_auth_strategy_does_not_retry_on_503(self, http_client):
+        """Test auth strategy does not retry with next method on non-401 errors."""
+        from miso_client.models.config import AuthStrategy
+
+        await http_client._initialize_client()
+        http_client.token_manager.client_token = "client-token-123"
+        http_client.token_manager.token_expires_at = datetime.now() + timedelta(seconds=100)
+
+        auth_strategy = AuthStrategy(
+            methods=["bearer", "client-token"],
+            bearerToken="user-token",
+        )
+
+        mock_response = MagicMock(status_code=503)
+        http_error = httpx.HTTPStatusError("503", request=MagicMock(), response=mock_response)
+
+        async def mock_request(method, url, data=None, **kwargs):
+            raise http_error
+
+        with patch.object(http_client, "request", new_callable=AsyncMock, side_effect=mock_request):
+            with pytest.raises(httpx.HTTPStatusError) as exc_info:
+                await http_client.request_with_auth_strategy("GET", "/api/test", auth_strategy)
+
+            assert exc_info.value.response.status_code == 503
+            assert http_client.request.call_count == 1
+
+    @pytest.mark.asyncio
     async def test_request_with_auth_strategy_all_methods_fail(self, http_client):
         """Test request_with_auth_strategy when all methods fail."""
         from miso_client.models.config import AuthStrategy
@@ -1258,6 +1357,38 @@ class TestHttpClient:
         assert "secret123" not in context_str
 
     @pytest.mark.asyncio
+    async def test_outbound_request_includes_context_correlation_id(self, http_client):
+        """Test outbound requests include correlation header from logger context."""
+        mock_internal_client = AsyncMock()
+        mock_internal_client.get = AsyncMock(return_value={"data": "ok"})
+        http_client._internal_client = mock_internal_client
+        http_client.logger.audit = AsyncMock()
+
+        set_logger_context({"correlationId": "ctx-corr-123"})
+        try:
+            await http_client.get("/api/test")
+            call_args = mock_internal_client.get.call_args
+            headers = call_args.kwargs.get("headers", {})
+            assert headers.get("x-correlation-id") == "ctx-corr-123"
+        finally:
+            clear_logger_context()
+
+    @pytest.mark.asyncio
+    async def test_outbound_request_generates_correlation_id_when_missing(self, http_client):
+        """Test outbound requests generate correlation header when missing."""
+        mock_internal_client = AsyncMock()
+        mock_internal_client.get = AsyncMock(return_value={"data": "ok"})
+        http_client._internal_client = mock_internal_client
+        http_client.logger.audit = AsyncMock()
+
+        await http_client.get("/api/test")
+        call_args = mock_internal_client.get.call_args
+        headers = call_args.kwargs.get("headers", {})
+        generated = headers.get("x-correlation-id")
+        assert isinstance(generated, str)
+        assert len(generated) > 0
+
+    @pytest.mark.asyncio
     async def test_debug_logging_when_enabled(self, http_client):
         """Test debug logging when log_level is debug."""
         # Set log level to debug
@@ -1336,6 +1467,58 @@ class TestHttpClient:
         assert result == {"token": "abc123"}
         # Verify audit logging was NOT called for custom token endpoint
         http_client.logger.audit.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_skip_logging_for_audit_skip_endpoints_config(self, config):
+        """Test audit.skipEndpoints excludes configured URL patterns."""
+        from miso_client.models.config import AuditConfig
+
+        config.audit = AuditConfig(enabled=True, level="detailed", skipEndpoints=["/api/private"])
+        http_client = HttpClient(config, LoggerService(MagicMock(), MagicMock()))
+
+        mock_internal_client = AsyncMock()
+        mock_internal_client.get = AsyncMock(return_value={"ok": True})
+        http_client._internal_client = mock_internal_client
+        http_client.logger.audit = AsyncMock()
+
+        result = await http_client.get("/api/private/resource")
+
+        assert result == {"ok": True}
+        http_client.logger.audit.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_audit_disabled_skips_all_audit_logging(self, config):
+        """Test audit.enabled=False disables HTTP audit logging."""
+        from miso_client.models.config import AuditConfig
+
+        config.audit = AuditConfig(enabled=False, level="detailed")
+        http_client = HttpClient(config, LoggerService(MagicMock(), MagicMock()))
+
+        mock_internal_client = AsyncMock()
+        mock_internal_client.get = AsyncMock(return_value={"ok": True})
+        http_client._internal_client = mock_internal_client
+        http_client.logger.audit = AsyncMock()
+
+        result = await http_client.get("/api/test")
+
+        assert result == {"ok": True}
+        http_client.logger.audit.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_info_level_does_not_emit_debug_logs(self, http_client):
+        """Test debug log emission is disabled when level is info."""
+        http_client.config.log_level = "info"
+        mock_internal_client = AsyncMock()
+        mock_internal_client.get = AsyncMock(return_value={"data": "test"})
+        http_client._internal_client = mock_internal_client
+        http_client.logger.audit = AsyncMock()
+        http_client.logger.debug = AsyncMock()
+
+        await http_client.get("/api/test")
+        await http_client._wait_for_logging_tasks()
+
+        http_client.logger.audit.assert_called_once()
+        http_client.logger.debug.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_fetch_client_token_with_custom_uri(self, config):

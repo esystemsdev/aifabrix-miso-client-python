@@ -11,6 +11,7 @@ from ..models.config import MisoClientConfig
 from ..services.logger import LoggerService
 from ..utils.jwt_tools import JwtTokenCache
 from .http_client_logging import log_http_request_audit, log_http_request_debug
+from .http_error_handler import extract_correlation_id_from_response
 
 
 def handle_logging_task_error(task: asyncio.Task) -> None:
@@ -82,8 +83,15 @@ def calculate_status_code(response: Optional[Any], error: Optional[Exception]) -
 
     """
     if response is not None:
+        status_code = getattr(response, "status_code", None)
+        if isinstance(status_code, int):
+            return status_code
         return 200
     if error is not None:
+        response_obj = getattr(error, "response", None)
+        response_status = getattr(response_obj, "status_code", None)
+        if isinstance(response_status, int):
+            return response_status
         if hasattr(error, "status_code"):
             status_code = getattr(error, "status_code", None)
             if isinstance(status_code, int):
@@ -121,6 +129,7 @@ async def log_debug_if_enabled(
     user_id: Optional[str],
     request_data: Optional[Dict[str, Any]],
     request_headers: Optional[Dict[str, Any]],
+    correlation_id: Optional[str] = None,
 ) -> None:
     """Log debug details if debug logging is enabled.
 
@@ -154,6 +163,7 @@ async def log_debug_if_enabled(
         request_headers=request_headers,
         base_url=config.controller_url,
         config=config,
+        correlation_id=correlation_id,
     )
 
 
@@ -185,6 +195,18 @@ async def log_http_request(
 
     """
     user_id = extract_user_id_from_headers(request_headers, jwt_cache)
+    correlation_id = None
+    if response is not None and hasattr(response, "headers"):
+        correlation_id = extract_correlation_id_from_response(response)
+    if correlation_id is None and request_headers:
+        correlation_id = (
+            request_headers.get("x-correlation-id")
+            or request_headers.get("X-Correlation-Id")
+            or request_headers.get("correlation-id")
+            or request_headers.get("x-request-id")
+            or request_headers.get("X-Request-Id")
+            or request_headers.get("request-id")
+        )
 
     await log_http_request_audit(
         logger=logger,
@@ -197,6 +219,7 @@ async def log_http_request(
         user_id=user_id,
         log_level=config.log_level,
         config=config,
+        correlation_id=correlation_id,
     )
 
     await log_debug_if_enabled(
@@ -210,4 +233,5 @@ async def log_http_request(
         user_id,
         request_data,
         request_headers,
+        correlation_id=correlation_id,
     )

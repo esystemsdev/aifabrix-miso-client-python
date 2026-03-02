@@ -76,6 +76,7 @@ def build_debug_context(
     masked_body: Optional[Any],
     masked_response: Optional[str],
     query_params: Optional[Dict[str, Any]],
+    correlation_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Build debug context dictionary for detailed logging.
 
@@ -110,5 +111,6 @@ def build_debug_context(
         requestBody=masked_body,
         responseBody=masked_response,
         queryParams=query_params,
+        correlationId=correlation_id,
     )
     return debug_context

@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, cast
 
 from ..errors import EncryptionError, MisoClientError
 from ..models.encryption import EncryptResult
+from ..utils.error_utils import extract_correlation_id_from_error
 
 if TYPE_CHECKING:
     from ..models.config import MisoClientConfig
@@ -106,7 +107,13 @@ class EncryptionService:
             )
             return EncryptResult(value=response["value"], storage=response["storage"])
         except MisoClientError as e:
-            logger.error(f"Encryption failed for parameter '{parameter_name}'")
+            correlation_id = extract_correlation_id_from_error(e)
+            extra = {"correlationId": correlation_id} if correlation_id else None
+            logger.error(
+                f"Encryption failed for parameter '{parameter_name}'",
+                exc_info=e,
+                extra=extra,
+            )
             raise EncryptionError(
                 str(e),
                 code="ENCRYPTION_FAILED",
@@ -152,7 +159,13 @@ class EncryptionService:
                 code = "PARAMETER_NOT_FOUND"
             elif e.status_code in (401, 403):
                 code = "ACCESS_DENIED"
-            logger.error(f"Decryption failed for parameter '{parameter_name}'")
+            correlation_id = extract_correlation_id_from_error(e)
+            extra = {"correlationId": correlation_id} if correlation_id else None
+            logger.error(
+                f"Decryption failed for parameter '{parameter_name}'",
+                exc_info=e,
+                extra=extra,
+            )
             raise EncryptionError(
                 str(e),
                 code=code,

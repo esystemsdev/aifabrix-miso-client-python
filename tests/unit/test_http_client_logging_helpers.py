@@ -90,11 +90,25 @@ class TestCalculateStatusCode:
         """Test status code calculation with successful response."""
         assert calculate_status_code({"data": "test"}, None) == 200
 
+    def test_calculate_status_code_with_response_status_code(self):
+        """Test status code extraction from response object."""
+        response = MagicMock()
+        response.status_code = 204
+        assert calculate_status_code(response, None) == 204
+
     def test_calculate_status_code_with_error_status_code(self):
         """Test status code calculation with error that has status_code."""
         error = MagicMock()
         error.status_code = 404
         assert calculate_status_code(None, error) == 404
+
+    def test_calculate_status_code_with_error_response_status_code(self):
+        """Test status code extraction from error.response object."""
+        response = MagicMock()
+        response.status_code = 429
+        error = MagicMock()
+        error.response = response
+        assert calculate_status_code(None, error) == 429
 
     def test_calculate_status_code_with_error_no_status_code(self):
         """Test status code calculation with error without status_code."""
@@ -259,6 +273,59 @@ class TestLogHttpRequest:
         logger.audit.assert_called_once()
         # Debug should not be called for info level
         logger.debug.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_log_http_request_uses_correlation_from_headers(self, logger, config, jwt_cache):
+        """Test logging request propagates correlation ID from request headers."""
+        import time
+
+        start_time = time.perf_counter()
+        await log_http_request(
+            logger,
+            config,
+            jwt_cache,
+            "GET",
+            "/api/test",
+            {"data": "test"},
+            None,
+            start_time,
+            {"key": "value"},
+            {"x-correlation-id": "corr-123"},
+        )
+
+        logger.audit.assert_called_once()
+        audit_context = logger.audit.call_args[0][2]
+        assert audit_context["correlationId"] == "corr-123"
+
+    @pytest.mark.asyncio
+    async def test_log_http_request_uses_response_status_and_correlation(
+        self, logger, config, jwt_cache
+    ):
+        """Use response metadata when response object has status and headers."""
+        import time
+
+        response = MagicMock()
+        response.status_code = 202
+        response.headers = {"x-correlation-id": "resp-corr-202"}
+
+        start_time = time.perf_counter()
+        await log_http_request(
+            logger,
+            config,
+            jwt_cache,
+            "POST",
+            "/api/test",
+            response,
+            None,
+            start_time,
+            {"key": "value"},
+            {"Authorization": "Bearer token"},
+        )
+
+        logger.audit.assert_called_once()
+        audit_context = logger.audit.call_args[0][2]
+        assert audit_context["statusCode"] == 202
+        assert audit_context["correlationId"] == "resp-corr-202"
 
     @pytest.mark.asyncio
     async def test_log_http_request_error(self, logger, config, jwt_cache):

@@ -5,6 +5,29 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.6.0] - 2026-02-27
+
+### Added
+
+- **HTTP client runtime helper module** - Added `http_client_runtime_helpers.py` to isolate logging-task lifecycle and correlation-header enrichment logic while keeping behavior unchanged.
+- **Reliability and audit regression coverage** - Added/expanded unit tests for 429/503 handling, timeout mapping, audit skip policy, audit-disable behavior, and debug-log level gating.
+
+### Changed
+
+- **ISO-aligned traceability hardening** - Strengthened correlation propagation and status-code extraction through `HttpClient` logging pipeline, including response/error-aware status handling and correlation enrichment in debug/audit paths.
+- **HTTP client structure** - Refactored `HttpClient` internals to reduce file size below guideline threshold and improve maintainability.
+- **Validation and plan evidence** - Updated implementation validation artifacts for logging/audit/reliability execution completion.
+
+### Fixed
+
+- **Structured error trace context** - Ensured correlation ID context is consistently captured in `encryption` and `redis` service error logging paths.
+- **Audit/logging edge cases** - Fixed logging behavior around skipped endpoints and non-debug log-level execution paths with explicit regression tests.
+
+### Technical
+
+- **Release validation baseline** - Verified release readiness with format/lint/tests (`black`, `isort`, `ruff`, `pytest`) prior to version bump.
+- **Coverage baseline maintained** - Full test suite passing with 93% total coverage in release validation run.
+
 ## [4.5.1] - 2026-02-27
 
 ### Fixed

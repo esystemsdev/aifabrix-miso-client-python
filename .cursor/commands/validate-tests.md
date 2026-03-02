@@ -28,7 +28,7 @@ When the `/validate-tests` command is used, the agent must automatically fix all
    - Re-run tests until all tests pass (exit code 0)
    - Do not proceed until test step is green
    - **All tests MUST be mocked** - no real database connections, external API calls, or I/O operations
-   - **Test execution time MUST be reasonable** - if tests take too long, optimize by ensuring all external dependencies are properly mocked (httpx, redis, etc.)
+  - **Each individual test execution time MUST be reasonable** - this requirement applies per test case (not to aggregate suite/group runtime). If any single test takes too long, optimize by ensuring all external dependencies are properly mocked (httpx, redis, etc.)
 
 5. **Final Verification Step**:
    - Run `make format` again to ensure no formatting changes were introduced
@@ -43,13 +43,13 @@ When the `/validate-tests` command is used, the agent must automatically fix all
 - **Iterative Process**: Keep running each step and fixing errors until it passes
 - **No User Interaction**: Do NOT ask the user for input or show what's being done
 - **Silent Operation**: Work autonomously and only report completion when all steps are green
-- **Test Performance**: All tests must be mocked and complete in reasonable time (no real network calls, all dependencies mocked)
+- **Test Performance**: All tests must be mocked, and each individual test must complete in reasonable time (no real network calls, all dependencies mocked). Evaluate performance per test case, not by combined group/suite duration.
 - **Final Verification**: Format and lint must be run again after tests pass, and if changes are made, tests must be re-run
 - **Complete Success**: The command is only complete when ALL steps pass AND final verification shows no changes:
   - ✅ Format passes (initial)
   - ✅ Lint passes (initial)
   - ✅ Type-check passes (initial, optional)
-  - ✅ Tests pass (initial, all mocked, reasonable execution time)
+  - ✅ Tests pass (initial, all mocked, each individual test has reasonable execution time)
   - ✅ Format passes (final, no changes)
   - ✅ Lint passes (final, no changes)
   - ✅ Tests pass (final, if format/lint made changes)

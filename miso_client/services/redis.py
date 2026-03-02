@@ -10,8 +10,15 @@ from typing import Optional
 import redis.asyncio as redis
 
 from ..models.config import RedisConfig
+from ..utils.error_utils import extract_correlation_id_from_error
 
 logger = logging.getLogger(__name__)
+
+
+def _error_extra(error: Exception) -> Optional[dict]:
+    """Build structured logger extra fields from exception context."""
+    correlation_id = extract_correlation_id_from_error(error)
+    return {"correlationId": correlation_id} if correlation_id else None
 
 
 class RedisService:
@@ -59,7 +66,11 @@ class RedisService:
             logger.info("Connected to Redis")
 
         except Exception as error:
-            logger.error(f"Failed to connect to Redis: {error}", exc_info=error)
+            logger.error(
+                f"Failed to connect to Redis: {error}",
+                exc_info=error,
+                extra=_error_extra(error),
+            )
             self.connected = False
             if self.config:  # Only raise if Redis was configured
                 raise error
@@ -103,7 +114,7 @@ class RedisService:
                 result = resp
             return None if result is None else str(result)
         except Exception as error:
-            logger.error("Redis get error", exc_info=error)
+            logger.error("Redis get error", exc_info=error, extra=_error_extra(error))
             return None
 
     async def set(self, key: str, value: str, ttl: int) -> bool:
@@ -129,7 +140,7 @@ class RedisService:
                 await resp  # type: ignore[misc]
             return True
         except Exception as error:
-            logger.error("Redis set error", exc_info=error)
+            logger.error("Redis set error", exc_info=error, extra=_error_extra(error))
             return False
 
     async def delete(self, key: str) -> bool:
@@ -153,7 +164,7 @@ class RedisService:
                 await resp  # type: ignore[misc]
             return True
         except Exception as error:
-            logger.error("Redis delete error", exc_info=error)
+            logger.error("Redis delete error", exc_info=error, extra=_error_extra(error))
             return False
 
     async def rpush(self, queue: str, value: str) -> bool:
@@ -178,5 +189,5 @@ class RedisService:
                 await resp  # type: ignore[misc]
             return True
         except Exception as error:
-            logger.error("Redis rpush error", exc_info=error)
+            logger.error("Redis rpush error", exc_info=error, extra=_error_extra(error))
             return False
