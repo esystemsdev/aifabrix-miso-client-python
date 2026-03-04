@@ -76,7 +76,7 @@ When the `/validate-tests` command is used, the agent must automatically fix all
 
 ### Testing
 - **pytest**: Test framework with pytest-asyncio for async tests
-- Configuration in `pytest.ini` and `pyproject.toml`
+- Configuration in `pyproject.toml` under `[tool.pytest.ini_options]`
 - Tests should be in `tests/unit/` directory
 - All tests must use proper mocking:
   - `pytest-mock` for mocking (mocker fixture)

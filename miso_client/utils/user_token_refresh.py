@@ -16,7 +16,7 @@ class UserTokenRefreshManager:
     Similar to client token refresh but for user Bearer tokens.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize user token refresh manager."""
         # Store refresh callbacks per user: {user_id: callback}
         self._refresh_callbacks: Dict[str, Callable[[str], Any]] = {}

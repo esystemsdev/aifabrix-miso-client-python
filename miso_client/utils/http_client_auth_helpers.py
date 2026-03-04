@@ -20,7 +20,7 @@ async def prepare_authenticated_request(
     user_token_refresh: "UserTokenRefreshManager",
     token: str,
     auto_refresh: bool,
-    **kwargs,
+    **kwargs: Any,
 ) -> str:
     """Prepare authenticated request by getting valid token and setting headers.
 
@@ -57,7 +57,7 @@ async def handle_401_refresh(
     auth_strategy: Optional["AuthStrategy"],
     error: httpx.HTTPStatusError,
     auto_refresh: bool,
-    **kwargs,
+    **kwargs: Any,
 ) -> Any:
     """Handle 401 error by refreshing token and retrying request.
 

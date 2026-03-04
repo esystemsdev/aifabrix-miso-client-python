@@ -4,7 +4,7 @@ This module provides Flask middleware to automatically set logger context
 from request objects, enabling unified logging throughout the application.
 """
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from flask import Flask
@@ -104,7 +104,8 @@ def register_logger_context_middleware(app: "Flask") -> None:
     """
     app.before_request(logger_context_middleware)
 
-    def after_request_handler(response):
+    def after_request_handler(response: Any) -> Any:
+        """Clear per-request logger context after response is processed."""
         clear_logger_context()
         return response
 

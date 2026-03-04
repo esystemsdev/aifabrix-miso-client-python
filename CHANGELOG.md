@@ -5,6 +5,30 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.6.1] - 2026-03-04
+
+### Added
+
+- **Auth strategy regression coverage** - Added tests for auth-header merge behavior and whitespace normalization in auth-strategy configuration parsing.
+- **Logger precedence regression coverage** - Added tests validating option-level precedence for `application` and `environment` in log entry construction.
+
+### Changed
+
+- **Core utility maintainability** - Refactored `internal_http_client`, `logger_helpers`, and `config_loader` into smaller helper-driven units while preserving public contracts.
+- **Type-safety hardening** - Strengthened typing across runtime utilities and client internals, including strict-mode compatibility improvements.
+- **Release workflow resilience** - Improved publish workflow behavior for already-published versions and existing tags.
+
+### Fixed
+
+- **Traceability serialization stability** - Improved `applicationId` and related trace field normalization/propagation consistency across logging paths.
+- **Auth strategy request handling** - Fixed typed auth-method handling and preserved caller headers during auth strategy request construction.
+
+### Technical
+
+- **Validation baseline** - Release validation passed via `make validate` (ruff, black, isort, pytest).
+- **Strict typing verification** - Additional strict type-check pass completed with `mypy --check-untyped-defs`.
+- **Test baseline maintained** - Full test suite passing with 93% coverage.
+
 ## [4.6.0] - 2026-02-27
 
 ### Added

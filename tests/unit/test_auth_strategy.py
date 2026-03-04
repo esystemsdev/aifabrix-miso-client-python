@@ -175,6 +175,24 @@ class TestInternalHttpClientAuthStrategy:
             with pytest.raises(MisoClientError, match="All authentication methods failed"):
                 await http_client.request_with_auth_strategy("GET", "/api/test", strategy)
 
+    @pytest.mark.asyncio
+    async def test_request_with_auth_strategy_merges_existing_headers(self, http_client):
+        """Test auth strategy preserves caller headers while appending auth headers."""
+        strategy = AuthStrategy(methods=["api-key"], apiKey="test-key")
+
+        with patch.object(http_client, "request", new_callable=AsyncMock) as mock_request:
+            mock_request.return_value = {"ok": True}
+            await http_client.request_with_auth_strategy(
+                "GET",
+                "/api/test",
+                strategy,
+                headers={"X-Request-Id": "req-1"},
+            )
+
+            called_kwargs = mock_request.call_args.kwargs
+            assert called_kwargs["headers"]["X-Request-Id"] == "req-1"
+            assert called_kwargs["headers"]["Authorization"] == "Bearer test-key"
+
 
 class TestHttpClientAuthStrategy:
     """Test cases for HttpClient with auth strategy."""
@@ -271,6 +289,29 @@ class TestConfigLoaderAuthStrategy:
         ):
             with pytest.raises(ConfigurationError, match="Invalid auth method"):
                 load_config()
+
+    @pytest.mark.asyncio
+    async def test_load_config_with_auth_strategy_trims_whitespace(self):
+        """Test auth strategy parser trims method whitespace."""
+        import os
+        from unittest.mock import patch
+
+        from miso_client.utils.config_loader import load_config
+
+        with patch.dict(
+            os.environ,
+            {
+                "MISO_CLIENTID": "test-client-id",
+                "MISO_CLIENTSECRET": "test-client-secret",
+                "MISO_AUTH_STRATEGY": " bearer , client-token ",
+            },
+            clear=False,
+        ):
+            with patch("dotenv.load_dotenv"):
+                with patch("miso_client.utils.config_loader.load_dotenv", create=True):
+                    config = load_config()
+                assert config.authStrategy is not None
+                assert config.authStrategy.methods == ["bearer", "client-token"]
 
 
 class TestMisoClientAuthStrategy:

@@ -91,3 +91,32 @@ async def test_get_for_request_supports_warn_level(logger_service):
 
     assert log_entry.level == "warn"
     assert log_entry.message == "Warn alias helper message"
+
+
+@pytest.mark.asyncio
+async def test_get_log_with_request_uses_request_ids_when_explicit_values_empty(logger_service):
+    """Ensure request-derived IDs take precedence over explicit empty values."""
+    request = MagicMock()
+    request.method = "GET"
+    request.url = MagicMock()
+    request.url.path = "/api/request-context"
+    request.client = MagicMock()
+    request.client.host = "10.0.0.20"
+    request.headers = MagicMock()
+    request.headers.get = MagicMock(
+        side_effect=lambda k, d=None: {
+            "x-correlation-id": "corr-from-request",
+            "x-request-id": "req-from-request",
+        }.get(k, d)
+    )
+
+    log_entry = await get_log_with_request(
+        logger_service=logger_service,
+        request=request,
+        message="Request fallback test",
+        level="info",
+        context={"correlationId": "   ", "requestId": ""},
+    )
+
+    assert log_entry.correlationId == "corr-from-request"
+    assert log_entry.requestId == "req-from-request"

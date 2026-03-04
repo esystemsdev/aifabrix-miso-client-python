@@ -5,6 +5,7 @@ Reduces network overhead by batching audit logs.
 
 import asyncio
 import signal
+from types import FrameType
 from typing import TYPE_CHECKING, List, Optional
 
 from ..models.config import AuditConfig, LogEntry, MisoClientConfig
@@ -80,7 +81,7 @@ class AuditLogQueue:
             # Signal handlers may not be available in all environments
             pass
 
-    def _signal_handler(self, signum, frame):
+    def _signal_handler(self, signum: int, frame: Optional[FrameType]) -> None:
         """Handle shutdown signals."""
         # Schedule flush on next event loop iteration
         if asyncio.get_event_loop().is_running():

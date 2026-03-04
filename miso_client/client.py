@@ -27,6 +27,7 @@ if TYPE_CHECKING:
         UpdateSelfStatusResponse,
     )
     from .models.encryption import EncryptResult
+    from .services.application_context import ApplicationContextService
 
 
 class MisoClient:
@@ -67,6 +68,7 @@ class MisoClient:
         self.roles = RoleService(self.http_client, self.cache, self.api_client)
         self.permissions = PermissionService(self.http_client, self.cache, self.api_client)
         self.encryption = EncryptionService(self.http_client, config)
+        self._app_context_service: Optional["ApplicationContextService"] = None
         self.initialized = False
 
     # ==================== LIFECYCLE METHODS ====================
@@ -304,9 +306,9 @@ class MisoClient:
 
     # ==================== APPLICATION STATUS METHODS ====================
 
-    def _get_app_context_service(self):
+    def _get_app_context_service(self) -> "ApplicationContextService":
         """Get or create ApplicationContextService (lazy initialization)."""
-        if not hasattr(self, "_app_context_service") or self._app_context_service is None:
+        if self._app_context_service is None:
             from .services.application_context import ApplicationContextService
 
             self._app_context_service = ApplicationContextService(self._internal_http_client)

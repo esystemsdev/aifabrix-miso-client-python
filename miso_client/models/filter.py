@@ -159,7 +159,7 @@ class FilterBuilder:
     Allows chaining filter additions for building complex filter queries.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize empty filter builder."""
         self._filters: List[FilterOption] = []
 

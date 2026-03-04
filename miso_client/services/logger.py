@@ -24,6 +24,7 @@ from ..utils.logger_context_storage import get_logger_context
 from ..utils.logger_helpers import (
     build_log_entry,
     extract_metadata,
+    merge_traceability_context,
     split_log_context,
     transform_log_entry_to_request,
 )
@@ -352,7 +353,7 @@ class LoggerService:
         if stored_context is None:
             return context or {}
         if context:
-            return {**stored_context, **context}
+            return merge_traceability_context(stored_context, context)
         return dict(stored_context)
 
     async def _log(

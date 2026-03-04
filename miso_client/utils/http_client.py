@@ -7,7 +7,8 @@ data is automatically masked using DataMasker before logging to comply with ISO 
 
 import asyncio
 import time
-from typing import Any, Dict, Literal, Optional, Set, Union
+from types import TracebackType
+from typing import Any, Awaitable, Callable, Dict, Literal, Optional, Set, Type, Union
 
 import httpx
 
@@ -68,7 +69,7 @@ class HttpClient:
         self._user_token_refresh = UserTokenRefreshManager()
         self._logging_tasks: Set[asyncio.Task[Any]] = set()
 
-    async def close(self):
+    async def close(self) -> None:
         """Close the HTTP client."""
         # Wait for all logging tasks to complete before closing
         # This prevents "Event loop is closed" errors during teardown
@@ -79,11 +80,16 @@ class HttpClient:
             cancel_pending_logging_tasks(self._logging_tasks)
         await self._internal_client.close()
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "HttpClient":
         """Async context manager entry."""
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
         """Async context manager exit."""
         await self.close()
 
@@ -138,10 +144,10 @@ class HttpClient:
         self,
         method: str,
         url: str,
-        request_func,
+        request_func: Callable[[], Awaitable[Any]],
         request_data: Optional[Dict[str, Any]] = None,
         request_kwargs: Optional[Dict[str, Any]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> Any:
         """Execute HTTP request with automatic audit and debug logging."""
         start_time = time.perf_counter()
@@ -159,7 +165,7 @@ class HttpClient:
             )
             raise
 
-    async def get(self, url: str, **kwargs) -> Any:
+    async def get(self, url: str, **kwargs: Any) -> Any:
         """Make GET request with automatic audit and debug logging.
 
         Args:
@@ -176,14 +182,14 @@ class HttpClient:
 
         request_kwargs = dict(kwargs)
 
-        async def _get():
+        async def _get() -> Any:
             return await self._internal_client.get(url, **request_kwargs)
 
         return await self._execute_with_logging(
             "GET", url, _get, request_kwargs=request_kwargs, **kwargs
         )
 
-    async def post(self, url: str, data: Optional[Dict[str, Any]] = None, **kwargs) -> Any:
+    async def post(self, url: str, data: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Any:
         """Make POST request with automatic audit and debug logging.
 
         Args:
@@ -203,7 +209,7 @@ class HttpClient:
 
         request_kwargs = dict(kwargs)
 
-        async def _post():
+        async def _post() -> Any:
             return await self._internal_client.post(url, data, **request_kwargs)
 
         return await self._execute_with_logging(
@@ -215,7 +221,7 @@ class HttpClient:
             **kwargs,
         )
 
-    async def put(self, url: str, data: Optional[Dict[str, Any]] = None, **kwargs) -> Any:
+    async def put(self, url: str, data: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Any:
         """Make PUT request with automatic audit and debug logging.
 
         Args:
@@ -235,7 +241,7 @@ class HttpClient:
 
         request_kwargs = dict(kwargs)
 
-        async def _put():
+        async def _put() -> Any:
             return await self._internal_client.put(url, data, **request_kwargs)
 
         return await self._execute_with_logging(
@@ -247,7 +253,7 @@ class HttpClient:
             **kwargs,
         )
 
-    async def delete(self, url: str, **kwargs) -> Any:
+    async def delete(self, url: str, **kwargs: Any) -> Any:
         """Make DELETE request with automatic audit and debug logging.
 
         Args:
@@ -264,7 +270,7 @@ class HttpClient:
 
         request_kwargs = dict(kwargs)
 
-        async def _delete():
+        async def _delete() -> Any:
             return await self._internal_client.delete(url, **request_kwargs)
 
         return await self._execute_with_logging(
@@ -276,7 +282,7 @@ class HttpClient:
         method: Literal["GET", "POST", "PUT", "DELETE"],
         url: str,
         data: Optional[Dict[str, Any]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> Any:
         """Generic request method with automatic audit and debug logging.
 
@@ -334,7 +340,9 @@ class HttpClient:
         """
         self._user_token_refresh.set_auth_service(auth_service)
 
-    async def _prepare_authenticated_request(self, token: str, auto_refresh: bool, **kwargs) -> str:
+    async def _prepare_authenticated_request(
+        self, token: str, auto_refresh: bool, **kwargs: Any
+    ) -> str:
         """Prepare authenticated request by getting valid token and setting headers.
 
         Args:
@@ -359,7 +367,7 @@ class HttpClient:
         auth_strategy: Optional[AuthStrategy],
         error: httpx.HTTPStatusError,
         auto_refresh: bool,
-        **kwargs,
+        **kwargs: Any,
     ) -> Any:
         """Handle 401 error by refreshing token and retrying request."""
         return await handle_401_refresh(
@@ -383,7 +391,7 @@ class HttpClient:
         data: Optional[Dict[str, Any]] = None,
         auth_strategy: Optional[AuthStrategy] = None,
         auto_refresh: bool = True,
-        **kwargs,
+        **kwargs: Any,
     ) -> Any:
         """Make authenticated request with Bearer token and automatic refresh.
 
@@ -401,7 +409,7 @@ class HttpClient:
         request_kwargs = dict(kwargs)
         valid_token = await self._prepare_authenticated_request(token, auto_refresh, **kwargs)
 
-        async def _authenticated_request():
+        async def _authenticated_request() -> Any:
             try:
                 return await self._internal_client.authenticated_request(
                     method, url, valid_token, data, auth_strategy, **request_kwargs
@@ -435,12 +443,12 @@ class HttpClient:
         url: str,
         auth_strategy: AuthStrategy,
         data: Optional[Dict[str, Any]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> Any:
         """Make request with auth strategy, trying methods in priority order on 401."""
         request_kwargs = dict(kwargs)
 
-        async def _request():
+        async def _request() -> Any:
             return await self._internal_client.request_with_auth_strategy(
                 method, url, auth_strategy, data, **request_kwargs
             )
@@ -455,7 +463,7 @@ class HttpClient:
         )
 
     async def get_with_filters(
-        self, url: str, filter_builder: Optional[Any] = None, **kwargs
+        self, url: str, filter_builder: Optional[Any] = None, **kwargs: Any
     ) -> Any:
         """Make GET request with filter builder support."""
         if filter_builder:
@@ -469,7 +477,11 @@ class HttpClient:
         return await self.get(url, **kwargs)
 
     async def get_paginated(
-        self, url: str, page: Optional[int] = None, page_size: Optional[int] = None, **kwargs
+        self,
+        url: str,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        **kwargs: Any,
     ) -> Any:
         """Make GET request with pagination support (returns PaginatedListResponse)."""
         add_pagination_params(kwargs, page, page_size)
@@ -489,7 +501,7 @@ class HttpClient:
         url: str,
         json_filter: Optional[Union[Any, Dict[str, Any]]] = None,
         json_body: Optional[Dict[str, Any]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> Any:
         """Make POST request with JSON filter support (filters merged into body)."""
         request_body = prepare_json_filter_body(json_filter, json_body)

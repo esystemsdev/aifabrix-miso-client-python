@@ -761,3 +761,49 @@ class TestLoggerServiceEdgeCases:
         payload = mock_request.call_args[0][2]
         assert payload["level"] == "warn"
         assert payload["message"] == "Native warn message"
+
+    @pytest.mark.asyncio
+    async def test_transport_payload_parity_across_audit_chain_and_for_request(
+        self, logger_service, mock_api_client
+    ):
+        """Ensure applicationId is preserved across audit, chain, and request-bound paths."""
+        logger_service.api_client = mock_api_client
+        logger_service.redis.is_connected.return_value = False
+        mock_api_client.logs.send_log = AsyncMock()
+
+        request = MagicMock()
+        request.method = "POST"
+        request.url = MagicMock()
+        request.url.path = "/api/test"
+        request.client = MagicMock()
+        request.client.host = "10.0.0.1"
+        request.headers = MagicMock()
+        request.headers.get = MagicMock(
+            side_effect=lambda k, d=None: {
+                "x-correlation-id": "corr-shared-1",
+                "x-request-id": "req-shared-1",
+            }.get(k, d)
+        )
+
+        with patch.object(logger_service.circuit_breaker, "is_open", return_value=False):
+            await logger_service.audit(
+                "create",
+                "resource",
+                {"applicationId": "app-shared-1", "correlationId": "corr-shared-1"},
+            )
+            await logger_service.with_context(
+                {"applicationId": "app-shared-1", "correlationId": "corr-shared-1"}
+            ).info("Chain info")
+            await (
+                logger_service.for_request(request)
+                .add_context("applicationId", "app-shared-1")
+                .info("Request info")
+            )
+
+        assert mock_api_client.logs.send_log.call_count == 3
+
+        for call in mock_api_client.logs.send_log.call_args_list:
+            log_request = call[0][0]
+            payload = log_request.model_dump(exclude_none=True)
+            assert payload["data"]["applicationId"]["id"] == "app-shared-1"
+            assert payload["data"]["context"]["applicationId"] == "app-shared-1"

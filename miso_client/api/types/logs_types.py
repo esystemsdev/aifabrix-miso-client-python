@@ -34,6 +34,16 @@ class GeneralLogData(BaseModel):
     level: Literal["error", "warn", "info", "debug"] = Field(..., description="Log level")
     message: str = Field(..., description="Log message")
     context: Optional[Dict[str, Any]] = Field(default=None, description="Additional context")
+    application: Optional[str] = Field(default=None, description="Application name")
+    environment: Optional[str] = Field(default=None, description="Environment name")
+    applicationId: Optional[Dict[str, Any]] = Field(
+        default=None, description="Application reference"
+    )
+    userId: Optional[Dict[str, Any]] = Field(default=None, description="User reference")
+    requestId: Optional[str] = Field(default=None, description="Request ID")
+    sessionId: Optional[str] = Field(default=None, description="Session ID")
+    ipAddress: Optional[str] = Field(default=None, description="Client IP address")
+    userAgent: Optional[str] = Field(default=None, description="User agent")
     correlationId: Optional[str] = Field(default=None, description="Correlation ID")
 
 
@@ -45,6 +55,17 @@ class AuditLogData(BaseModel):
     action: str = Field(..., description="Action performed")
     oldValues: Optional[Dict[str, Any]] = Field(default=None, description="Previous values")
     newValues: Optional[Dict[str, Any]] = Field(default=None, description="New values")
+    context: Optional[Dict[str, Any]] = Field(default=None, description="Additional context")
+    application: Optional[str] = Field(default=None, description="Application name")
+    environment: Optional[str] = Field(default=None, description="Environment name")
+    applicationId: Optional[Dict[str, Any]] = Field(
+        default=None, description="Application reference"
+    )
+    userId: Optional[Dict[str, Any]] = Field(default=None, description="User reference")
+    requestId: Optional[str] = Field(default=None, description="Request ID")
+    sessionId: Optional[str] = Field(default=None, description="Session ID")
+    ipAddress: Optional[str] = Field(default=None, description="Client IP address")
+    userAgent: Optional[str] = Field(default=None, description="User agent")
     correlationId: Optional[str] = Field(default=None, description="Correlation ID")
 
 
