@@ -125,6 +125,7 @@ def map_test_to_api_methods(test_name: str) -> List[Tuple[str, str]]:
         # AuthApi methods
         "test_login_initiation": [("AuthApi", "login")],
         "test_validate_token": [("AuthApi", "validate_token")],
+        "test_validate_client_token": [("AuthApi", "validate_client_token")],
         "test_get_user_info": [("AuthApi", "get_user")],
         "test_logout": [("AuthApi", "logout")],
         "test_refresh_token": [("AuthApi", "refresh_token")],

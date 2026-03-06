@@ -186,6 +186,24 @@ class TestAuthEndpoints:
             await client.disconnect()
 
     @pytest.mark.asyncio
+    async def test_validate_client_token(self, client, config):
+        """Test POST /api/v1/auth/validate-client-token - Validate application token."""
+        if should_skip(config):
+            pytest.fail("Config not available")
+
+        try:
+            await client.initialize()
+            app_token = await client.get_environment_token()
+            assert app_token is not None
+            result = await client.validate_client_token(app_token)
+            assert result is not None
+            assert result.data.authenticated is True
+        except Exception as e:
+            pytest.fail(f"Validate client token failed: {e}")
+        finally:
+            await client.disconnect()
+
+    @pytest.mark.asyncio
     async def test_get_user_info(self, client, config, user_token):
         """Test GET /api/v1/auth/user - Get user info."""
         if should_skip(config) or not user_token:
