@@ -131,6 +131,7 @@ def map_test_to_api_methods(test_name: str) -> List[Tuple[str, str]]:
         "test_initiate_device_code": [("AuthApi", "initiate_device_code")],
         "test_poll_device_code_token": [("AuthApi", "poll_device_code_token")],
         "test_refresh_device_code_token": [("AuthApi", "refresh_device_code_token")],
+        "test_exchange_token": [("AuthApi", "exchange_token")],
         "test_get_roles": [("AuthApi", "get_roles"), ("RolesApi", "get_roles")],
         "test_refresh_roles": [("AuthApi", "refresh_roles"), ("RolesApi", "refresh_roles")],
         "test_get_permissions": [

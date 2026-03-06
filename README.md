@@ -196,6 +196,10 @@ if token:
 
 **Where to get tokens?** Users authenticate via Keycloak, then your app receives JWTs in the `Authorization` header.
 
+**Two-token model:** The SDK uses a **client token** (obtained once from the controller with client id/secret, sent as `x-client-token` on all API requests) and a **user token** (sent as `Authorization: Bearer <token>` for user-scoped operations). Only the client token endpoint receives client id/secret; all other APIs use the client token.
+
+**Token exchange (Entra/delegated tokens):** If your app has an external token (e.g. Entra ID), call `exchange_token(delegated_token)` to get a Keycloak token for use with the SDK: `result = await client.exchange_token(entra_token)` then use `result.accessToken` for `validate_token`, `get_roles`, etc.
+
 → [Complete authentication example](examples/step-3-authentication.py)
 
 ---

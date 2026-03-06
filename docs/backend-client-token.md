@@ -1,5 +1,11 @@
 # Backend client-token endpoint for any app
 
+## Client token policy
+
+All Miso Controller APIs (except the client token endpoint) require a **client token** sent as the `x-client-token` header. Only the configured client token URI (e.g. `POST /api/v1/auth/token`) may receive `x-client-id` and `x-client-secret`. The SDK never sends client id/secret to any other path; it fetches the client token once and then uses `x-client-token` for all other requests.
+
+---
+
 This page shows minimal backend code you can add to **any** Python app so the frontend can get a client token (and optional DataClient config) from a single route. The SDK handles:
 
 - **Token issuance** – your server calls the Miso Controller with client credentials and returns the token to the client.
@@ -129,6 +135,28 @@ Errors:
 - **403** – Origin validation failed (when `MISO_ALLOWED_ORIGINS` is set and request origin is not allowed).
 - **503** – MisoClient not initialized.
 - **500** – Controller error or misconfiguration.
+
+---
+
+## Token exchange (user tokens)
+
+When your app has a **delegated token** (e.g. from Entra ID or another IdP), you can exchange it for a Keycloak token and use it with the SDK:
+
+```python
+from miso_client import MisoClient, load_config
+
+client = MisoClient(load_config())
+await client.initialize()
+
+# Exchange Entra (or other delegated) token for Keycloak token
+result = await client.exchange_token(entra_token)
+keycloak_token = result.accessToken  # use for validate_token, get_roles, etc.
+
+is_valid = await client.validate_token(keycloak_token)
+user = await client.get_user(keycloak_token)
+```
+
+The exchange request is sent with the client token (`x-client-token`) and the delegated token as `Authorization: Bearer <delegated_token>`. Only the returned Keycloak token should be used for subsequent SDK calls.
 
 ---
 

@@ -7,6 +7,7 @@ for integrating with the Miso Controller.
 import asyncio
 from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional
 
+from .api.types.auth_types import TokenExchangeResponse
 from .models.config import AuthStrategy, MisoClientConfig, UserInfo
 from .services.auth import AuthService
 from .services.cache import CacheService
@@ -137,6 +138,24 @@ class MisoClient:
     ) -> bool:
         """Check if user is authenticated."""
         return await self.auth.is_authenticated(token, auth_strategy=auth_strategy)
+
+    async def exchange_token(self, delegated_token: str) -> TokenExchangeResponse:
+        """Exchange a delegated token (e.g. Entra) for a Keycloak token.
+
+        Use the returned access token for subsequent authenticated calls
+        (e.g. get_roles, get_permissions, validate_token).
+
+        Args:
+            delegated_token: Delegated token (e.g. Entra ID token) to exchange
+
+        Returns:
+            TokenExchangeResponse with effective Keycloak access token (accessToken field)
+
+        Raises:
+            MisoClientError: If request fails
+
+        """
+        return await self.auth.exchange_token(delegated_token)
 
     async def logout(self, token: str) -> Dict[str, Any]:
         """Logout user by invalidating the access token."""

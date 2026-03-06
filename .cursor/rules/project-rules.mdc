@@ -50,6 +50,7 @@ Technologies:
 - Use `build_query_string()` to convert FilterQuery to URL query string
 
 ### Token Management
+- **Client token only policy**: All controller APIs (except the client token endpoint) require `x-client-token`. Only the configured client token URI (e.g. `POST /api/v1/auth/token`) may receive `x-client-id` and `x-client-secret`; the SDK must never send client id/secret to any other path.
 - **Client Token**: Automatically fetched and refreshed by `InternalHttpClient` via interceptor
   - Fetched from `POST /api/auth/token` with `X-Client-Id` and `X-Client-Secret`
   - Stored in memory with expiration tracking

@@ -115,7 +115,10 @@ class ClientTokenManager:
         try:
             # Use resolved URL for temporary client
             resolved_url = resolve_controller_url(self.config)
-            # Use a temporary client to avoid interceptor recursion
+            # This is the ONLY place where x-client-id and x-client-secret are sent.
+            # All other controller APIs require x-client-token only; the SDK must never
+            # send client id/secret to any path other than the client token endpoint.
+            # Use a temporary client to avoid interceptor recursion.
             temp_client = httpx.AsyncClient(
                 base_url=resolved_url,
                 timeout=30.0,

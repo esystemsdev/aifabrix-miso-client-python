@@ -7,6 +7,7 @@ token validation, user information retrieval, and logout functionality.
 import logging
 from typing import TYPE_CHECKING, Any, Dict, Optional, cast
 
+from ..api.types.auth_types import TokenExchangeResponse
 from ..models.config import AuthResult, AuthStrategy, UserInfo
 from ..services.auth_token_cache import (
     cache_validation_result,
@@ -439,6 +440,36 @@ class AuthService:
         except Exception as error:
             self._log_error("Logout failed", error)
             return {}
+
+    async def exchange_token(self, delegated_token: str) -> TokenExchangeResponse:
+        """Exchange a delegated token (e.g. Entra) for a Keycloak token.
+
+        Uses the controller token exchange endpoint. The request is sent with
+        x-client-token (automatic) and Authorization: Bearer <delegated_token>.
+        Use the returned access token for subsequent authenticated calls.
+
+        Args:
+            delegated_token: Delegated token (e.g. Entra ID token) to exchange
+
+        Returns:
+            TokenExchangeResponse with effective Keycloak access token
+
+        Raises:
+            MisoClientError: If request fails
+
+        """
+        if self.api_client:
+            return await self.api_client.auth.exchange_token(delegated_token)
+        response = await self.http_client.authenticated_request(
+            "POST",
+            "/api/v1/auth/token/exchange",
+            delegated_token,
+            data=None,
+            auto_refresh=False,
+        )
+        if isinstance(response, dict) and "data" in response and isinstance(response["data"], dict):
+            response = response["data"]
+        return TokenExchangeResponse(**response)
 
     async def refresh_user_token(self, refresh_token: str) -> Optional[Dict[str, Any]]:
         """Refresh user access token using refresh token.

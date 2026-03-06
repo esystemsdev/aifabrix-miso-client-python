@@ -22,6 +22,7 @@ from .types.auth_types import (
     RefreshRolesResponse,
     RefreshTokenRequest,
     RefreshTokenResponse,
+    TokenExchangeResponse,
     ValidateTokenRequest,
     ValidateTokenResponse,
 )
@@ -43,6 +44,7 @@ class AuthApi:
     ROLES_REFRESH_ENDPOINT = "/api/v1/auth/roles/refresh"
     PERMISSIONS_ENDPOINT = "/api/v1/auth/permissions"
     PERMISSIONS_REFRESH_ENDPOINT = "/api/v1/auth/permissions/refresh"
+    TOKEN_EXCHANGE_ENDPOINT = "/api/v1/auth/token/exchange"
 
     def __init__(self, http_client: HttpClient):
         """Initialize Auth API client.
@@ -374,3 +376,31 @@ class AuthApi:
             response = await self.http_client.get(self.PERMISSIONS_REFRESH_ENDPOINT)
         response = normalize_api_response(response)
         return RefreshPermissionsResponse(**response)
+
+    async def exchange_token(self, delegated_token: str) -> TokenExchangeResponse:
+        """Exchange a delegated token (e.g. Entra) for a Keycloak token.
+
+        Calls the controller token exchange endpoint. The request is sent with
+        x-client-token (automatic) and Authorization: Bearer <delegated_token>.
+        Use the returned access token for subsequent authenticated_request calls.
+
+        Args:
+            delegated_token: Delegated token (e.g. Entra ID token) to exchange
+
+        Returns:
+            TokenExchangeResponse with effective Keycloak access token
+
+        Raises:
+            MisoClientError: If request fails
+
+        """
+        response = await self.http_client.authenticated_request(
+            "POST",
+            self.TOKEN_EXCHANGE_ENDPOINT,
+            delegated_token,
+            data=None,
+            auto_refresh=False,
+        )
+        if isinstance(response, dict) and "data" in response and isinstance(response["data"], dict):
+            response = response["data"]
+        return TokenExchangeResponse(**response)

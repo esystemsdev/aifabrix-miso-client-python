@@ -22,6 +22,7 @@ from miso_client.api.types.auth_types import (
     RefreshPermissionsResponse,
     RefreshRolesResponse,
     RefreshTokenResponse,
+    TokenExchangeResponse,
     ValidateTokenResponse,
 )
 from miso_client.errors import MisoClientError
@@ -321,6 +322,65 @@ class TestAuthApi:
 
         assert isinstance(result, RefreshPermissionsResponse)
         assert result.data.permissions == ["read", "write"]
+
+    @pytest.mark.asyncio
+    async def test_exchange_token_success(self, auth_api, mock_http_client):
+        """Test successful token exchange (delegated token → Keycloak token)."""
+        mock_response = {
+            "accessToken": "keycloak-access-token-123",
+            "tokenExchanged": True,
+        }
+        mock_http_client.authenticated_request.return_value = mock_response
+
+        result = await auth_api.exchange_token("entra-delegated-token")
+
+        assert isinstance(result, TokenExchangeResponse)
+        assert result.accessToken == "keycloak-access-token-123"
+        assert result.tokenExchanged is True
+        mock_http_client.authenticated_request.assert_called_once()
+        call_args = mock_http_client.authenticated_request.call_args
+        assert call_args[0][0] == "POST"
+        assert call_args[0][1] == auth_api.TOKEN_EXCHANGE_ENDPOINT
+        assert call_args[0][2] == "entra-delegated-token"
+        assert call_args[1].get("auto_refresh") is False
+
+    @pytest.mark.asyncio
+    async def test_exchange_token_success_with_data_wrapper(self, auth_api, mock_http_client):
+        """Test token exchange when controller returns response wrapped in data."""
+        mock_response = {
+            "data": {
+                "accessToken": "keycloak-token-from-wrapper",
+                "tokenExchanged": False,
+            },
+        }
+        mock_http_client.authenticated_request.return_value = mock_response
+
+        result = await auth_api.exchange_token("delegated-token")
+
+        assert isinstance(result, TokenExchangeResponse)
+        assert result.accessToken == "keycloak-token-from-wrapper"
+        assert result.tokenExchanged is False
+
+    @pytest.mark.asyncio
+    async def test_exchange_token_accepts_token_field(self, auth_api, mock_http_client):
+        """Test token exchange when controller returns 'token' instead of 'accessToken'."""
+        mock_response = {"token": "keycloak-token-via-token-field"}
+        mock_http_client.authenticated_request.return_value = mock_response
+
+        result = await auth_api.exchange_token("delegated-token")
+
+        assert isinstance(result, TokenExchangeResponse)
+        assert result.accessToken == "keycloak-token-via-token-field"
+
+    @pytest.mark.asyncio
+    async def test_exchange_token_error(self, auth_api, mock_http_client):
+        """Test token exchange error handling."""
+        mock_http_client.authenticated_request.side_effect = MisoClientError(
+            "Token exchange failed"
+        )
+
+        with pytest.raises(MisoClientError):
+            await auth_api.exchange_token("invalid-delegated-token")
 
     @pytest.mark.asyncio
     async def test_validate_token_error(self, auth_api, mock_http_client):

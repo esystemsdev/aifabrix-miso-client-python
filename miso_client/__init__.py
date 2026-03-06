@@ -11,6 +11,7 @@ from .api.types.applications_types import (
     UpdateSelfStatusRequest,
     UpdateSelfStatusResponse,
 )
+from .api.types.auth_types import TokenExchangeResponse
 
 # Core client
 from .client import MisoClient
@@ -145,7 +146,7 @@ from .utils.token_utils import extract_client_token_info
 from .utils.unified_logger_factory import clear_logger_context, get_logger, set_logger_context
 from .utils.url_validator import validate_url
 
-__version__ = "4.7.0"
+__version__ = "4.7.1"
 __author__ = "AI Fabrix Team"
 __license__ = "MIT"
 
@@ -199,6 +200,7 @@ __all__ = [
     "ApplicationStatusResponse",
     "UpdateSelfStatusRequest",
     "UpdateSelfStatusResponse",
+    "TokenExchangeResponse",
     # Pagination utilities
     "parsePaginationParams",
     "parse_pagination_params",

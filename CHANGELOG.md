@@ -5,6 +5,24 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.7.1] - 2026-03-06
+
+### Added
+
+- **User token exchange** - `exchange_token(delegated_token)` to exchange Entra or other delegated tokens for a Keycloak token for use with authenticated SDK calls (`POST /api/v1/auth/token/exchange`).
+- **TokenExchangeResponse** - Response type for token exchange with `access_token` and optional `token_exchanged` (exported from public API).
+- **Client token policy documentation** - Documented that only the client token endpoint may receive `x-client-id` and `x-client-secret`; all other controller APIs require `x-client-token`.
+
+### Changed
+
+- **Breaking: Client token only** - All controller APIs (except the client token endpoint) now require `x-client-token`. The SDK never sends `x-client-id` or `x-client-secret` to any path other than the configured client token URI (e.g. `POST /api/auth/token`). Callers must use the SDK’s built-in client token flow; do not send client id/secret to other endpoints.
+- **Two-token model** - README and `docs/backend-client-token.md` updated to describe client token vs user token and the token exchange flow.
+
+### Technical
+
+- **Validation baseline** - Release validated via `make validate` (ruff, black, isort, pytest).
+- **Plan 36** - Client token policy and token exchange implemented per `.cursor/plans/36-client_token_and_token_exchange.plan.md`.
+
 ## [4.7.0] - 2026-03-04
 
 ### Added

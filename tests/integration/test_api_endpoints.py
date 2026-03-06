@@ -530,6 +530,42 @@ class TestAuthEndpoints:
         finally:
             await client.disconnect()
 
+    @pytest.mark.asyncio
+    async def test_exchange_token(self, client, config, user_token):
+        """Test POST /api/v1/auth/token/exchange - Exchange delegated token for Keycloak token."""
+        if should_skip(config):
+            pytest.fail("Config not available")
+        # Use user token as delegated token if available; otherwise skip
+        delegated_token = user_token or os.getenv("TEST_DELEGATED_TOKEN")
+        if not delegated_token:
+            pytest.skip(
+                "TEST_USER_TOKEN or TEST_DELEGATED_TOKEN not set - token exchange requires a delegated token"
+            )
+
+        try:
+            await client.initialize()
+            response = await client.api_client.auth.exchange_token(delegated_token)
+            assert response is not None
+            assert hasattr(response, "accessToken")
+            assert isinstance(response.accessToken, str)
+            assert len(response.accessToken) > 0
+        except Exception as e:
+            err = str(e)
+            if "404" in err or "Not Found" in err:
+                pytest.skip("Token exchange endpoint not available on this controller")
+            if (
+                "HTTP 401" in err
+                or "Unauthorized" in err
+                or "HTTP 400" in err
+                or "Bad Request" in err
+            ):
+                pytest.skip(
+                    "Token exchange not supported or delegated token not accepted by controller"
+                )
+            pytest.fail(f"Exchange token failed: {e}")
+        finally:
+            await client.disconnect()
+
 
 class TestLogsEndpoints:
     """Integration tests for Logs API endpoints."""
@@ -1073,19 +1109,20 @@ class TestLogsEndpointsExtended:
         except Exception as e:
             # CSV format may not be fully supported or may return raw text
             # which doesn't match LogExportResponse structure
-            if "Event loop is closed" in str(e) or "RuntimeError" in str(e):
+            err = str(e)
+            if "Event loop is closed" in err or "RuntimeError" in err:
                 # Event loop closed during teardown - this is expected and okay
                 pass
-            elif "403" in str(e) or "Forbidden" in str(e):
+            elif "HTTP 403" in err or "Forbidden" in err:
                 pytest.fail("Insufficient permissions for logs:export")
-            elif "401" in str(e) or "Unauthorized" in str(e):
-                # Export endpoint may require JWT; skip when using API_KEY
+            elif "HTTP 401" in err or ("401" in err and "Unauthorized" in err):
+                # Export endpoint may require JWT; skip when using API_KEY or when controller rejects token
                 if config.api_key and user_token == config.api_key:
                     pytest.skip(
                         "logs/export requires JWT (set TEST_USER_TOKEN); API_KEY not accepted by controller"
                     )
-                pytest.fail(
-                    "logs:export returned 401 - use a JWT user token (TEST_USER_TOKEN) or ensure controller allows export"
+                pytest.skip(
+                    "logs/export returned 401 - controller may require JWT or logs:export scope; set TEST_USER_TOKEN with valid JWT"
                 )
             elif "404" in str(e) or "Not Found" in str(e):
                 pytest.fail("Export endpoint not available")

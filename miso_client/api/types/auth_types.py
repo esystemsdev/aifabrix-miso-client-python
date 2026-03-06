@@ -4,9 +4,9 @@ All types follow OpenAPI specification with camelCase field names.
 The controller returns responses in format: {"data": {...}} without success/timestamp.
 """
 
-from typing import List, Optional
+from typing import Any, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from ...models.config import UserInfo
 
@@ -168,3 +168,26 @@ class RefreshPermissionsResponse(BaseModel):
     """Refresh permissions response - matches OpenAPI spec."""
 
     data: GetPermissionsResponseData = Field(..., description="Permissions data")
+
+
+class TokenExchangeResponse(BaseModel):
+    """Token exchange response (delegated/Entra token → Keycloak token).
+
+    Controller returns the effective Keycloak token in body (accessToken or token).
+    Optionally includes tokenExchanged when controller implements plan 156.
+    """
+
+    accessToken: str = Field(..., description="Effective Keycloak access token")
+    tokenExchanged: Optional[bool] = Field(
+        default=None,
+        description="True if the token was exchanged from a delegated token (e.g. Entra)",
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def accept_token_or_access_token(cls, data: Any) -> Any:
+        """Accept either 'token' or 'accessToken' from controller response."""
+        if isinstance(data, dict) and "token" in data and "accessToken" not in data:
+            data = dict(data)
+            data["accessToken"] = data["token"]
+        return data
