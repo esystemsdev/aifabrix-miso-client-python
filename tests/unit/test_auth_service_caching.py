@@ -9,10 +9,20 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from miso_client.api.types.auth_types import (
+    TokenExchangeResponse,
+    ValidateClientTokenResponse,
+    ValidateClientTokenResponseData,
+)
+from miso_client.errors import MisoClientError
 from miso_client.models.config import MisoClientConfig
 from miso_client.services.auth import AuthService
 from miso_client.services.cache import CacheService
 from miso_client.services.redis import RedisService
+from miso_client.utils.auth_cache_helpers import (
+    get_client_token_validation_cache_key,
+    get_token_exchange_cache_key,
+)
 from miso_client.utils.http_client import HttpClient
 
 
@@ -329,3 +339,285 @@ class TestAuthServiceUserInfoCaching:
     def test_user_ttl_camel_case_config(self, config):
         """Test user_ttl reads camelCase config."""
         assert config.user_ttl == 300
+
+    # ========== Token exchange caching ==========
+
+    @pytest.mark.asyncio
+    async def test_exchange_token_cache_hit(self, auth_service, mock_http_client, mock_cache):
+        """Test exchange_token returns cached result on cache hit and does not call API."""
+        cached = {
+            "accessToken": "cached-keycloak-token",
+            "tokenExchanged": True,
+        }
+        mock_cache.get = AsyncMock(return_value=cached)
+
+        result = await auth_service.exchange_token("entra-delegated-token")
+
+        assert isinstance(result, TokenExchangeResponse)
+        assert result.accessToken == "cached-keycloak-token"
+        assert result.tokenExchanged is True
+        mock_cache.get.assert_called_once()
+        mock_http_client.authenticated_request.assert_not_called()
+        mock_cache.set.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_exchange_token_cache_miss_then_caches(
+        self, auth_service, mock_http_client, mock_cache
+    ):
+        """Test exchange_token calls API on cache miss and caches the result."""
+        mock_cache.get = AsyncMock(return_value=None)
+        api_response = {
+            "accessToken": "keycloak-token-from-api",
+            "tokenExchanged": False,
+        }
+        mock_http_client.authenticated_request = AsyncMock(return_value=api_response)
+
+        result = await auth_service.exchange_token("delegated-token")
+
+        assert isinstance(result, TokenExchangeResponse)
+        assert result.accessToken == "keycloak-token-from-api"
+        mock_http_client.authenticated_request.assert_called_once()
+        mock_cache.set.assert_called_once()
+        call_args = mock_cache.set.call_args
+        assert "token_exchange:" in call_args[0][0]
+        assert call_args[0][1]["accessToken"] == "keycloak-token-from-api"
+        assert isinstance(call_args[0][2], int)
+        assert call_args[0][2] >= 60
+
+    @pytest.mark.asyncio
+    async def test_exchange_token_no_cache_no_calls_to_cache(
+        self, auth_service_no_cache, mock_http_client
+    ):
+        """Test exchange_token with no cache does not call cache get/set."""
+        mock_http_client.authenticated_request = AsyncMock(
+            return_value={
+                "accessToken": "keycloak-token",
+                "tokenExchanged": None,
+            }
+        )
+
+        result = await auth_service_no_cache.exchange_token("delegated-token")
+
+        assert result.accessToken == "keycloak-token"
+        mock_http_client.authenticated_request.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_exchange_token_cache_set_failure_still_returns_result(
+        self, auth_service, mock_http_client, mock_cache
+    ):
+        """Test exchange_token returns result even when cache.set fails."""
+        mock_cache.get = AsyncMock(return_value=None)
+        mock_http_client.authenticated_request = AsyncMock(
+            return_value={
+                "accessToken": "keycloak-token",
+                "tokenExchanged": True,
+            }
+        )
+        mock_cache.set = AsyncMock(side_effect=Exception("Redis unavailable"))
+
+        result = await auth_service.exchange_token("delegated-token")
+
+        assert result.accessToken == "keycloak-token"
+        assert result.tokenExchanged is True
+        mock_cache.set.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_exchange_token_with_api_client_caches_result(
+        self, mock_http_client, mock_redis, mock_cache
+    ):
+        """Test exchange_token caches result when using api_client path."""
+        config = MisoClientConfig(
+            controller_url="https://controller.aifabrix.ai",
+            client_id="test-client",
+            client_secret="test-secret",
+        )
+        mock_http_client.config = config
+        mock_cache.get = AsyncMock(return_value=None)
+        mock_api_client = MagicMock()
+        mock_api_client.auth.exchange_token = AsyncMock(
+            return_value=TokenExchangeResponse(
+                accessToken="keycloak-from-api-client",
+                tokenExchanged=True,
+            )
+        )
+
+        auth_service = AuthService(
+            http_client=mock_http_client,
+            redis=mock_redis,
+            cache=mock_cache,
+            api_client=mock_api_client,
+        )
+
+        result = await auth_service.exchange_token("entra-token")
+
+        assert result.accessToken == "keycloak-from-api-client"
+        mock_api_client.auth.exchange_token.assert_called_once_with("entra-token")
+        mock_cache.set.assert_called_once()
+        call_args = mock_cache.set.call_args
+        assert call_args[0][1]["accessToken"] == "keycloak-from-api-client"
+
+    def test_token_exchange_cache_key_format(self):
+        """Test token exchange cache key has expected format and is deterministic."""
+        key1 = get_token_exchange_cache_key("delegated-token-a")
+        key2 = get_token_exchange_cache_key("delegated-token-a")
+        key3 = get_token_exchange_cache_key("delegated-token-b")
+
+        assert key1.startswith("token_exchange:")
+        assert len(key1) > len("token_exchange:")
+        assert key1 == key2
+        assert key1 != key3
+
+
+class TestAuthServiceValidateClientTokenCaching:
+    """Test cases for AuthService validate_client_token caching."""
+
+    @pytest.fixture
+    def config(self):
+        return MisoClientConfig(
+            controller_url="https://controller.aifabrix.ai",
+            client_id="test-client",
+            client_secret="test-secret",
+            cache={"validationTTL": 120},
+        )
+
+    @pytest.fixture
+    def mock_http_client(self, config):
+        http_client = MagicMock(spec=HttpClient)
+        http_client.config = config
+        return http_client
+
+    @pytest.fixture
+    def mock_redis(self):
+        redis = MagicMock(spec=RedisService)
+        redis.is_connected = MagicMock(return_value=True)
+        return redis
+
+    @pytest.fixture
+    def mock_cache(self):
+        cache = MagicMock(spec=CacheService)
+        cache.get = AsyncMock(return_value=None)
+        cache.set = AsyncMock(return_value=True)
+        cache.delete = AsyncMock(return_value=True)
+        return cache
+
+    @pytest.fixture
+    def mock_api_client(self):
+        api_client = MagicMock()
+        api_client.auth.validate_client_token = AsyncMock(
+            return_value=ValidateClientTokenResponse(
+                data=ValidateClientTokenResponseData(
+                    authenticated=True,
+                    application=None,
+                    environment="dev",
+                    applicationKey="app-key",
+                    expiresAt="2025-12-31T23:59:59Z",
+                )
+            )
+        )
+        return api_client
+
+    @pytest.mark.asyncio
+    async def test_validate_client_token_cache_miss_then_set(
+        self, mock_http_client, mock_redis, mock_cache, mock_api_client
+    ):
+        """Test validate_client_token calls API on cache miss and caches result."""
+        mock_cache.get = AsyncMock(return_value=None)
+        auth_service = AuthService(
+            http_client=mock_http_client,
+            redis=mock_redis,
+            cache=mock_cache,
+            api_client=mock_api_client,
+        )
+
+        result = await auth_service.validate_client_token("app-token-123")
+
+        assert result.data.authenticated is True
+        assert result.data.environment == "dev"
+        mock_api_client.auth.validate_client_token.assert_called_once_with(
+            "app-token-123", send_as_header=False
+        )
+        mock_cache.set.assert_called_once()
+        set_call = mock_cache.set.call_args
+        assert set_call[0][0].startswith("client_token_validation:")
+        assert set_call[0][2] == 120  # validation_ttl from config
+
+    @pytest.mark.asyncio
+    async def test_validate_client_token_cache_hit(
+        self, mock_http_client, mock_redis, mock_cache, mock_api_client
+    ):
+        """Test validate_client_token returns cached result on cache hit."""
+        cached = {
+            "data": {
+                "authenticated": True,
+                "application": None,
+                "environment": "dev",
+                "applicationKey": "app-key",
+                "expiresAt": "2025-12-31T23:59:59Z",
+            }
+        }
+        mock_cache.get = AsyncMock(return_value=cached)
+        auth_service = AuthService(
+            http_client=mock_http_client,
+            redis=mock_redis,
+            cache=mock_cache,
+            api_client=mock_api_client,
+        )
+
+        result = await auth_service.validate_client_token("app-token-123")
+
+        assert result.data.authenticated is True
+        assert result.data.environment == "dev"
+        mock_api_client.auth.validate_client_token.assert_not_called()
+        mock_cache.set.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_validate_client_token_no_cache_fallback(
+        self, mock_http_client, mock_redis, mock_api_client
+    ):
+        """Test validate_client_token works when cache is None (graceful fallback)."""
+        auth_service = AuthService(
+            http_client=mock_http_client,
+            redis=mock_redis,
+            cache=None,
+            api_client=mock_api_client,
+        )
+
+        result = await auth_service.validate_client_token("app-token-123")
+
+        assert result.data.authenticated is True
+        mock_api_client.auth.validate_client_token.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_validate_client_token_401_not_cached(
+        self, mock_http_client, mock_redis, mock_cache, mock_api_client
+    ):
+        """Test validate_client_token does not cache 401 responses."""
+        mock_api_client.auth.validate_client_token = AsyncMock(
+            side_effect=MisoClientError(
+                "Invalid token",
+                status_code=401,
+                error_response=None,
+            )
+        )
+        auth_service = AuthService(
+            http_client=mock_http_client,
+            redis=mock_redis,
+            cache=mock_cache,
+            api_client=mock_api_client,
+        )
+
+        with pytest.raises(MisoClientError) as exc_info:
+            await auth_service.validate_client_token("invalid-token")
+
+        assert exc_info.value.status_code == 401
+        mock_cache.set.assert_not_called()
+
+    def test_client_token_validation_cache_key_format(self):
+        """Test client token validation cache key format and determinism."""
+        key1 = get_client_token_validation_cache_key("token-a")
+        key2 = get_client_token_validation_cache_key("token-a")
+        key3 = get_client_token_validation_cache_key("token-b")
+        assert key1.startswith("client_token_validation:")
+        assert len(key1) > len("client_token_validation:")
+        assert key1 == key2
+        assert key1 != key3

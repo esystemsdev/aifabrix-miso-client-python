@@ -170,6 +170,33 @@ class RefreshPermissionsResponse(BaseModel):
     data: GetPermissionsResponseData = Field(..., description="Permissions data")
 
 
+class ValidateClientTokenApplication(BaseModel):
+    """Application info from client token validation."""
+
+    id: Optional[str] = Field(default=None, description="Application ID")
+    key: Optional[str] = Field(default=None, description="Application key")
+    environmentId: Optional[str] = Field(default=None, description="Environment ID")
+    environmentKey: Optional[str] = Field(default=None, description="Environment key")
+
+
+class ValidateClientTokenResponseData(BaseModel):
+    """Client token validation response data."""
+
+    authenticated: bool = Field(..., description="Whether the application token is valid")
+    application: Optional[ValidateClientTokenApplication] = Field(
+        default=None, description="Application details"
+    )
+    environment: Optional[str] = Field(default=None, description="Environment key")
+    applicationKey: Optional[str] = Field(default=None, description="Application key")
+    expiresAt: Optional[str] = Field(default=None, description="Token expiration (ISO 8601)")
+
+
+class ValidateClientTokenResponse(BaseModel):
+    """Response from POST /api/v1/auth/validate-client-token."""
+
+    data: ValidateClientTokenResponseData = Field(..., description="Client token validation data")
+
+
 class TokenExchangeResponse(BaseModel):
     """Token exchange response (delegated/Entra token → Keycloak token).
 

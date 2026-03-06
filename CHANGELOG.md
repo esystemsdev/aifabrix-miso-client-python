@@ -5,23 +5,20 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [4.7.1] - 2026-03-06
+## [4.7.2] - 2026-03-06
 
 ### Added
 
-- **User token exchange** - `exchange_token(delegated_token)` to exchange Entra or other delegated tokens for a Keycloak token for use with authenticated SDK calls (`POST /api/v1/auth/token/exchange`).
-- **TokenExchangeResponse** - Response type for token exchange with `access_token` and optional `token_exchanged` (exported from public API).
-- **Client token policy documentation** - Documented that only the client token endpoint may receive `x-client-id` and `x-client-secret`; all other controller APIs require `x-client-token`.
+- **Validate client token API** - New public interface to validate application (`x-client-token`) via `POST /api/v1/auth/validate-client-token`. AuthApi `validate_client_token()`, AuthService/MisoClient delegation, Pydantic types (`ValidateClientTokenResponse`, `ValidateClientTokenResponseData`, `ValidateClientTokenApplication`). Token can be sent as header or body; one-off request so SDK client token is not sent.
+- **Client token validation cache** - Redis/in-memory caching for successful client-token validation by token hash; cache key via `get_client_token_validation_cache_key()`, TTL from config; AuthService checks cache before calling controller and caches on success (401/400 not cached).
 
 ### Changed
 
-- **Breaking: Client token only** - All controller APIs (except the client token endpoint) now require `x-client-token`. The SDK never sends `x-client-id` or `x-client-secret` to any path other than the configured client token URI (e.g. `POST /api/auth/token`). Callers must use the SDK’s built-in client token flow; do not send client id/secret to other endpoints.
-- **Two-token model** - README and `docs/backend-client-token.md` updated to describe client token vs user token and the token exchange flow.
+- **Client token policy** - Documented and hardened that only the client token endpoint may receive `x-client-id`/`x-client-secret`; all other APIs use `x-client-token` only. Updated `.cursorrules`, project rules, and `docs/backend-client-token.md`.
 
 ### Technical
 
-- **Validation baseline** - Release validated via `make validate` (ruff, black, isort, pytest).
-- **Plan 36** - Client token policy and token exchange implemented per `.cursor/plans/36-client_token_and_token_exchange.plan.md`.
+- **Validation baseline** - Release validation passed via `make validate` (ruff, black, isort, pytest).
 
 ## [4.7.0] - 2026-03-04
 

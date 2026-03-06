@@ -29,6 +29,40 @@ def get_token_cache_key(token: str) -> str:
     return f"token_validation:{token_hash}"
 
 
+def get_client_token_validation_cache_key(token: str) -> str:
+    """Generate cache key for client token validation using SHA-256 hash.
+
+    Uses token hash instead of full token for security.
+    Distinct from user token validation (token_validation:...) to avoid collisions.
+
+    Args:
+        token: Application token (e.g. x-client-token) to validate
+
+    Returns:
+        Cache key string in format: client_token_validation:{sha256_hash}
+
+    """
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    return f"client_token_validation:{token_hash}"
+
+
+def get_token_exchange_cache_key(delegated_token: str) -> str:
+    """Generate cache key for token exchange result using SHA-256 hash.
+
+    Uses token hash instead of full token for security.
+    Used to cache Keycloak token returned from exchanging a delegated (e.g. Entra) token.
+
+    Args:
+        delegated_token: Delegated token string (e.g. Entra ID token)
+
+    Returns:
+        Cache key string in format: token_exchange:{sha256_hash}
+
+    """
+    token_hash = hashlib.sha256(delegated_token.encode()).hexdigest()
+    return f"token_exchange:{token_hash}"
+
+
 def get_cache_ttl_from_token(token: str, validation_ttl: int) -> int:
     """Calculate smart TTL based on token expiration.
 

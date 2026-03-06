@@ -160,6 +160,35 @@ The exchange request is sent with the client token (`x-client-token`) and the de
 
 ---
 
+## Validate application token (client token)
+
+Dataplane and other services that receive an application token (e.g. `x-client-token`) can validate it with the controller without sending the SDK’s own client token. The SDK caches successful results to avoid extra calls.
+
+```python
+from miso_client import MisoClient, load_config, ValidateClientTokenResponse
+
+client = MisoClient(load_config())
+await client.initialize()
+
+# Token to validate (e.g. from request header or body)
+app_token = request.headers.get("x-client-token")
+
+result: ValidateClientTokenResponse = await client.validate_client_token(app_token)
+if result.data.authenticated:
+    app_id = result.data.application.id if result.data.application else None
+    expires_at = result.data.expiresAt
+    # Proceed with request
+else:
+    # Invalid or expired application token
+    pass
+```
+
+- **Endpoint:** `POST /api/v1/auth/validate-client-token` (no auth required; the token in the request is what is validated).
+- **Options:** Pass `send_as_header=True` to send the token in the `x-client-token` header instead of the request body.
+- **Errors:** `MisoClientError` with `status_code` 400 (token missing) or 401 (invalid/expired).
+
+---
+
 ## Using the token in the frontend
 
 `POST` your backend route (e.g. `POST /api/v1/auth/client-token`). The browser sends the `Origin` header automatically. Use the returned `token` and `config.controllerUrl` (or `controllerPublicUrl`) to call the Miso Controller from the client (e.g. with the JavaScript/TypeScript SDK or fetch).

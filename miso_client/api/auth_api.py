@@ -5,8 +5,13 @@ Provides typed interfaces for authentication endpoints.
 
 from typing import Optional
 
+import httpx
+
+from ..errors import MisoClientError
 from ..models.config import AuthStrategy
+from ..utils.controller_url_resolver import resolve_controller_url
 from ..utils.http_client import HttpClient
+from ..utils.http_error_handler import parse_error_response
 from .response_utils import normalize_api_response
 from .types.auth_types import (
     DeviceCodeResponseWrapper,
@@ -23,6 +28,7 @@ from .types.auth_types import (
     RefreshTokenRequest,
     RefreshTokenResponse,
     TokenExchangeResponse,
+    ValidateClientTokenResponse,
     ValidateTokenRequest,
     ValidateTokenResponse,
 )
@@ -45,6 +51,7 @@ class AuthApi:
     PERMISSIONS_ENDPOINT = "/api/v1/auth/permissions"
     PERMISSIONS_REFRESH_ENDPOINT = "/api/v1/auth/permissions/refresh"
     TOKEN_EXCHANGE_ENDPOINT = "/api/v1/auth/token/exchange"
+    VALIDATE_CLIENT_TOKEN_ENDPOINT = "/api/v1/auth/validate-client-token"
 
     def __init__(self, http_client: HttpClient):
         """Initialize Auth API client.
@@ -112,6 +119,43 @@ class AuthApi:
             auth_strategy=auth_strategy,
         )
         return ValidateTokenResponse(**response)
+
+    async def validate_client_token(
+        self, token: str, *, send_as_header: bool = False
+    ) -> ValidateClientTokenResponse:
+        """Validate application token (x-client-token) via controller.
+
+        No SDK client token is sent; only the token to validate is sent
+        (in header or body). Used by dataplane and other services.
+
+        Args:
+            token: Application token to validate
+            send_as_header: If True, send token in x-client-token header;
+                otherwise send in body as {"token": token}
+
+        Returns:
+            ValidateClientTokenResponse with validation result
+
+        Raises:
+            MisoClientError: If request fails (400 token missing, 401 invalid/expired)
+
+        """
+        base_url = resolve_controller_url(self.http_client.config)
+        headers: dict = {"Content-Type": "application/json"}
+        if send_as_header:
+            headers["x-client-token"] = token
+        json_body = None if send_as_header else {"token": token}
+
+        async with httpx.AsyncClient(base_url=base_url, timeout=30.0, headers=headers) as client:
+            response = await client.post(self.VALIDATE_CLIENT_TOKEN_ENDPOINT, json=json_body)
+            if response.status_code >= 400:
+                error_response = parse_error_response(response, str(response.url))
+                raise MisoClientError(
+                    response.text or f"HTTP {response.status_code}",
+                    status_code=response.status_code,
+                    error_response=error_response,
+                )
+            return ValidateClientTokenResponse(**response.json())
 
     async def get_user(
         self, token: Optional[str] = None, auth_strategy: Optional[AuthStrategy] = None

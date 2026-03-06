@@ -7,7 +7,10 @@ for integrating with the Miso Controller.
 import asyncio
 from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional
 
-from .api.types.auth_types import TokenExchangeResponse
+from .api.types.auth_types import (
+    TokenExchangeResponse,
+    ValidateClientTokenResponse,
+)
 from .models.config import AuthStrategy, MisoClientConfig, UserInfo
 from .services.auth import AuthService
 from .services.cache import CacheService
@@ -156,6 +159,28 @@ class MisoClient:
 
         """
         return await self.auth.exchange_token(delegated_token)
+
+    async def validate_client_token(
+        self, token: str, *, send_as_header: bool = False
+    ) -> ValidateClientTokenResponse:
+        """Validate application token (x-client-token) with controller.
+
+        Used by dataplane and other services. Results are cached to avoid
+        extra controller calls.
+
+        Args:
+            token: Application token to validate
+            send_as_header: If True, send token in x-client-token header;
+                otherwise in body
+
+        Returns:
+            ValidateClientTokenResponse with validation result
+
+        Raises:
+            MisoClientError: If request fails (400 token missing, 401 invalid/expired)
+
+        """
+        return await self.auth.validate_client_token(token, send_as_header=send_as_header)
 
     async def logout(self, token: str) -> Dict[str, Any]:
         """Logout user by invalidating the access token."""

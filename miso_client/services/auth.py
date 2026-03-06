@@ -7,7 +7,10 @@ token validation, user information retrieval, and logout functionality.
 import logging
 from typing import TYPE_CHECKING, Any, Dict, Optional, cast
 
-from ..api.types.auth_types import TokenExchangeResponse
+from ..api.types.auth_types import (
+    TokenExchangeResponse,
+    ValidateClientTokenResponse,
+)
 from ..models.config import AuthResult, AuthStrategy, UserInfo
 from ..services.auth_token_cache import (
     cache_validation_result,
@@ -21,7 +24,12 @@ from ..services.auth_user_cache import (
 )
 from ..services.cache import CacheService
 from ..services.redis import RedisService
-from ..utils.auth_cache_helpers import get_cache_ttl_from_token, get_token_cache_key
+from ..utils.auth_cache_helpers import (
+    get_cache_ttl_from_token,
+    get_client_token_validation_cache_key,
+    get_token_cache_key,
+    get_token_exchange_cache_key,
+)
 from ..utils.error_utils import extract_correlation_id_from_error
 from ..utils.http_client import HttpClient
 
@@ -446,7 +454,8 @@ class AuthService:
 
         Uses the controller token exchange endpoint. The request is sent with
         x-client-token (automatic) and Authorization: Bearer <delegated_token>.
-        Use the returned access token for subsequent authenticated calls.
+        Results are cached by delegated token hash; TTL is derived from the
+        returned Keycloak token expiration for speed on repeated calls.
 
         Args:
             delegated_token: Delegated token (e.g. Entra ID token) to exchange
@@ -458,18 +467,79 @@ class AuthService:
             MisoClientError: If request fails
 
         """
+        cache_key = get_token_exchange_cache_key(delegated_token)
+        if self.cache:
+            cached = await self.cache.get(cache_key)
+            if cached and isinstance(cached, dict):
+                logger.debug("Token exchange cache hit")
+                return TokenExchangeResponse(**cached)
+
         if self.api_client:
-            return await self.api_client.auth.exchange_token(delegated_token)
-        response = await self.http_client.authenticated_request(
-            "POST",
-            "/api/v1/auth/token/exchange",
-            delegated_token,
-            data=None,
-            auto_refresh=False,
+            result = await self.api_client.auth.exchange_token(delegated_token)
+        else:
+            response = await self.http_client.authenticated_request(
+                "POST",
+                "/api/v1/auth/token/exchange",
+                delegated_token,
+                data=None,
+                auto_refresh=False,
+            )
+            if (
+                isinstance(response, dict)
+                and "data" in response
+                and isinstance(response["data"], dict)
+            ):
+                response = response["data"]
+            result = TokenExchangeResponse(**response)
+
+        if self.cache and result.accessToken:
+            ttl = get_cache_ttl_from_token(result.accessToken, self.validation_ttl)
+            try:
+                await self.cache.set(cache_key, result.model_dump(), ttl)
+                logger.debug("Token exchange cached with TTL %ds", ttl)
+            except Exception as error:
+                logger.warning("Failed to cache token exchange result", exc_info=error)
+
+        return result
+
+    async def validate_client_token(
+        self, token: str, *, send_as_header: bool = False
+    ) -> ValidateClientTokenResponse:
+        """Validate application token (x-client-token) with caching.
+
+        Checks cache first; on miss calls controller and caches successful result.
+        No SDK client token is sent; only the token to validate is sent.
+
+        Args:
+            token: Application token to validate
+            send_as_header: If True, send token in x-client-token header;
+                otherwise in body
+
+        Returns:
+            ValidateClientTokenResponse with validation result
+
+        Raises:
+            MisoClientError: If request fails (400 token missing, 401 invalid/expired)
+            ValueError: If api_client is not set
+
+        """
+        cache_key = get_client_token_validation_cache_key(token)
+        if self.cache:
+            cached_result = await check_cache_for_token(self.cache, cache_key)
+            if cached_result:
+                return ValidateClientTokenResponse(**cached_result)
+
+        if not self.api_client:
+            raise ValueError("ApiClient is required for validate_client_token")
+
+        result = await self.api_client.auth.validate_client_token(
+            token, send_as_header=send_as_header
         )
-        if isinstance(response, dict) and "data" in response and isinstance(response["data"], dict):
-            response = response["data"]
-        return TokenExchangeResponse(**response)
+        if self.cache and result.data.authenticated:
+            result_dict = result.model_dump()
+            ttl = self.validation_ttl
+            await cache_validation_result(self.cache, cache_key, result_dict, ttl)
+        return result
 
     async def refresh_user_token(self, refresh_token: str) -> Optional[Dict[str, Any]]:
         """Refresh user access token using refresh token.

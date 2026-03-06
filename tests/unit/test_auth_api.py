@@ -5,7 +5,7 @@ Tests all authentication API endpoints with proper mocking.
 All responses now follow OpenAPI spec format: {"data": {...}} without success/timestamp.
 """
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -23,6 +23,7 @@ from miso_client.api.types.auth_types import (
     RefreshRolesResponse,
     RefreshTokenResponse,
     TokenExchangeResponse,
+    ValidateClientTokenResponse,
     ValidateTokenResponse,
 )
 from miso_client.errors import MisoClientError
@@ -389,6 +390,136 @@ class TestAuthApi:
 
         with pytest.raises(MisoClientError):
             await auth_api.validate_token("invalid-token")
+
+    @pytest.mark.asyncio
+    async def test_validate_client_token_success_body(self, auth_api):
+        """Test validate_client_token success with token in body."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.url = "https://controller.aifabrix.ai/api/v1/auth/validate-client-token"
+        mock_response.json.return_value = {
+            "data": {
+                "authenticated": True,
+                "application": {
+                    "id": "app-1",
+                    "key": "app-key",
+                    "environmentId": "env-1",
+                    "environmentKey": "dev",
+                },
+                "environment": "dev",
+                "applicationKey": "app-key",
+                "expiresAt": "2025-12-31T23:59:59Z",
+            },
+        }
+
+        mock_client = MagicMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+
+        with patch(
+            "miso_client.api.auth_api.httpx.AsyncClient",
+            return_value=mock_client,
+        ):
+            result = await auth_api.validate_client_token("token123")
+
+        assert isinstance(result, ValidateClientTokenResponse)
+        assert result.data.authenticated is True
+        assert result.data.application is not None
+        assert result.data.application.id == "app-1"
+        assert result.data.application.key == "app-key"
+        assert result.data.expiresAt == "2025-12-31T23:59:59Z"
+
+        mock_client.post.assert_called_once()
+        call_kwargs = mock_client.post.call_args[1]
+        assert call_kwargs["json"] == {"token": "token123"}
+
+    @pytest.mark.asyncio
+    async def test_validate_client_token_success_header(self, auth_api):
+        """Test validate_client_token success with token in x-client-token header."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.url = "https://controller.aifabrix.ai/api/v1/auth/validate-client-token"
+        mock_response.json.return_value = {
+            "data": {"authenticated": True, "application": None},
+        }
+
+        mock_client = MagicMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+
+        with patch(
+            "miso_client.api.auth_api.httpx.AsyncClient",
+            return_value=mock_client,
+        ) as mock_async_client:
+            result = await auth_api.validate_client_token("token456", send_as_header=True)
+
+        assert isinstance(result, ValidateClientTokenResponse)
+        assert result.data.authenticated is True
+        mock_client.post.assert_called_once_with(auth_api.VALIDATE_CLIENT_TOKEN_ENDPOINT, json=None)
+        # AsyncClient was created with x-client-token header
+        mock_async_client.assert_called_once()
+        init_kwargs = mock_async_client.call_args[1]
+        assert init_kwargs["headers"]["x-client-token"] == "token456"
+
+    @pytest.mark.asyncio
+    async def test_validate_client_token_400(self, auth_api):
+        """Test validate_client_token returns 400 when token missing."""
+        mock_response = MagicMock()
+        mock_response.status_code = 400
+        mock_response.url = "https://controller.aifabrix.ai/api/v1/auth/validate-client-token"
+        mock_response.text = "Token missing"
+        mock_response.headers = {"content-type": "application/json"}
+        mock_response.json.return_value = {
+            "errors": ["Provide body.token or x-client-token header"],
+            "type": "/Errors/BadRequest",
+            "title": "Bad Request",
+            "statusCode": 400,
+        }
+
+        mock_client = MagicMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+
+        with patch(
+            "miso_client.api.auth_api.httpx.AsyncClient",
+            return_value=mock_client,
+        ):
+            with pytest.raises(MisoClientError) as exc_info:
+                await auth_api.validate_client_token("")
+
+        assert exc_info.value.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_validate_client_token_401(self, auth_api):
+        """Test validate_client_token returns 401 for invalid/expired token."""
+        mock_response = MagicMock()
+        mock_response.status_code = 401
+        mock_response.url = "https://controller.aifabrix.ai/api/v1/auth/validate-client-token"
+        mock_response.text = "Invalid token"
+        mock_response.headers = {"content-type": "application/json"}
+        mock_response.json.return_value = {
+            "errors": ["Invalid or expired application token"],
+            "type": "/Errors/Unauthorized",
+            "title": "Unauthorized",
+            "statusCode": 401,
+        }
+
+        mock_client = MagicMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+
+        with patch(
+            "miso_client.api.auth_api.httpx.AsyncClient",
+            return_value=mock_client,
+        ):
+            with pytest.raises(MisoClientError) as exc_info:
+                await auth_api.validate_client_token("invalid-token")
+
+        assert exc_info.value.status_code == 401
 
     @pytest.mark.asyncio
     async def test_login_error(self, auth_api, mock_http_client):
