@@ -162,50 +162,75 @@ Before marking this plan complete, ensure:
 
 ---
 
-## Plan Validation Report
+## Validation
 
 **Date**: 2025-03-07  
-**Plan**: .cursor/plans/39-reduce_controller_calls_performance.plan.md  
-**Status**: VALIDATED
+**Status**: ✅ COMPLETE
 
-### Plan Purpose
+### Executive Summary
 
-- **Title**: Reduce controller calls and improve performance.  
-- **Summary**: Add encryption response caching (encrypt/decrypt) in the Python client to reduce controller call volume, align with miso-controller plan 163 open questions on caching, and document cache usage and TTLs.  
-- **Scope**: EncryptionService, CacheService, MisoClientConfig, client wiring, docs, unit tests.  
-- **Type**: Service layer (encryption), performance (caching), documentation.
+Implementation is complete. All proposed changes are in place: encryption response caching (encrypt/decrypt) with optional CacheService, configurable `encryption_cache_ttl`, cache keys using hash only (no plaintext), documentation in `docs/performance-and-caching.md`, and full unit test coverage for cache hit/miss, disabled cache, controller errors, and fallback. Format, lint, type-check, and tests all pass. Cursor rules compliance verified.
 
-### Applicable Rules
+### File Existence Validation
 
-- **Architecture Patterns** – EncryptionService uses HttpClient; cache pattern aligns with RoleService/PermissionService and Redis/CacheService usage.
-- **Code Style** – Type hints, error handling, docstrings for new/updated code.
-- **Testing Conventions** – pytest, pytest-asyncio, mocking, cache hit/miss and TTL/disabled tests, ≥80% coverage for new code.
-- **Configuration** – Optional `encryption_cache_ttl` and wiring in config/client.
-- **Common Patterns** – Cache-first service method pattern.
-- **Security Guidelines** – Cache keys must not expose plaintext; no sensitive data in logs.
-- **Performance Guidelines** – Use cache when available, fallback to controller.
-- **Code Size Guidelines** – Files ≤500 lines, methods ≤20–30 lines.
-- **Documentation** – Docstrings and “Performance and reducing controller calls” docs.
-- **When Adding New Features** – Models → service → tests → docs.
+- ✅ `miso_client/services/encryption.py` – EncryptionService with optional CacheService, _cache_key_encrypt/_cache_key_decrypt (hash-based), cache-first encrypt/decrypt, TTL from config
+- ✅ `miso_client/services/cache.py` – CacheService (Redis + in-memory) used by EncryptionService
+- ✅ `miso_client/models/config.py` – `encryption_cache_ttl` property (from cache dict, default 300, 0 = disabled)
+- ✅ `miso_client/client.py` – EncryptionService wired with `self.cache`; AuditLogQueue attached when audit config present
+- ✅ `docs/performance-and-caching.md` – "Performance and Reducing Controller Calls" with cached operations, encryption cache, TTLs, Redis, log batching
+- ✅ `tests/unit/test_encryption_service.py` – Cache tests: encrypt/decrypt cache miss/hit, cache disabled (TTL=0, no cache), no cache on controller error, cache key hash-based, cache=None unchanged, cache get/set failure fallback, TTL passed to cache
 
-### Rule Compliance
+### Test Coverage
 
-- DoD requirements: Documented (lint, format, test, order LINT → FORMAT → TEST, coverage, file size, type hints, docstrings, security, documentation).
-- Architecture / caching: Plan uses CacheService and follows existing cache-first pattern.
-- Security: Plan specifies hashed cache key for encrypt and no plaintext in keys or logs.
-- Testing: Plan requires unit tests for cache hit/miss and TTL/disabled with mocks.
+- ✅ Unit tests exist for encryption cache in `tests/unit/test_encryption_service.py`
+- ✅ Encrypt: cache miss (controller + cache.set), cache hit (no controller), cache disabled (TTL=0, no cache), controller error (no cache.set), cache key hash-based, cache get/set failure fallback, TTL=300 passed to cache
+- ✅ Decrypt: cache miss, cache hit, controller error (no cache.set)
+- ✅ Integration tests not required by plan (unit only)
+- ✅ Test run: 1351 passed (pytest, excludes integration/manual)
+- ✅ Coverage: `miso_client/services/encryption.py` 96%; overall 93%
 
-### Plan Updates Made
+### Code Quality Validation
 
-- Added **Rules and Standards** with links to project-rules.mdc and key requirements for encryption cache, errors, tests, and docstrings.
-- Added **Before Development** checklist (read rules, review RoleService/PermissionService/CacheService/EncryptionService, config, tests).
-- Expanded **Definition of Done** with lint (ruff, mypy), format (black, isort), test (pytest after lint/format), validation order, file size, type hints, docstrings, encryption behavior, cache key design, docs, tests, no regression, security, and rule compliance.
-- Added **Tests (unit)** subsection: concrete scenarios for encrypt/decrypt cache hit/miss, cache disabled, no cache on error, cache key safety, cache=None behavior, cache failure fallback, TTL wiring; optional tests for `clear_encryption_cache` if implemented.
-- Appended this **Plan Validation Report**.
+**STEP 1 - FORMAT**: ✅ PASSED (`make format` – black, isort)  
+**STEP 2 - LINT**: ✅ PASSED (ruff check – 0 errors, 0 warnings)  
+**STEP 3 - TYPE CHECK**: ✅ PASSED (mypy miso_client/ – no issues)  
+**STEP 4 - TEST**: ✅ PASSED (1351 tests, ~10s)
 
-### Recommendations
+### Cursor Rules Compliance
 
-- When implementing, use a stable cache key format for encryption (e.g. `encryption:decrypt:{hash(value+param)}`, `encryption:encrypt:{hash(plaintext+param)}`) and optional key prefix from config if multiple apps share Redis.
-- Consider adding `clear_encryption_cache()` (or clear by prefix) for key-rotation or logout scenarios; plan already mentions it as optional.
-- Run `ruff check`, `mypy`, `black`, `isort`, then `pytest` in that order before marking the plan complete.
+- ✅ Code reuse: Cache pattern aligned with RoleService/PermissionService; CacheService used for encrypt/decrypt
+- ✅ Error handling: try/except in encrypt/decrypt; on controller error no cache.set; log with exc_info
+- ✅ Logging: No plaintext/secrets in logs; correlation ID in error logs
+- ✅ Type safety: Type hints and EncryptResult used throughout
+- ✅ Async patterns: async/await for encrypt/decrypt and cache get/set
+- ✅ HTTP client: Uses http_client.post for encrypt/decrypt endpoints
+- ✅ Token management: N/A for encryption service
+- ✅ Redis/cache: CacheService optional; cache key hash-only; TTL from config; fallback to controller on cache failure
+- ✅ Service layer: EncryptionService receives HttpClient, config, optional CacheService; config via public property
+- ✅ Security: Encrypt cache key = hash(plaintext, parameter_name); decrypt key from value+param (hashed); no plaintext in keys
+- ✅ API data conventions: Request bodies use camelCase (parameterName, encryptionKey, etc.)
+- ✅ File size: encryption.py ~245 lines; methods under 30 lines
+
+### Implementation Completeness
+
+- ✅ EncryptionService: Optional CacheService; cache-first encrypt/decrypt; _cache_key_encrypt (hash), _cache_key_decrypt (hash); TTL from config; no cache on controller error
+- ✅ Config: `encryption_cache_ttl` property on MisoClientConfig (cache dict, default 300, 0 = disabled)
+- ✅ Client: EncryptionService(self.http_client, config, self.cache); AuditLogQueue attached when audit config present
+- ✅ Documentation: `docs/performance-and-caching.md` – cached operations (including encryption), TTLs, key rotation note, log batching
+- ✅ Exports: EncryptionService used internally; no new public exports required
+
+### Issues and Recommendations
+
+- None. Optional future work: `clear_encryption_cache()` (or clear by prefix) for key-rotation/logout; plan already notes as optional.
+
+### Final Validation Checklist
+
+- [x] All tasks completed (encryption caching, config, client wiring, docs, tests)
+- [x] All files exist and implement plan
+- [x] Tests exist and pass (1351 passed; encryption cache tests in test_encryption_service.py)
+- [x] Code quality validation passes (format → lint → type-check → test)
+- [x] Cursor rules compliance verified
+- [x] Implementation complete
+
+**Result**: ✅ **VALIDATION PASSED** – Plan 39 (Reduce controller calls performance) is fully implemented: encryption response caching with hash-based keys, configurable TTL, CacheService integration, documentation, and comprehensive unit tests; all quality gates pass.
 
