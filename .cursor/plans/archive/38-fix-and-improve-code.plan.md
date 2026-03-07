@@ -1,3 +1,10 @@
+---
+name: ""
+overview: ""
+todos: []
+isProject: false
+---
+
 # Fix and Improve Code - Unified Code Improvement Plan
 
 ## Overview
@@ -7,6 +14,7 @@ This plan aggregates findings from analyzing all core code in `miso_client/servi
 ## Modules Analyzed
 
 ### Services
+
 - `miso_client/services/auth.py` – AuthService (token validation, user, logout, token exchange, client token validation)
 - `miso_client/services/role.py` – RoleService (roles with CacheService)
 - `miso_client/services/permission.py` – PermissionService (permissions with CacheService)
@@ -16,6 +24,7 @@ This plan aggregates findings from analyzing all core code in `miso_client/servi
 - `miso_client/services/encryption.py` – EncryptionService
 
 ### Utils
+
 - `miso_client/utils/http_client.py`, `internal_http_client.py` – HTTP clients
 - `miso_client/utils/error_utils.py` – Error transformation, handleApiError, extract_correlation_id_from_error
 - `miso_client/utils/jwt_tools.py` – JWT decode (no verify), extract_user_id
@@ -23,21 +32,25 @@ This plan aggregates findings from analyzing all core code in `miso_client/servi
 - Plus: config_loader, data_masker, filter, filter_schema, sort, auth_cache_helpers, client_token_manager, etc.
 
 ### Models
+
 - `miso_client/models/config.py`, `error_response.py`, `filter.py`, `pagination.py`, `sort.py`, `encryption.py`, `filter_schema.py`
 
 ### Core
+
 - `miso_client/__init__.py` – Exports and imports
 
 ---
 
 ## Key Issues Identified
 
-### 1. Code Quality – __init__.py
+### 1. Code Quality – **init**.py
 
-| Issue | Location | Rule |
-|-------|----------|------|
+
+| Issue                                   | Location                                                                                      | Rule                                         |
+| --------------------------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------- |
 | Duplicate import block from same module | `__init__.py` lines 125–130: two separate `from .utils.flask_logger_middleware import` blocks | Import organization; avoid redundant imports |
-| Duplicate comment | `__init__.py` lines 153–154: `# Export types` repeated | Code quality |
+| Duplicate comment                       | `__init__.py` lines 153–154: `# Export types` repeated                                        | Code quality                                 |
+
 
 **Fix:** Merge flask_logger_middleware imports into a single block; remove duplicate `# Export types` comment.
 
@@ -80,7 +93,7 @@ This plan aggregates findings from analyzing all core code in `miso_client/servi
 
 ### 9. Pagination / Filter Utilities
 
-- Both camelCase (e.g. `parsePaginationParams`, `createMetaObject`) and snake_case (e.g. `parse_pagination_params`) exist for backward compatibility and API alignment; documented in __all__. No change required.
+- Both camelCase (e.g. `parsePaginationParams`, `createMetaObject`) and snake_case (e.g. `parse_pagination_params`) exist for backward compatibility and API alignment; documented in **all**. No change required.
 
 ### 10. File Size & Method Length
 
@@ -90,7 +103,7 @@ This plan aggregates findings from analyzing all core code in `miso_client/servi
 
 ## Implementation Tasks
 
-### Task 1: Consolidate flask_logger_middleware imports (__init__.py)
+### Task 1: Consolidate flask_logger_middleware imports (**init**.py)
 
 **Requirement:** Single import block from `miso_client.utils.flask_logger_middleware`.
 
@@ -114,7 +127,7 @@ from .utils.flask_logger_middleware import (
 )
 ```
 
-### Task 2: Remove duplicate comment (__init__.py)
+### Task 2: Remove duplicate comment (**init**.py)
 
 **Requirement:** Single `# Export types` comment before `__all__`.
 
@@ -124,7 +137,7 @@ from .utils.flask_logger_middleware import (
 
 ## Summary
 
-- **Fixed in this pass:** __init__.py import consolidation and duplicate comment removal.
+- **Fixed in this pass:** **init**.py import consolidation and duplicate comment removal.
 - **No change (by design or backward compatibility):** Endpoint prefix `/api/v1/`, camelCase pagination helpers, CacheService in role/permission, intentional raises in EncryptionService and AuthService.validate_client_token.
 - **Testing:** After edits, run unit tests to confirm no regressions.
 
@@ -132,6 +145,8 @@ from .utils.flask_logger_middleware import (
 
 ## Execution Status
 
-- [x] Plan created
-- [x] Task 1: Consolidate flask_logger_middleware imports – applied
-- [x] Task 2: Remove duplicate Export types comment – applied
+- Plan created
+- Task 1: Consolidate flask_logger_middleware imports – applied (this run)
+- Task 2: Remove duplicate Export types comment – already applied (single comment present)
+- Unit tests: 1337 passed (make test)
+

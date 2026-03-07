@@ -1,6 +1,6 @@
 ---
 name: Validate client token API
-overview: "Add a new public interface to validate application (x-client-token) via POST /api/v1/auth/validate-client-token with Redis/in-memory caching, Pydantic types, AuthApi (one-off request), AuthService/MisoClient delegation, and comprehensive tests."
+overview: Add a new public interface to validate application (x-client-token) via POST /api/v1/auth/validate-client-token with Redis/in-memory caching, Pydantic types, AuthApi (one-off request), AuthService/MisoClient delegation, and comprehensive tests.
 todos: []
 isProject: false
 ---
@@ -29,10 +29,10 @@ This plan follows [.cursorrules](.cursorrules) (project Cursor rules):
 
 ## Before Development
 
-- [ ] Read Architecture Patterns and Redis Caching Pattern in .cursorrules.
-- [ ] Review [miso_client/services/auth_token_cache.py](miso_client/services/auth_token_cache.py) and [miso_client/utils/auth_cache_helpers.py](miso_client/utils/auth_cache_helpers.py) for cache key and TTL reuse.
-- [ ] Review [miso_client/api/auth_api.py](miso_client/api/auth_api.py) and [miso_client/services/auth.py](miso_client/services/auth.py) for validate_token/cache flow.
-- [ ] Ensure lint/format/test tooling runs (ruff, mypy, black, isort, pytest).
+- Read Architecture Patterns and Redis Caching Pattern in .cursorrules.
+- Review [miso_client/services/auth_token_cache.py](miso_client/services/auth_token_cache.py) and [miso_client/utils/auth_cache_helpers.py](miso_client/utils/auth_cache_helpers.py) for cache key and TTL reuse.
+- Review [miso_client/api/auth_api.py](miso_client/api/auth_api.py) and [miso_client/services/auth.py](miso_client/services/auth.py) for validate_token/cache flow.
+- Ensure lint/format/test tooling runs (ruff, mypy, black, isort, pytest).
 
 ## Definition of Done
 
@@ -147,15 +147,16 @@ sequenceDiagram
 
 ## Files to touch (summary)
 
-| Area    | File                                          | Changes                                                                                          |
-| ------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Types   | `miso_client/api/types/auth_types.py`          | Add ValidateClientToken* models                                                                  |
-| Helpers | `miso_client/utils/auth_cache_helpers.py`     | Add get_client_token_validation_cache_key(token) → `client_token_validation:{sha256}`            |
-| API     | `miso_client/api/auth_api.py`                 | VALIDATE_CLIENT_TOKEN_ENDPOINT, validate_client_token() with one-off httpx                        |
-| Service | `miso_client/services/auth.py`                | validate_client_token() with cache check/store and delegation to api_client.auth                   |
-| Client  | `miso_client/client.py`                       | validate_client_token() delegating to auth                                                        |
-| Exports | `miso_client/__init__.py`                     | Export ValidateClientTokenResponse if desired                                                     |
-| Tests   | `tests/unit/test_auth_api.py`                  | validate_client_token: 200 body, 200 header, 400, 401; AuthService cache hit/miss, no cache on 401 |
+
+| Area    | File                                      | Changes                                                                                            |
+| ------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Types   | `miso_client/api/types/auth_types.py`     | Add ValidateClientToken* models                                                                    |
+| Helpers | `miso_client/utils/auth_cache_helpers.py` | Add get_client_token_validation_cache_key(token) → `client_token_validation:{sha256}`              |
+| API     | `miso_client/api/auth_api.py`             | VALIDATE_CLIENT_TOKEN_ENDPOINT, validate_client_token() with one-off httpx                         |
+| Service | `miso_client/services/auth.py`            | validate_client_token() with cache check/store and delegation to api_client.auth                   |
+| Client  | `miso_client/client.py`                   | validate_client_token() delegating to auth                                                         |
+| Exports | `miso_client/__init__.py`                 | Export ValidateClientTokenResponse if desired                                                      |
+| Tests   | `tests/unit/test_auth_api.py`             | validate_client_token: 200 body, 200 header, 400, 401; AuthService cache hit/miss, no cache on 401 |
 
 
 ## Out of scope
@@ -224,7 +225,7 @@ Plan 37 (validate-client-token API) has been fully implemented. All required fil
 - **miso_client/api/auth_api.py** – Contains `VALIDATE_CLIENT_TOKEN_ENDPOINT` and `validate_client_token(token, *, send_as_header=False)` with one-off `httpx.AsyncClient`, `resolve_controller_url`, `parse_error_response`, `MisoClientError` on 4xx/5xx.
 - **miso_client/services/auth.py** – Contains `validate_client_token` with cache check via `check_cache_for_token`, delegation to `api_client.auth.validate_client_token`, and `cache_validation_result` on success with `validation_ttl`.
 - **miso_client/client.py** – Contains `validate_client_token` delegating to `self.auth.validate_client_token`, return type `ValidateClientTokenResponse`.
-- **miso_client/__init__.py** – Exports `ValidateClientTokenResponse` (import and `__all__`).
+- **miso_client/init.py** – Exports `ValidateClientTokenResponse` (import and `__all_`_).
 - **tests/unit/test_auth_api.py** – Contains `test_validate_client_token_success_body`, `test_validate_client_token_success_header`, `test_validate_client_token_400`, `test_validate_client_token_401`.
 - **tests/unit/test_auth_service_caching.py** – Contains class `TestAuthServiceValidateClientTokenCaching` with `test_validate_client_token_cache_miss_then_set`, `test_validate_client_token_cache_hit`, `test_validate_client_token_no_cache_fallback`, `test_validate_client_token_401_not_cached`, `test_client_token_validation_cache_key_format`.
 
@@ -261,20 +262,19 @@ Plan 37 (validate-client-token API) has been fully implemented. All required fil
 - Models: ValidateClientToken* types in auth_types.py.
 - Utilities: get_client_token_validation_cache_key in auth_cache_helpers.py.
 - Documentation: README, docs/backend-client-token.md, and CHANGELOG updated for validate_client_token.
-- Exports: ValidateClientTokenResponse exported from miso_client/__init__.py.
+- Exports: ValidateClientTokenResponse exported from miso_client/**init**.py.
 
 ### Issues and Recommendations
 
-- None. Export of `ValidateClientTokenResponse` was re-added in __init__.py during validation to match plan.
+- None. Export of `ValidateClientTokenResponse` was re-added in **init**.py during validation to match plan.
 
 ### Final Validation Checklist
 
-- [x] All implementation tasks (sections 1–6) completed
-- [x] All files exist and contain expected changes
-- [x] Tests exist and pass (9 plan-related tests, full suite 1337)
-- [x] Code quality (format, lint, type-check, test) passes
-- [x] Cursor rules compliance verified
-- [x] Implementation complete (types, API, service, client, cache helper, exports, docs)
+- All implementation tasks (sections 1–6) completed
+- All files exist and contain expected changes
+- Tests exist and pass (9 plan-related tests, full suite 1337)
+- Code quality (format, lint, type-check, test) passes
+- Cursor rules compliance verified
+- Implementation complete (types, API, service, client, cache helper, exports, docs)
 
 **Result**: **VALIDATION PASSED** – Plan 37 (validate-client-token API) is fully implemented and verified.
-
