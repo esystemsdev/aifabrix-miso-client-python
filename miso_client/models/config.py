@@ -161,6 +161,15 @@ class MisoClientConfig(BaseModel):
             return self.cache["user_ttl"]
         return self.cache.get("userTTL", 300) if self.cache else 300  # 5 minutes default
 
+    @property
+    def encryption_cache_ttl(self) -> int:
+        """Get encryption result cache TTL in seconds. 0 = disabled."""
+        if self.cache and "encryption_cache_ttl" in self.cache:
+            return int(self.cache["encryption_cache_ttl"])
+        if self.cache and "encryptionCacheTTL" in self.cache:
+            return int(self.cache["encryptionCacheTTL"])
+        return self.cache.get("encryptionCacheTTL", 300) if self.cache else 300  # 5 min default
+
 
 class ForeignKeyReference(BaseModel):
     """Foreign key reference object for API responses.

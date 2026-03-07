@@ -12,9 +12,12 @@ from miso_client.errors import EncryptionError, MisoClientError
 from miso_client.models.encryption import EncryptResult
 from miso_client.services.encryption import (
     DECRYPT_ENDPOINT,
+    ENCRYPT_CACHE_PREFIX,
     ENCRYPT_ENDPOINT,
     PARAMETER_NAME_PATTERN,
     EncryptionService,
+    _cache_key_decrypt,
+    _cache_key_encrypt,
 )
 
 
@@ -321,6 +324,201 @@ class TestDecrypt:
         assert exc_info.value.code == "INVALID_PARAMETER_NAME"
 
 
+class TestEncryptionCacheKeyHelpers:
+    """Test cache key helpers do not expose plaintext."""
+
+    def test_cache_key_encrypt_is_hash_based(self):
+        """Encrypt cache key must not contain plaintext."""
+        key = _cache_key_encrypt("secret-plaintext", "my-param")
+        assert key.startswith(ENCRYPT_CACHE_PREFIX)
+        assert "secret-plaintext" not in key
+        assert len(key) == len(ENCRYPT_CACHE_PREFIX) + 64  # SHA-256 hex
+
+    def test_cache_key_encrypt_deterministic(self):
+        """Same input produces same cache key."""
+        assert _cache_key_encrypt("a", "b") == _cache_key_encrypt("a", "b")
+        assert _cache_key_encrypt("a", "b") != _cache_key_encrypt("a", "c")
+
+    def test_cache_key_decrypt_deterministic(self):
+        """Same value+param produces same decrypt cache key."""
+        assert _cache_key_decrypt("kv://x", "p") == _cache_key_decrypt("kv://x", "p")
+
+
+class TestEncryptionCache:
+    """Unit tests for encryption response caching (reduce controller calls)."""
+
+    @pytest.fixture
+    def mock_http_client(self):
+        """Create mock HTTP client."""
+        client = MagicMock()
+        client.post = AsyncMock()
+        return client
+
+    @pytest.fixture
+    def mock_config(self):
+        """Config with encryption key and cache TTL enabled."""
+        config = MagicMock()
+        config.encryption_key = "test-encryption-key"
+        config.encryption_cache_ttl = 300
+        return config
+
+    @pytest.fixture
+    def mock_cache(self):
+        """Create mock cache (get returns None by default = miss)."""
+        cache = MagicMock()
+        cache.get = AsyncMock(return_value=None)
+        cache.set = AsyncMock(return_value=True)
+        return cache
+
+    @pytest.fixture
+    def encryption_service(self, mock_http_client, mock_config, mock_cache):
+        """EncryptionService with cache enabled."""
+        return EncryptionService(mock_http_client, mock_config, mock_cache)
+
+    @pytest.mark.asyncio
+    async def test_encrypt_cache_miss_calls_controller_and_stores(
+        self, encryption_service, mock_http_client, mock_cache
+    ):
+        """First encrypt calls controller and stores result in cache."""
+        mock_http_client.post.return_value = {
+            "value": "kv://my-param",
+            "storage": "keyvault",
+        }
+
+        result = await encryption_service.encrypt("secret-data", "my-param")
+
+        assert result.value == "kv://my-param"
+        mock_http_client.post.assert_called_once()
+        mock_cache.get.assert_called_once()
+        mock_cache.set.assert_called_once()
+        call_args = mock_cache.set.call_args
+        assert call_args[0][2] == 300  # ttl
+        assert call_args[0][1]["value"] == "kv://my-param"
+
+    @pytest.mark.asyncio
+    async def test_encrypt_cache_hit_does_not_call_controller(
+        self, encryption_service, mock_http_client, mock_cache
+    ):
+        """Second encrypt with same input returns cached result, no controller call."""
+        cached_result = {"value": "kv://cached", "storage": "keyvault"}
+        mock_cache.get.return_value = cached_result
+
+        result = await encryption_service.encrypt("secret-data", "my-param")
+
+        assert result.value == "kv://cached"
+        mock_http_client.post.assert_not_called()
+        mock_cache.get.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_encrypt_cache_disabled_when_ttl_zero(self, mock_http_client, mock_cache):
+        """encryption_cache_ttl=0: every encrypt calls controller, no cache set."""
+        config = MagicMock()
+        config.encryption_key = "test-key"
+        config.encryption_cache_ttl = 0
+        service = EncryptionService(mock_http_client, config, mock_cache)
+        mock_http_client.post.return_value = {"value": "kv://x", "storage": "keyvault"}
+
+        await service.encrypt("secret", "p")
+        await service.encrypt("secret", "p")
+
+        assert mock_http_client.post.call_count == 2
+        mock_cache.set.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_encrypt_cache_disabled_when_no_cache(self, mock_http_client):
+        """No cache injected: behavior unchanged, controller called every time."""
+        config = MagicMock()
+        config.encryption_key = "test-key"
+        config.encryption_cache_ttl = 300
+        service = EncryptionService(mock_http_client, config, cache=None)
+        mock_http_client.post.return_value = {"value": "kv://x", "storage": "keyvault"}
+
+        await service.encrypt("secret", "p")
+        await service.encrypt("secret", "p")
+
+        assert mock_http_client.post.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_encrypt_controller_error_does_not_cache(
+        self, encryption_service, mock_http_client, mock_cache
+    ):
+        """On controller error, do not call cache.set."""
+        mock_http_client.post.side_effect = MisoClientError("Server error", status_code=500)
+
+        with pytest.raises(EncryptionError):
+            await encryption_service.encrypt("secret", "my-param")
+
+        mock_cache.set.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_decrypt_cache_miss_calls_controller_and_stores(
+        self, encryption_service, mock_http_client, mock_cache
+    ):
+        """First decrypt calls controller and stores plaintext in cache."""
+        mock_http_client.post.return_value = {"plaintext": "decrypted-secret"}
+
+        result = await encryption_service.decrypt("kv://my-param", "my-param")
+
+        assert result == "decrypted-secret"
+        mock_http_client.post.assert_called_once()
+        mock_cache.set.assert_called_once()
+        call_args = mock_cache.set.call_args
+        assert call_args[0][1] == "decrypted-secret"
+        assert call_args[0][2] == 300
+
+    @pytest.mark.asyncio
+    async def test_decrypt_cache_hit_does_not_call_controller(
+        self, encryption_service, mock_http_client, mock_cache
+    ):
+        """Second decrypt with same value+param returns cached plaintext."""
+        mock_cache.get.return_value = "cached-plaintext"
+
+        result = await encryption_service.decrypt("kv://my-param", "my-param")
+
+        assert result == "cached-plaintext"
+        mock_http_client.post.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_decrypt_controller_error_does_not_cache(
+        self, encryption_service, mock_http_client, mock_cache
+    ):
+        """On decrypt controller error, do not call cache.set."""
+        mock_http_client.post.side_effect = MisoClientError("Not found", status_code=404)
+
+        with pytest.raises(EncryptionError):
+            await encryption_service.decrypt("kv://missing", "missing")
+
+        mock_cache.set.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_cache_get_failure_falls_back_to_controller(
+        self, mock_http_client, mock_config, mock_cache
+    ):
+        """Cache get failure: fall back to controller, do not crash."""
+        mock_cache.get.side_effect = RuntimeError("Redis down")
+        mock_http_client.post.return_value = {"value": "kv://x", "storage": "keyvault"}
+        service = EncryptionService(mock_http_client, mock_config, mock_cache)
+
+        result = await service.encrypt("secret", "p")
+
+        assert result.value == "kv://x"
+        mock_http_client.post.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_cache_set_failure_still_returns_result(
+        self, mock_http_client, mock_config, mock_cache
+    ):
+        """Cache set failure: still return controller result."""
+        mock_http_client.post.return_value = {"value": "kv://x", "storage": "keyvault"}
+        mock_cache.set.side_effect = RuntimeError("Redis write failed")
+        service = EncryptionService(mock_http_client, mock_config, mock_cache)
+
+        result = await service.encrypt("secret", "p")
+
+        assert result.value == "kv://x"
+        mock_http_client.post.assert_called_once()
+
+
 class TestEncryptionServiceInit:
     """Test cases for EncryptionService initialization."""
 
@@ -350,6 +548,18 @@ class TestEncryptionServiceInit:
         service = EncryptionService(mock_client, mock_config)
 
         assert service._encryption_key is None
+
+    def test_init_accepts_optional_cache(self):
+        """Test that init accepts optional CacheService (cache=None by default)."""
+        mock_client = MagicMock()
+        mock_config = MagicMock()
+        mock_config.encryption_key = "key"
+        service_no_cache = EncryptionService(mock_client, mock_config)
+        assert service_no_cache._cache is None
+
+        mock_cache = MagicMock()
+        service_with_cache = EncryptionService(mock_client, mock_config, mock_cache)
+        assert service_with_cache._cache is mock_cache
 
 
 class TestEncryptionErrorModel:

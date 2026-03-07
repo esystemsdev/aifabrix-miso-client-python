@@ -11,6 +11,8 @@ The encryption service calls miso-controller API endpoints to:
 
 The storage backend (Key Vault or local) is determined by the controller's configuration, not by the client.
 
+When the client is configured with a cache and `encryption_cache_ttl` > 0, encrypt and decrypt results are cached so that repeated requests with the same inputs do not call the controller. See [Performance and reducing controller calls](performance-and-caching.md) for TTL configuration and key-rotation considerations.
+
 ## Configuration
 
 ### Encryption key requirement

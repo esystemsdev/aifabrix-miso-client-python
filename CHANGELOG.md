@@ -5,6 +5,24 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.7.3] - 2026-03-07
+
+### Added
+
+- **Encryption response caching** - Optional cache for encrypt/decrypt results to reduce controller calls. EncryptionService accepts optional `CacheService`; encrypt cache key is a hash of `(plaintext, parameter_name)` (no plaintext in key); decrypt cache key is `(value, parameter_name)`. Configurable via `encryption_cache_ttl` (default 300s; 0 = disabled). On controller errors results are not cached.
+- **Performance and caching documentation** - New `docs/performance-and-caching.md` describing cached operations (validation, user, roles, permissions, token exchange, encryption), TTLs, encryption cache key design, Redis usage, and log batching.
+
+### Changed
+
+- **EncryptionService** - Integrated optional CacheService; cache-first for encrypt/decrypt when cache is configured and TTL > 0; fallback to controller on cache miss or when cache is disabled.
+- **MisoClientConfig** - Added optional `encryption_cache_ttl` (seconds) in cache config; MisoClient wires CacheService into EncryptionService when cache is available.
+- **Encryption docs** - Documented encryption cache behavior, key design, and key-rotation considerations in `docs/encryption.md`.
+
+### Technical
+
+- **Plan 39 (reduce controller calls)** - Completed encryption response caching and performance/caching documentation per plan.
+- **Validation baseline** - Release validation passed via `make validate` (ruff, black, isort, pytest).
+
 ## [4.7.2] - 2026-03-06
 
 ### Added

@@ -71,7 +71,7 @@ class MisoClient:
         self.http_client.set_auth_service_for_refresh(self.auth)
         self.roles = RoleService(self.http_client, self.cache, self.api_client)
         self.permissions = PermissionService(self.http_client, self.cache, self.api_client)
-        self.encryption = EncryptionService(self.http_client, config)
+        self.encryption = EncryptionService(self.http_client, config, self.cache)
         self._app_context_service: Optional["ApplicationContextService"] = None
         self.initialized = False
 
