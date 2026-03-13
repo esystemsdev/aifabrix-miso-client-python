@@ -4,31 +4,31 @@ overview: Copy of the 144.6-derived Python SDK plan for logs/audit Key→Id migr
 todos:
   - id: inventory-python-surfaces
     content: Inventory all Python SDK log/audit contracts, filters, wrappers, and logger-emitted keys; track status as updated/not-applicable/pending.
-    status: pending
+    status: completed
   - id: rename-key-to-id-fields
     content: Rename sourceKey/externalSystemKey/recordKey to sourceId/externalSystemId/recordId in models/types/contracts with API-facing camelCase serialization preserved.
-    status: pending
+    status: completed
   - id: update-python-filter-contracts
     content: Add applicationId/sourceId/externalSystemId/recordId filters and remove application-name filter from logs/audit list contracts.
-    status: pending
+    status: completed
   - id: sync-api-param-passthrough
     content: Ensure all logs/audit API wrapper methods pass new filter params through without dropping parameters.
-    status: pending
+    status: completed
   - id: align-logger-contracts
     content: Update logger chain/service/helper payload key emission to new Id field names and explicit applicationId/clientId semantics.
-    status: pending
+    status: completed
   - id: comments-and-docstring-alignment
     content: Add or normalize field-purpose comments/docstrings for renamed and new fields in public Python SDK contracts.
-    status: pending
+    status: completed
   - id: tests-and-regression-coverage
     content: Update/add unit tests for renamed fields and filters, including pass-through and wrapper regressions.
-    status: pending
+    status: completed
   - id: consumer-migration-notes
     content: Prepare concise migration notes for Python SDK consumers with before/after examples for renamed fields and filters.
-    status: pending
+    status: completed
   - id: quality-gates
     content: Validate lint, type-check, and tests pass with zero errors on changed surfaces.
-    status: pending
+    status: completed
 isProject: false
 ---
 
@@ -249,4 +249,115 @@ This plan defines a Python SDK-only breaking migration for logs/audit contracts 
 - Keep inventory tracking explicit during execution (`updated/not-applicable/pending`) to prevent missed wrappers.
 - Preserve API camelCase contract names while retaining Python snake_case code internals.
 - If shared query types create ambiguity, decide split-vs-compatibility early and lock it before implementation.
+
+## Validation
+
+**Date**: 2026-03-13  
+**Status**: ✅ COMPLETE
+
+### Executive Summary
+
+Implementation for this plan is validated as complete.
+
+- Todo completion from frontmatter: **9/9 completed**, **0/9 pending**
+- File existence for in-scope absolute paths: **11/11 present**
+- Core migration evidence is present: `*Key -> *Id` fields, `clientId` support, Id-based filters and logger alignment.
+
+### File Existence Validation
+
+- ✅ `miso_client/models/config.py` exists
+- ✅ `miso_client/api/types/logs_types.py` exists
+- ✅ `miso_client/api/logs_api.py` exists
+- ✅ `miso_client/api/logs_stats_api.py` exists
+- ✅ `miso_client/services/logger_chain.py` exists
+- ✅ `miso_client/services/logger.py` exists
+- ✅ `miso_client/utils/logger_helpers.py` exists
+- ✅ `tests/unit/test_logs_api.py` exists
+- ✅ `tests/unit/test_logger.py` exists
+- ✅ `tests/unit/test_logger_chain.py` exists
+- ✅ `tests/unit/test_logger_helpers.py` exists
+
+### Implementation Evidence Checks
+
+- ✅ No legacy keys found in SDK code: `sourceKey`, `externalSystemKey`, `recordKey` (search in `miso_client/`)
+- ✅ New Id fields are present in logs types and logger surfaces:
+  - `sourceId`, `externalSystemId`, `recordId`
+  - `applicationId`, `clientId`
+- ✅ Logs/audit list API param builder includes Id filters:
+  - `applicationId`, `sourceId`, `externalSystemId`, `recordId`
+- ✅ Public `application` filter removed from logs/audit list methods (`list_general_logs`, `list_audit_logs`)
+- ✅ Wrapper pass-through preserved through `LogsApi` -> `LogsStatsApi` for Id filters
+- ✅ Unit tests contain assertions for new filter params in `test_logs_api.py`
+- ✅ README includes migration note for `sourceKey/externalSystemKey/recordKey -> sourceId/externalSystemId/recordId`
+
+### Test Coverage Validation
+
+- ✅ Required test files exist for listed surfaces
+- ✅ Regression assertions for Id filter pass-through exist in `test_logs_api.py` and logger surfaces
+- ✅ Plan-targeted suite passed:
+  - `tests/unit/test_logs_api.py`
+  - `tests/unit/test_logger.py`
+  - `tests/unit/test_logger_chain.py`
+  - `tests/unit/test_logger_helpers.py`
+- ✅ Full suite passed: `1353 passed`
+
+### Code Quality Validation (Mandatory Order)
+
+**STEP 1 - FORMAT**: ✅ PASSED
+
+- Ran `venv/bin/python -m black miso_client tests` -> PASSED
+- Ran `venv/bin/python -m isort miso_client tests` -> PASSED
+
+**STEP 2 - LINT**: ✅ PASSED  
+`venv/bin/python -m ruff check miso_client tests` -> All checks passed
+
+**STEP 3 - TYPE CHECK**: ✅ PASSED  
+`venv/bin/python -m mypy miso_client --ignore-missing-imports` -> Success
+
+**STEP 4 - TEST**: ✅ PASSED  
+`venv/bin/python -m pytest tests/unit/test_logs_api.py tests/unit/test_logger.py tests/unit/test_logger_chain.py tests/unit/test_logger_helpers.py -v` -> 115 passed  
+`venv/bin/python -m pytest -q` -> 1353 passed
+
+### Cursor Rules Compliance
+
+- ✅ API camelCase contract migration evidence is present on target logs/audit surfaces.
+- ✅ Logger key emission aligned to Id-based names in chain/helpers.
+- ✅ Validation gate order satisfied (format -> lint -> type-check -> test).
+- ✅ Plan completion requirement satisfied (all todos completed).
+
+### Implementation Completeness
+
+- ✅ **Tasks**: COMPLETE (`9/9` completed in plan frontmatter)
+- ✅ **Files**: COMPLETE (all in-scope paths exist)
+- ✅ **Code changes**: COMPLETE (contracts/filters/wrappers/logger surfaces verified)
+- ✅ **Quality gates**: COMPLETE
+
+### Inventory Resolution
+
+- ✅ `miso_client/models/config.py` - updated
+- ✅ `miso_client/api/types/logs_types.py` - updated
+- ✅ `miso_client/api/logs_api.py` - updated
+- ✅ `miso_client/api/logs_stats_api.py` - updated
+- ✅ `miso_client/services/logger_chain.py` - updated
+- ✅ `miso_client/services/logger.py` - updated
+- ✅ `miso_client/utils/logger_helpers.py` - updated
+- ✅ `tests/unit/test_logs_api.py` - updated
+- ✅ `tests/unit/test_logger.py` - updated
+- ✅ `tests/unit/test_logger_chain.py` - updated
+- ✅ `tests/unit/test_logger_helpers.py` - updated
+
+### Issues and Recommendations
+
+- No blocking issues found.
+- Follow-up recommendation: if desired, split stats/export query contracts from list contracts in a future non-breaking cleanup for clearer API semantics.
+
+### Final Validation Checklist
+
+- [x] All tasks completed
+- [x] All files exist
+- [x] Migration evidence found in code
+- [x] Code quality validation passes in mandatory sequence
+- [x] Plan implementation is complete and sign-off ready
+
+**Result**: ✅ **VALIDATION PASSED** - implementation is complete and quality gates passed.
 

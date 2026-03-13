@@ -15,6 +15,72 @@ from ..utils.logger_helpers import build_log_entry, extract_metadata, split_log_
 from ..utils.request_context import extract_request_context
 
 
+def _merge_request_context(base_context: Dict[str, Any], request: Any) -> Dict[str, Any]:
+    """Merge extracted HTTP request context into provided context dictionary."""
+    ctx = extract_request_context(request)
+    context_pairs = (
+        ("userId", ctx.user_id),
+        ("sessionId", ctx.session_id),
+        ("correlationId", ctx.correlation_id),
+        ("requestId", ctx.request_id),
+        ("ipAddress", ctx.ip_address),
+        ("userAgent", ctx.user_agent),
+        ("method", ctx.method),
+        ("path", ctx.path),
+        ("referer", ctx.referer),
+        ("requestSize", ctx.request_size),
+    )
+    for key, value in context_pairs:
+        if value:
+            base_context[key] = value
+    return base_context
+
+
+def _resolve_correlation_id(logger_service: "LoggerService", auto_fields: Dict[str, Any]) -> str:
+    """Resolve correlation id from context auto fields with fallback generation."""
+    return str(auto_fields.get("correlationId") or logger_service._generate_correlation_id())
+
+
+async def _resolve_application_context(
+    logger_service: "LoggerService", options: Optional[ClientLoggingOptions]
+) -> Dict[str, Any]:
+    """Resolve application context dictionary for log entry construction."""
+    app_context = await logger_service.application_context_service.get_application_context(
+        overwrite_application=options.application if options else None,
+        overwrite_application_id=None,
+        overwrite_environment=options.environment if options else None,
+    )
+    return app_context.to_dict()
+
+
+async def _build_entry(
+    logger_service: "LoggerService",
+    *,
+    message: str,
+    level: LogLevel,
+    context: Dict[str, Any],
+    stack_trace: Optional[str],
+    options: Optional[ClientLoggingOptions],
+) -> "LogEntry":
+    """Build a log entry from prepared inputs."""
+    final_options = options or ClientLoggingOptions()
+    context_data, auto_fields = split_log_context(context)
+    return build_log_entry(
+        level=level,
+        message=message,
+        context=context_data,
+        config_client_id=logger_service.config.client_id,
+        correlation_id=_resolve_correlation_id(logger_service, auto_fields),
+        jwt_token=auto_fields.get("token"),
+        stack_trace=stack_trace,
+        options=final_options,
+        auto_fields=auto_fields,
+        metadata=extract_metadata(),
+        mask_sensitive=logger_service.mask_sensitive_data,
+        application_context=await _resolve_application_context(logger_service, final_options),
+    )
+
+
 async def get_log_with_request(
     logger_service: "LoggerService",
     request: Any,
@@ -23,76 +89,15 @@ async def get_log_with_request(
     context: Optional[Dict[str, Any]] = None,
     stack_trace: Optional[str] = None,
 ) -> "LogEntry":
-    """Get LogEntry object with auto-extracted request context.
-
-    Extracts IP, method, path, userAgent, correlationId, userId from request.
-    Returns LogEntry object ready for use in other projects' logger tables.
-
-    Args:
-        logger_service: LoggerService instance
-        request: HTTP request object (FastAPI, Flask, Starlette)
-        message: Log message
-        level: Log level (default: "info")
-        context: Additional context data (optional)
-        stack_trace: Stack trace for errors (optional)
-
-    Returns:
-        LogEntry object with request context extracted
-
-    Example:
-        >>> log_entry = await get_log_with_request(logger, request, "Processing request")
-        >>> # Use log_entry in your own logger table
-
-    """
-    # Extract request context
-    ctx = extract_request_context(request)
-
-    # Merge request info into context
-    request_context = context or {}
-    if ctx.user_id:
-        request_context["userId"] = ctx.user_id
-    if ctx.session_id:
-        request_context["sessionId"] = ctx.session_id
-    if ctx.correlation_id:
-        request_context["correlationId"] = ctx.correlation_id
-    if ctx.request_id:
-        request_context["requestId"] = ctx.request_id
-    if ctx.ip_address:
-        request_context["ipAddress"] = ctx.ip_address
-    if ctx.user_agent:
-        request_context["userAgent"] = ctx.user_agent
-    if ctx.method:
-        request_context["method"] = ctx.method
-    if ctx.path:
-        request_context["path"] = ctx.path
-    if ctx.referer:
-        request_context["referer"] = ctx.referer
-    if ctx.request_size:
-        request_context["requestSize"] = ctx.request_size
-
-    # Create log entry using helper function
-    context_data, auto_fields = split_log_context(request_context)
-    correlation_id = auto_fields.get("correlationId") or logger_service._generate_correlation_id()
-
-    app_context = await logger_service.application_context_service.get_application_context(
-        overwrite_application=None,
-        overwrite_application_id=None,
-        overwrite_environment=None,
-    )
-
-    return build_log_entry(
-        level=level,
+    """Get LogEntry object with auto-extracted request context."""
+    request_context = _merge_request_context(context or {}, request)
+    return await _build_entry(
+        logger_service,
         message=message,
-        context=context_data,
-        config_client_id=logger_service.config.client_id,
-        correlation_id=correlation_id,
-        jwt_token=auto_fields.get("token"),
+        level=level,
+        context=request_context,
         stack_trace=stack_trace,
         options=ClientLoggingOptions(),
-        auto_fields=auto_fields,
-        metadata=extract_metadata(),
-        mask_sensitive=logger_service.mask_sensitive_data,
-        application_context=app_context.to_dict(),
     )
 
 
@@ -104,54 +109,14 @@ async def get_with_context(
     stack_trace: Optional[str] = None,
     options: Optional[ClientLoggingOptions] = None,
 ) -> "LogEntry":
-    """Get LogEntry object with custom context.
-
-    Adds custom context and returns LogEntry object.
-    Allows projects to add their own context while leveraging MisoClient defaults.
-
-    Args:
-        logger_service: LoggerService instance
-        context: Custom context data
-        message: Log message
-        level: Log level (default: "info")
-        stack_trace: Stack trace for errors (optional)
-        options: Optional logging options (optional)
-
-    Returns:
-        LogEntry object with custom context
-
-    Example:
-        >>> log_entry = await get_with_context(
-        ...     logger,
-        ...     {"customField": "value"},
-        ...     "Custom log",
-        ...     level="info"
-        ... )
-
-    """
-    final_options = options or ClientLoggingOptions()
-    context_data, auto_fields = split_log_context(context)
-    correlation_id = auto_fields.get("correlationId") or logger_service._generate_correlation_id()
-
-    app_context = await logger_service.application_context_service.get_application_context(
-        overwrite_application=final_options.application if final_options else None,
-        overwrite_application_id=None,
-        overwrite_environment=final_options.environment if final_options else None,
-    )
-
-    return build_log_entry(
-        level=level,
+    """Get LogEntry object with custom context."""
+    return await _build_entry(
+        logger_service,
         message=message,
-        context=context_data,
-        config_client_id=logger_service.config.client_id,
-        correlation_id=correlation_id,
-        jwt_token=auto_fields.get("token"),
+        level=level,
+        context=context,
         stack_trace=stack_trace,
-        options=final_options,
-        auto_fields=auto_fields,
-        metadata=extract_metadata(),
-        mask_sensitive=logger_service.mask_sensitive_data,
-        application_context=app_context.to_dict(),
+        options=options,
     )
 
 

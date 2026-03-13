@@ -43,37 +43,25 @@ class DataMasker:
     _sensitive_fields: Optional[Set[str]] = None
     _config_loaded: bool = False
 
+    @staticmethod
+    def _normalize_sensitive_field_name(field: str) -> str:
+        """Normalize sensitive field names for comparison."""
+        return field.lower().replace("_", "").replace("-", "")
+
     @classmethod
     def _load_config(cls, config_path: Optional[str] = None) -> None:
-        """Load sensitive fields configuration from JSON and merge with hardcoded defaults.
-
-        This method is called automatically on first use. It loads JSON configuration
-        and merges it with hardcoded defaults, ensuring backward compatibility.
-
-        Args:
-            config_path: Optional custom path to JSON config file
-
-        """
+        """Load JSON sensitive fields config and merge with defaults."""
         if cls._config_loaded:
             return
-
-        # Start with hardcoded fields as base
         merged_fields = set(cls._hardcoded_sensitive_fields)
-
         try:
-            # Try to load fields from JSON configuration
             json_fields = get_sensitive_fields_array(config_path)
             if json_fields:
-                # Normalize and add JSON fields (same normalization as hardcoded fields)
                 for field in json_fields:
                     if isinstance(field, str):
-                        # Normalize: lowercase and remove underscores/hyphens
-                        normalized = field.lower().replace("_", "").replace("-", "")
-                        merged_fields.add(normalized)
+                        merged_fields.add(cls._normalize_sensitive_field_name(field))
         except Exception:
-            # If JSON loading fails, fall back to hardcoded fields only
             pass
-
         cls._sensitive_fields = merged_fields
         cls._config_loaded = True
 
@@ -117,21 +105,13 @@ class DataMasker:
             True if field is sensitive, False otherwise
 
         """
-        # Normalize key: lowercase and remove underscores/hyphens
-        normalized_key = key.lower().replace("_", "").replace("-", "")
-
-        # Get sensitive fields (loads config on first use)
+        normalized_key = cls._normalize_sensitive_field_name(key)
         sensitive_fields = cls._get_sensitive_fields()
-
-        # Check exact match
         if normalized_key in sensitive_fields:
             return True
-
-        # Check if field contains sensitive keywords
         for sensitive_field in sensitive_fields:
             if sensitive_field in normalized_key:
                 return True
-
         return False
 
     @classmethod
@@ -148,31 +128,25 @@ class DataMasker:
             Masked copy of the data
 
         """
-        # Handle null and undefined
         if data is None:
             return data
-
-        # Handle primitives (string, number, boolean)
         if not isinstance(data, (dict, list)):
             return data
-
-        # Handle arrays
         if isinstance(data, list):
             return [cls.mask_sensitive_data(item) for item in data]
+        return cls._mask_dict_values(data)
 
-        # Handle objects/dicts
+    @classmethod
+    def _mask_dict_values(cls, data: dict[str, Any]) -> dict[str, Any]:
+        """Mask sensitive fields in dictionary values recursively."""
         masked: dict[str, Any] = {}
         for key, value in data.items():
             if cls.is_sensitive_field(key):
-                # Mask sensitive field
                 masked[key] = cls.MASKED_VALUE
             elif isinstance(value, (dict, list)):
-                # Recursively mask nested objects
                 masked[key] = cls.mask_sensitive_data(value)
             else:
-                # Keep non-sensitive value as-is
                 masked[key] = value
-
         return masked
 
     @classmethod

@@ -4,7 +4,7 @@ This module provides reusable filter utilities for parsing filter parameters,
 building query strings, and applying filters to arrays.
 """
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Tuple, cast
 from urllib.parse import parse_qs, quote, urlparse
 
 if TYPE_CHECKING:
@@ -14,54 +14,127 @@ from ..models.filter import FilterOption, FilterQuery, JsonFilter
 from .filter_applier import apply_filters  # noqa: F401
 from .filter_parser import parse_filter_params  # noqa: F401
 
+VALID_FILTER_OPERATORS = {
+    "eq",
+    "neq",
+    "in",
+    "nin",
+    "gt",
+    "lt",
+    "gte",
+    "lte",
+    "contains",
+    "like",
+    "ilike",
+    "isNull",
+    "isNotNull",
+}
+
+
+def _build_filter_query_part(filter_option: FilterOption) -> str:
+    """Build a single filter query segment."""
+    field_encoded = quote(filter_option.field)
+    if filter_option.op in ("isNull", "isNotNull"):
+        return f"filter={field_encoded}:{filter_option.op}"
+
+    if isinstance(filter_option.value, list):
+        value_str = ",".join(quote(str(v)) for v in filter_option.value)
+    elif filter_option.value is not None:
+        value_str = quote(str(filter_option.value))
+    else:
+        value_str = ""
+    return f"filter={field_encoded}:{filter_option.op}:{value_str}"
+
+
+def _parse_optional_int(params: Dict[str, Any], key: str) -> Optional[int]:
+    """Parse optional integer value from parsed query params."""
+    if key not in params:
+        return None
+    raw_value = params[key][0] if isinstance(params[key], list) else params[key]
+    try:
+        return int(raw_value)
+    except (ValueError, TypeError):
+        return None
+
+
+def _parse_sort(params: Dict[str, Any]) -> Optional[List[str]]:
+    """Parse sort list from query params."""
+    if "sort" not in params:
+        return None
+    sort_values = params["sort"]
+    if isinstance(sort_values, list):
+        return [value for value in sort_values if isinstance(value, str)]
+    if isinstance(sort_values, str):
+        return [sort_values]
+    return None
+
+
+def _parse_fields(params: Dict[str, Any]) -> Optional[List[str]]:
+    """Parse fields selector list from query params."""
+    if "fields" not in params:
+        return None
+    fields_raw = params["fields"][0] if isinstance(params["fields"], list) else params["fields"]
+    if not isinstance(fields_raw, str):
+        return None
+    fields = [field.strip() for field in fields_raw.split(",") if field.strip()]
+    return fields or None
+
+
+def _validate_group_structure(group: Any) -> bool:
+    """Validate one logical group structure (including nested groups)."""
+    if not isinstance(group, dict):
+        return False
+    if "operator" not in group or group["operator"] not in ["and", "or"]:
+        return False
+
+    if "filters" in group and group["filters"] is not None:
+        if not isinstance(group["filters"], list):
+            return False
+        for filter_option in group["filters"]:
+            if not validate_filter_option(filter_option):
+                return False
+
+    if "groups" in group and group["groups"] is not None:
+        if not isinstance(group["groups"], list):
+            return False
+        for nested_group in group["groups"]:
+            if not isinstance(nested_group, dict):
+                return False
+            if "operator" not in nested_group:
+                return False
+    return True
+
+
+def _validate_string_list(value: Any) -> bool:
+    """Return True when value is a list[str]."""
+    return isinstance(value, list) and all(isinstance(item, str) for item in value)
+
+
+def _validate_filters_payload(value: Any) -> bool:
+    """Validate top-level filters payload list."""
+    if value is None:
+        return True
+    if not isinstance(value, list):
+        return False
+    return all(validate_filter_option(filter_option) for filter_option in value)
+
+
+def _validate_groups_payload(value: Any) -> bool:
+    """Validate top-level groups payload list."""
+    if value is None:
+        return True
+    if not isinstance(value, list):
+        return False
+    return all(_validate_group_structure(group) for group in value)
+
 
 def build_query_string(filter_query: FilterQuery) -> str:
-    """Convert FilterQuery object to query string.
-
-    Builds query string with filter, sort, page, pageSize, and fields parameters.
-
-    Args:
-        filter_query: FilterQuery object with filters, sort, pagination, and fields
-
-    Returns:
-        Query string (e.g., '?filter=status:eq:active&page=1&pageSize=25&sort=-updated_at')
-
-    Examples:
-        >>> from miso_client.models.filter import FilterQuery, FilterOption
-        >>> query = FilterQuery(
-        ...     filters=[FilterOption(field='status', op='eq', value='active')],
-        ...     page=1,
-        ...     pageSize=25
-        ... )
-        >>> build_query_string(query)
-        'filter=status:eq:active&page=1&pageSize=25'
-
-    """
+    """Convert FilterQuery object to query string."""
     query_parts: List[str] = []
 
-    # Add filters
     if filter_query.filters:
         for filter_option in filter_query.filters:
-            # URL encode field
-            field_encoded = quote(filter_option.field)
-
-            # Handle null check operators (no value needed)
-            if filter_option.op in ("isNull", "isNotNull"):
-                query_parts.append(f"filter={field_encoded}:{filter_option.op}")
-            else:
-                # Format value for query string
-                if isinstance(filter_option.value, list):
-                    # For arrays (in/nin), join with commas (don't encode the comma delimiter)
-                    # URL encode each value individually, then join with comma
-                    value_parts = [quote(str(v)) for v in filter_option.value]
-                    value_str = ",".join(value_parts)
-                elif filter_option.value is not None:
-                    value_str = quote(str(filter_option.value))
-                else:
-                    # Value is None but operator requires value - skip or use empty string
-                    value_str = ""
-
-                query_parts.append(f"filter={field_encoded}:{filter_option.op}:{value_str}")
+            query_parts.append(_build_filter_query_part(filter_option))
 
     # Add sort
     if filter_query.sort:
@@ -171,77 +244,23 @@ def query_string_to_json_filter(query_string: str) -> JsonFilter:
         'status'
 
     """
-    # Remove leading ? if present
     if query_string.startswith("?"):
         query_string = query_string[1:]
 
-    # Parse query string
     parsed = urlparse(f"?{query_string}")
     params = parse_qs(parsed.query)
-
-    # Parse filters
     filters = parse_filter_params(params)
-
-    # Parse sort
-    sort: Optional[List[str]] = None
-    if "sort" in params:
-        sort_list = params["sort"]
-        if isinstance(sort_list, list):
-            sort = [s for s in sort_list if isinstance(s, str)]
-        elif isinstance(sort_list, str):
-            sort = [sort_list]
-
-    # Parse pagination
-    page: Optional[int] = None
-    if "page" in params:
-        page_str = params["page"][0] if isinstance(params["page"], list) else params["page"]
-        try:
-            page = int(page_str)
-        except (ValueError, TypeError):
-            pass
-
-    page_size: Optional[int] = None
-    if "pageSize" in params:
-        page_size_str = (
-            params["pageSize"][0] if isinstance(params["pageSize"], list) else params["pageSize"]
-        )
-        try:
-            page_size = int(page_size_str)
-        except (ValueError, TypeError):
-            pass
-
-    # Parse fields
-    fields: Optional[List[str]] = None
-    if "fields" in params:
-        fields_str = params["fields"][0] if isinstance(params["fields"], list) else params["fields"]
-        if isinstance(fields_str, str):
-            fields = [f.strip() for f in fields_str.split(",") if f.strip()]
-
     return JsonFilter(
         filters=filters if filters else None,
-        sort=sort,
-        page=page,
-        pageSize=page_size,
-        fields=fields,
+        sort=_parse_sort(params),
+        page=_parse_optional_int(params, "page"),
+        pageSize=_parse_optional_int(params, "pageSize"),
+        fields=_parse_fields(params),
     )
 
 
 def validate_filter_option(option: Dict[str, Any]) -> bool:
-    """Validate single filter option structure.
-
-    Args:
-        option: Dictionary with filter option data
-
-    Returns:
-        True if valid, False otherwise
-
-    Examples:
-        >>> validate_filter_option({'field': 'status', 'op': 'eq', 'value': 'active'})
-        True
-        >>> validate_filter_option({'field': 'status'})  # Missing op/value
-        False
-
-    """
+    """Validate single filter option structure."""
     if not isinstance(option, dict):
         return False
 
@@ -249,23 +268,7 @@ def validate_filter_option(option: Dict[str, Any]) -> bool:
     if "field" not in option or "op" not in option:
         return False
 
-    # Validate operator
-    valid_operators = [
-        "eq",
-        "neq",
-        "in",
-        "nin",
-        "gt",
-        "lt",
-        "gte",
-        "lte",
-        "contains",
-        "like",
-        "ilike",
-        "isNull",
-        "isNotNull",
-    ]
-    if option["op"] not in valid_operators:
+    if option["op"] not in VALID_FILTER_OPERATORS:
         return False
 
     # Value is optional for null check operators
@@ -280,89 +283,36 @@ def validate_filter_option(option: Dict[str, Any]) -> bool:
 
 
 def validate_json_filter(json_data: Dict[str, Any]) -> bool:
-    """Validate JSON filter structure.
-
-    Args:
-        json_data: Dictionary with filter data
-
-    Returns:
-        True if valid, False otherwise
-
-    Examples:
-        >>> json_data = {
-        ...     'filters': [{'field': 'status', 'op': 'eq', 'value': 'active'}],
-        ...     'page': 1,
-        ...     'pageSize': 25
-        ... }
-        >>> validate_json_filter(json_data)
-        True
-
-    """
+    """Validate JSON filter structure."""
     if not isinstance(json_data, dict):
         return False
 
-    # Validate filters if present
-    if "filters" in json_data and json_data["filters"] is not None:
-        if not isinstance(json_data["filters"], list):
-            return False
-        for filter_option in json_data["filters"]:
-            if not validate_filter_option(filter_option):
-                return False
+    if not _validate_filters_payload(json_data.get("filters")):
+        return False
+    if not _validate_groups_payload(json_data.get("groups")):
+        return False
 
-    # Validate groups if present
-    if "groups" in json_data and json_data["groups"] is not None:
-        if not isinstance(json_data["groups"], list):
-            return False
-        for group in json_data["groups"]:
-            if not isinstance(group, dict):
-                return False
-            if "operator" not in group:
-                return False
-            if group["operator"] not in ["and", "or"]:
-                return False
-            # Validate filters in group
-            if "filters" in group and group["filters"] is not None:
-                if not isinstance(group["filters"], list):
-                    return False
-                for filter_option in group["filters"]:
-                    if not validate_filter_option(filter_option):
-                        return False
-            # Validate nested groups recursively
-            if "groups" in group and group["groups"] is not None:
-                if not isinstance(group["groups"], list):
-                    return False
-                for nested_group in group["groups"]:
-                    if not isinstance(nested_group, dict):
-                        return False
-                    # Recursive validation (simplified - just check structure)
-                    if "operator" not in nested_group:
-                        return False
+    if (
+        "sort" in json_data
+        and json_data["sort"] is not None
+        and not _validate_string_list(json_data["sort"])
+    ):
+        return False
 
-    # Validate sort if present
-    if "sort" in json_data and json_data["sort"] is not None:
-        if not isinstance(json_data["sort"], list):
-            return False
-        for sort_item in json_data["sort"]:
-            if not isinstance(sort_item, str):
-                return False
-
-    # Validate page if present
     if "page" in json_data and json_data["page"] is not None:
         if not isinstance(json_data["page"], int):
             return False
 
-    # Validate pageSize if present
     if "pageSize" in json_data and json_data["pageSize"] is not None:
         if not isinstance(json_data["pageSize"], int):
             return False
 
-    # Validate fields if present
-    if "fields" in json_data and json_data["fields"] is not None:
-        if not isinstance(json_data["fields"], list):
-            return False
-        for field in json_data["fields"]:
-            if not isinstance(field, str):
-                return False
+    if (
+        "fields" in json_data
+        and json_data["fields"] is not None
+        and not _validate_string_list(json_data["fields"])
+    ):
+        return False
 
     return True
 
@@ -398,31 +348,18 @@ def validate_filter_with_schema(
 def coerce_filter_value(
     value: Any, field_type: str, enum_values: Optional[List[str]] = None
 ) -> Tuple[Any, Optional["FilterError"]]:
-    """Coerce and validate a filter value based on field type.
-
-    Convenience wrapper around filter_schema.coerce_value().
-
-    Args:
-        value: Value to coerce and validate
-        field_type: Field type (string, number, boolean, uuid, timestamp, enum)
-        enum_values: Optional list of enum values (required if type is "enum")
-
-    Returns:
-        Tuple of (coerced_value, error). If valid, error is None.
-
-    Examples:
-        >>> coerced, error = coerce_filter_value("25", "number")
-        >>> print(coerced)  # 25 (int)
-
-    """
-    from typing import Literal, cast
-
+    """Coerce and validate a filter value based on field type."""
     from ..models.filter_schema import FilterFieldDefinition
     from .filter_schema import coerce_value
 
+    valid_types = {"string", "number", "boolean", "uuid", "timestamp", "enum"}
+    normalized_type = field_type if field_type in valid_types else "string"
     field_def = FilterFieldDefinition(
         column="temp",
-        type=cast(Literal["string", "number", "boolean", "uuid", "timestamp", "enum"], field_type),
+        type=cast(
+            Literal["string", "number", "boolean", "uuid", "timestamp", "enum"],
+            normalized_type,
+        ),
         operators=["eq"],
         enum=enum_values,
     )

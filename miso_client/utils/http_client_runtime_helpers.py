@@ -62,9 +62,8 @@ def create_logging_task(
     request_data: Optional[Dict[str, Any]],
     request_headers: Dict[str, Any],
 ) -> None:
-    """Create and track a non-blocking HTTP logging task."""
     task = asyncio.create_task(
-        log_http_request(
+        _build_log_http_request_coroutine(
             logger,
             config,
             jwt_cache,
@@ -80,6 +79,33 @@ def create_logging_task(
     task.add_done_callback(handle_logging_task_error)
     logging_tasks.add(task)
     task.add_done_callback(logging_tasks.discard)
+
+
+async def _build_log_http_request_coroutine(
+    logger: LoggerService,
+    config: MisoClientConfig,
+    jwt_cache: JwtTokenCache,
+    method: str,
+    url: str,
+    response: Any,
+    error: Optional[Exception],
+    start_time: float,
+    request_data: Optional[Dict[str, Any]],
+    request_headers: Dict[str, Any],
+) -> None:
+    """Build coroutine for HTTP request logging execution."""
+    await log_http_request(
+        logger,
+        config,
+        jwt_cache,
+        method,
+        url,
+        response,
+        error,
+        start_time,
+        request_data,
+        request_headers,
+    )
 
 
 async def wait_pending_logging_tasks(logging_tasks: Set[asyncio.Task[Any]], timeout: float) -> None:

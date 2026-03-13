@@ -9,102 +9,80 @@ from urllib.parse import unquote
 
 from ..models.filter import FilterOperator, FilterOption
 
+VALID_OPERATORS = {
+    "eq",
+    "neq",
+    "in",
+    "nin",
+    "gt",
+    "lt",
+    "gte",
+    "lte",
+    "contains",
+    "like",
+    "ilike",
+    "isNull",
+    "isNotNull",
+}
+
+
+def _normalize_filter_strings(filter_param: Any) -> List[str]:
+    """Normalize raw filter parameter into a list of strings."""
+    if isinstance(filter_param, str):
+        return [filter_param]
+    if isinstance(filter_param, list):
+        return [item for item in filter_param if isinstance(item, str)]
+    return []
+
+
+def _parse_single_value(value_str: str) -> Union[str, int, float, bool]:
+    """Parse scalar value as int/float/bool when possible."""
+    try:
+        return int(value_str) if "." not in value_str else float(value_str)
+    except (ValueError, TypeError):
+        if value_str.lower() in ("true", "false"):
+            return value_str.lower() == "true"
+        return value_str
+
+
+def _parse_filter_value(
+    op: str, value_str: str
+) -> Optional[Union[str, int, float, bool, List[Any]]]:
+    """Parse filter value according to operator semantics."""
+    if op in ("isNull", "isNotNull"):
+        return None
+    if op in ("in", "nin"):
+        return [v.strip() for v in value_str.split(",") if v.strip()]
+    return _parse_single_value(value_str)
+
+
+def _parse_filter_option(filter_str: str) -> Optional[FilterOption]:
+    """Parse one filter expression string into FilterOption."""
+    parts = filter_str.split(":", 2)
+    if len(parts) < 2:
+        return None
+
+    field = unquote(parts[0].strip())
+    op = parts[1].strip()
+    if op not in VALID_OPERATORS:
+        return None
+
+    value_str = unquote(parts[2].strip()) if len(parts) > 2 else ""
+    value = _parse_filter_value(op, value_str)
+    return FilterOption(field=field, op=cast(FilterOperator, op), value=value)
+
 
 def parse_filter_params(params: dict) -> List[FilterOption]:
-    """Parse filter query parameters into FilterOption list.
-
-    Parses `?filter=field:op:value` format into FilterOption objects.
-    Supports multiple filter parameters (array of filter strings).
-
-    Args:
-        params: Query parameters dict (e.g., {'filter': ['status:eq:active']})
-
-    Returns:
-        List of FilterOption objects
-
-    Examples:
-        >>> parse_filter_params({'filter': ['status:eq:active']})
-        [FilterOption(field='status', op='eq', value='active')]
-        >>> parse_filter_params({'filter': ['region:in:eu,us']})
-        [FilterOption(field='region', op='in', value=['eu', 'us'])]
-
-    """
+    """Parse query filter parameters into FilterOption list."""
     filters: List[FilterOption] = []
 
-    # Get filter parameter (can be string or list)
     filter_param = params.get("filter") or params.get("filters")
     if not filter_param:
         return filters
 
-    # Normalize to list
-    if isinstance(filter_param, str):
-        filter_strings = [filter_param]
-    elif isinstance(filter_param, list):
-        filter_strings = filter_param
-    else:
-        return filters
-
-    # Parse each filter string
-    for filter_str in filter_strings:
-        if not isinstance(filter_str, str):
-            continue
-
-        # Split by colon (field:op:value)
-        # For isNull/isNotNull, value part may be empty or missing
-        parts = filter_str.split(":", 2)
-        if len(parts) < 2:
-            continue  # Skip invalid filter format
-
-        field = unquote(parts[0].strip())
-        op = parts[1].strip()
-        value_str = unquote(parts[2].strip()) if len(parts) > 2 else ""
-
-        # Validate operator
-        valid_operators = [
-            "eq",
-            "neq",
-            "in",
-            "nin",
-            "gt",
-            "lt",
-            "gte",
-            "lte",
-            "contains",
-            "like",
-            "ilike",
-            "isNull",
-            "isNotNull",
-        ]
-        if op not in valid_operators:
-            continue  # Skip invalid operator
-
-        # Parse value based on operator
-        parsed_value: Optional[Union[str, int, float, bool, List[Any]]] = None
-        if op in ("isNull", "isNotNull"):
-            # Null check operators don't need values
-            parsed_value = None
-        elif op in ("in", "nin"):
-            # Array values: comma-separated
-            parsed_value = [v.strip() for v in value_str.split(",") if v.strip()]
-        else:
-            # Single value: try to parse as number/boolean, fallback to string
-            single_value: Union[str, int, float, bool] = value_str
-            # Try to parse as integer
-            try:
-                if "." not in value_str:
-                    single_value = int(value_str)
-                else:
-                    single_value = float(value_str)
-            except (ValueError, TypeError):
-                # Try boolean
-                if value_str.lower() in ("true", "false"):
-                    single_value = value_str.lower() == "true"
-                else:
-                    single_value = value_str
-            parsed_value = single_value
-
-        value = parsed_value
-
-        filters.append(FilterOption(field=field, op=cast(FilterOperator, op), value=value))
+    for filter_str in _normalize_filter_strings(filter_param):
+        parsed = _parse_filter_option(filter_str)
+        if parsed is not None:
+            filters.append(parsed)
 
     return filters

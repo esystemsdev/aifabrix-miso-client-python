@@ -37,39 +37,22 @@ def set_default_logger_service(logger_service: LoggerService) -> None:
     _default_logger_service = logger_service
 
 
+def _resolve_logger_service(logger_service: Optional[LoggerService]) -> LoggerService:
+    """Resolve provided logger service or fallback to configured default."""
+    if logger_service is not None:
+        return logger_service
+    if _default_logger_service is not None:
+        return _default_logger_service
+    raise RuntimeError(
+        "No logger service available. Either provide logger_service parameter "
+        "or call set_default_logger_service() during MisoClient initialization."
+    )
+
+
 def get_logger(logger_service: Optional[LoggerService] = None) -> UnifiedLogger:
-    """Get logger instance with automatic context detection from contextvars.
-
-    Returns a UnifiedLogger instance that automatically extracts context
-    from contextvars, eliminating the need to manually pass Request objects.
-
-    Args:
-        logger_service: Optional LoggerService instance. If not provided,
-            uses the default logger service set via set_default_logger_service().
-            If no default is set, raises RuntimeError.
-
-    Returns:
-        UnifiedLogger instance
-
-    Raises:
-        RuntimeError: If no logger_service provided and no default is set
-
-    Example:
-        >>> from miso_client import get_logger
-        >>> logger = get_logger()
-        >>> await logger.info("Message")  # Auto-extracts context
-
-    """
-    if logger_service is None:
-        if _default_logger_service is None:
-            raise RuntimeError(
-                "No logger service available. Either provide logger_service parameter "
-                "or call set_default_logger_service() during MisoClient initialization."
-            )
-        logger_service = _default_logger_service
-
+    """Get logger instance with automatic context detection from contextvars."""
     context_storage = LoggerContextStorage()
-    return UnifiedLogger(logger_service, context_storage)
+    return UnifiedLogger(_resolve_logger_service(logger_service), context_storage)
 
 
 # Re-export context management functions for convenience

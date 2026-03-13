@@ -116,18 +116,30 @@ class UnifiedLogger:
         """
         try:
             context, options = self._build_context_and_options()
-            audit_context = {
-                **context,
-                "entityId": entity_id or "unknown",
-                "oldValues": old_values,
-                "newValues": new_values,
-            }
+            audit_context = self._build_audit_context(
+                context, entity_id=entity_id, old_values=old_values, new_values=new_values
+            )
             await self.logger_service.audit(
                 action, resource, context=audit_context, options=options
             )
         except Exception:
             # Error handling in logger should be silent (catch and swallow)
             pass
+
+    @staticmethod
+    def _build_audit_context(
+        context: Dict[str, Any],
+        entity_id: Optional[str],
+        old_values: Optional[Dict[str, Any]],
+        new_values: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Build audit context payload."""
+        return {
+            **context,
+            "entityId": entity_id or "unknown",
+            "oldValues": old_values,
+            "newValues": new_values,
+        }
 
     def _get_context(self) -> Dict[str, Any]:
         """Get current context from contextvars.

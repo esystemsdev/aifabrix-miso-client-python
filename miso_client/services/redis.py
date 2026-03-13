@@ -35,6 +35,24 @@ class RedisService:
         self.redis: Optional[redis.Redis] = None
         self.connected = False
 
+    def _build_redis_client(self) -> redis.Redis:
+        """Create configured Redis client instance."""
+        assert self.config is not None
+        return redis.Redis(
+            host=self.config.host,
+            port=self.config.port,
+            password=self.config.password,
+            db=self.config.db,
+            decode_responses=True,
+            socket_connect_timeout=5,
+            socket_timeout=5,
+        )
+
+    async def _await_maybe(self, value: object) -> None:
+        """Await value when it is awaitable."""
+        if hasattr(value, "__await__"):
+            await value  # type: ignore[misc]
+
     async def connect(self) -> None:
         """Connect to Redis.
 
@@ -45,26 +63,11 @@ class RedisService:
         if not self.config:
             logger.info("Redis not configured, using controller fallback")
             return
-
         try:
-            self.redis = redis.Redis(
-                host=self.config.host,
-                port=self.config.port,
-                password=self.config.password,
-                db=self.config.db,
-                decode_responses=True,
-                socket_connect_timeout=5,
-                socket_timeout=5,
-            )
-
-            # Test connection
-            # Some redis stubs type ping as possibly non-awaitable; support both
-            resp = self.redis.ping()
-            if hasattr(resp, "__await__"):
-                await resp  # type: ignore[misc]
+            self.redis = self._build_redis_client()
+            await self._await_maybe(self.redis.ping())
             self.connected = True
             logger.info("Connected to Redis")
-
         except Exception as error:
             logger.error(
                 f"Failed to connect to Redis: {error}",
@@ -72,7 +75,7 @@ class RedisService:
                 extra=_error_extra(error),
             )
             self.connected = False
-            if self.config:  # Only raise if Redis was configured
+            if self.config:
                 raise error
 
     async def disconnect(self) -> None:

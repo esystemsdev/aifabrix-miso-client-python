@@ -92,6 +92,37 @@ class CacheService:
             # If JSON parsing fails, assume it's a plain string
             return value_str
 
+    async def _get_from_redis(self, key: str) -> Optional[Any]:
+        """Get cache value from Redis when available."""
+        if not (self.redis and self.redis.is_connected()):
+            return None
+        try:
+            cached_value = await self.redis.get(key)
+            if cached_value is not None:
+                return self._deserialize_value(cached_value)
+        except Exception:
+            return None
+        return None
+
+    def _get_from_memory(self, key: str) -> Optional[Any]:
+        """Get cache value from in-memory store with TTL checks."""
+        if key not in self._memory_cache:
+            return None
+        value, expiration = self._memory_cache[key]
+        if not self._is_expired(expiration):
+            return value
+        del self._memory_cache[key]
+        return None
+
+    async def _set_to_redis(self, key: str, serialized_value: str, ttl: int) -> bool:
+        """Set cache value to Redis if connected."""
+        if not (self.redis and self.redis.is_connected()):
+            return False
+        try:
+            return await self.redis.set(key, serialized_value, ttl)
+        except Exception:
+            return False
+
     async def get(self, key: str) -> Optional[Any]:
         """Get cached value.
 
@@ -104,26 +135,10 @@ class CacheService:
             Cached value if found, None otherwise
 
         """
-        # Try Redis first if available and connected
-        if self.redis and self.redis.is_connected():
-            try:
-                cached_value = await self.redis.get(key)
-                if cached_value is not None:
-                    return self._deserialize_value(cached_value)
-            except Exception:
-                # Redis operation failed, fall through to memory cache
-                pass
-
-        # Fallback to in-memory cache
-        if key in self._memory_cache:
-            value, expiration = self._memory_cache[key]
-            if not self._is_expired(expiration):
-                return value
-            else:
-                # Entry expired, remove it
-                del self._memory_cache[key]
-
-        return None
+        redis_value = await self._get_from_redis(key)
+        if redis_value is not None:
+            return redis_value
+        return self._get_from_memory(key)
 
     async def set(self, key: str, value: Any, ttl: int) -> bool:
         """Set cached value with TTL.
@@ -140,24 +155,11 @@ class CacheService:
 
         """
         serialized_value = self._serialize_value(value)
-        success = False
-
-        # Store in Redis if available
-        if self.redis and self.redis.is_connected():
-            try:
-                success = await self.redis.set(key, serialized_value, ttl)
-            except Exception:
-                # Redis operation failed, continue to memory cache
-                pass
-
-        # Also store in memory cache
+        success = await self._set_to_redis(key, serialized_value, ttl)
         expiration = time.time() + ttl
         self._memory_cache[key] = (value, expiration)
-
-        # Cleanup expired entries periodically
         self._cleanup_expired()
-
-        return success or True  # Return True if at least memory cache succeeded
+        return success or True
 
     async def delete(self, key: str) -> bool:
         """Delete cached value.

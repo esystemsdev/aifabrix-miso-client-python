@@ -33,6 +33,44 @@ class LoggerChain:
         self.context = context or {}
         self.options = options or ClientLoggingOptions()
 
+    def _ensure_options(self) -> ClientLoggingOptions:
+        """Ensure logging options instance exists and return it."""
+        if self.options is None:
+            self.options = ClientLoggingOptions()
+        return self.options
+
+    def _merge_request_auto_fields(self, ctx: Any) -> None:
+        """Merge auto-computable request fields into chain context."""
+        field_pairs = (
+            ("userId", ctx.user_id),
+            ("sessionId", ctx.session_id),
+            ("correlationId", ctx.correlation_id),
+            ("requestId", ctx.request_id),
+            ("ipAddress", ctx.ip_address),
+            ("userAgent", ctx.user_agent),
+        )
+        for key, value in field_pairs:
+            if value:
+                self.context[key] = value
+
+    def _merge_request_detail_fields(self, ctx: Any) -> None:
+        """Merge additional request details into chain context."""
+        detail_pairs = (
+            ("method", ctx.method),
+            ("path", ctx.path),
+            ("referer", ctx.referer),
+            ("requestSize", ctx.request_size),
+        )
+        for key, value in detail_pairs:
+            if value:
+                self.context[key] = value
+
+    def _set_option_if_present(self, option_field: str, value: Any) -> None:
+        """Set option field when value is not None/empty."""
+        if value is None or value == "":
+            return
+        setattr(self._ensure_options(), option_field, value)
+
     def add_context(self, key: str, value: Any) -> "LoggerChain":
         """Add context key-value pair."""
         self.context[key] = value
@@ -40,74 +78,25 @@ class LoggerChain:
 
     def with_application(self, application: str) -> "LoggerChain":
         """Override application name for this log entry."""
-        if self.options is None:
-            self.options = ClientLoggingOptions()
-        self.options.application = application
+        self._ensure_options().application = application
         return self
 
     def with_environment(self, environment: str) -> "LoggerChain":
         """Override environment name for this log entry."""
-        if self.options is None:
-            self.options = ClientLoggingOptions()
-        self.options.environment = environment
+        self._ensure_options().environment = environment
         return self
 
     def without_masking(self) -> "LoggerChain":
         """Disable data masking."""
-        if self.options is None:
-            self.options = ClientLoggingOptions()
-        self.options.maskSensitiveData = False
+        self._ensure_options().maskSensitiveData = False
         return self
 
     def with_request(self, request: Any) -> "LoggerChain":
-        """Auto-extract logging context from HTTP Request object.
-
-        Extracts: IP, method, path, user-agent, correlation ID, user from JWT.
-
-        Supports:
-        - FastAPI/Starlette Request
-        - Flask Request
-        - Generic dict-like request objects
-
-        Args:
-            request: HTTP request object
-
-        Returns:
-            Self for method chaining
-
-        Example:
-            >>> await logger.with_request(request).info("Processing request")
-
-        """
+        """Auto-extract logging context from HTTP Request object."""
         ctx = extract_request_context(request)
-
-        if self.options is None:
-            self.options = ClientLoggingOptions()
-
-        # Merge auto-computable fields into context (promoted in build_log_entry)
-        if ctx.user_id:
-            self.context["userId"] = ctx.user_id
-        if ctx.session_id:
-            self.context["sessionId"] = ctx.session_id
-        if ctx.correlation_id:
-            self.context["correlationId"] = ctx.correlation_id
-        if ctx.request_id:
-            self.context["requestId"] = ctx.request_id
-        if ctx.ip_address:
-            self.context["ipAddress"] = ctx.ip_address
-        if ctx.user_agent:
-            self.context["userAgent"] = ctx.user_agent
-
-        # Merge into context (additional request info, not top-level LogEntry fields)
-        if ctx.method:
-            self.context["method"] = ctx.method
-        if ctx.path:
-            self.context["path"] = ctx.path
-        if ctx.referer:
-            self.context["referer"] = ctx.referer
-        if ctx.request_size:
-            self.context["requestSize"] = ctx.request_size
-
+        self._ensure_options()
+        self._merge_request_auto_fields(ctx)
+        self._merge_request_detail_fields(ctx)
         return self
 
     def with_indexed_context(
@@ -119,34 +108,13 @@ class LoggerChain:
         record_id: Optional[str] = None,
         record_display_name: Optional[str] = None,
     ) -> "LoggerChain":
-        """Add indexed context fields for fast querying.
-
-        Args:
-            source_id: ExternalDataSource.id
-            source_display_name: Human-readable source name
-            external_system_id: ExternalSystem.id
-            external_system_display_name: Human-readable system name
-            record_id: ExternalRecord.id
-            record_display_name: Human-readable record identifier
-
-        Returns:
-            Self for method chaining
-
-        """
-        if self.options is None:
-            self.options = ClientLoggingOptions()
-        if source_id:
-            self.options.sourceId = source_id
-        if source_display_name:
-            self.options.sourceDisplayName = source_display_name
-        if external_system_id:
-            self.options.externalSystemId = external_system_id
-        if external_system_display_name:
-            self.options.externalSystemDisplayName = external_system_display_name
-        if record_id:
-            self.options.recordId = record_id
-        if record_display_name:
-            self.options.recordDisplayName = record_display_name
+        """Add indexed context fields for fast querying."""
+        self._set_option_if_present("sourceId", source_id)
+        self._set_option_if_present("sourceDisplayName", source_display_name)
+        self._set_option_if_present("externalSystemId", external_system_id)
+        self._set_option_if_present("externalSystemDisplayName", external_system_display_name)
+        self._set_option_if_present("recordId", record_id)
+        self._set_option_if_present("recordDisplayName", record_display_name)
         return self
 
     def with_credential_context(
@@ -180,31 +148,12 @@ class LoggerChain:
         timeout: Optional[float] = None,
         retry_count: Optional[int] = None,
     ) -> "LoggerChain":
-        """Add request/response metrics.
-
-        Args:
-            response_size: Response body size in bytes
-            duration_ms: Duration in milliseconds
-            duration_seconds: Duration in seconds
-            timeout: Request timeout in seconds
-            retry_count: Number of retry attempts
-
-        Returns:
-            Self for method chaining
-
-        """
-        if self.options is None:
-            self.options = ClientLoggingOptions()
-        if response_size is not None:
-            self.options.responseSize = response_size
-        if duration_ms is not None:
-            self.options.durationMs = duration_ms
-        if duration_seconds is not None:
-            self.options.durationSeconds = duration_seconds
-        if timeout is not None:
-            self.options.timeout = timeout
-        if retry_count is not None:
-            self.options.retryCount = retry_count
+        """Add request/response metrics."""
+        self._set_option_if_present("responseSize", response_size)
+        self._set_option_if_present("durationMs", duration_ms)
+        self._set_option_if_present("durationSeconds", duration_seconds)
+        self._set_option_if_present("timeout", timeout)
+        self._set_option_if_present("retryCount", retry_count)
         return self
 
     def with_error_context(

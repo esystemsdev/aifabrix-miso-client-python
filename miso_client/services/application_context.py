@@ -99,6 +99,96 @@ class ApplicationContextService:
             "environment": environment,
         }
 
+    def _cache_context(self, context: ApplicationContext) -> ApplicationContext:
+        """Persist context in memory cache and return it."""
+        self._cached_context = context
+        return context
+
+    def _build_default_context(self) -> ApplicationContext:
+        """Build default fallback context."""
+        return ApplicationContext(
+            application=self.config.client_id,
+            application_id=None,
+            environment="unknown",
+        )
+
+    def _build_context_from_parsed_client_id(self) -> ApplicationContext:
+        """Build context using clientId naming convention fallback."""
+        parsed = self._parse_client_id_format(self.config.client_id)
+        application = parsed.get("application")
+        environment = parsed.get("environment")
+        if application and environment:
+            return ApplicationContext(
+                application=application,
+                application_id=None,
+                environment=environment,
+            )
+        return self._build_default_context()
+
+    def _build_context_from_token_info(
+        self, token_info: Dict[str, Optional[str]]
+    ) -> ApplicationContext:
+        """Build context from extracted client token claims."""
+        return ApplicationContext(
+            application=token_info.get("application") or self.config.client_id,
+            application_id=token_info.get("applicationId"),
+            environment=token_info.get("environment") or "unknown",
+        )
+
+    def _try_context_from_cached_token_sync(self) -> Optional[ApplicationContext]:
+        """Try extracting context from currently cached client token only."""
+        client_token = self.internal_http_client.token_manager.client_token
+        if not client_token:
+            return None
+        try:
+            token_info = extract_client_token_info(client_token)
+        except Exception:
+            return None
+        if not (token_info.get("application") or token_info.get("environment")):
+            return None
+        return self._build_context_from_token_info(token_info)
+
+    async def _try_context_from_client_token_async(self) -> Optional[ApplicationContext]:
+        """Try extracting context from fetched client token."""
+        try:
+            client_token = await self.internal_http_client.token_manager.get_client_token()
+        except (RuntimeError, asyncio.CancelledError, ConnectionError):
+            return ApplicationContext(
+                application="unknown", application_id=None, environment="unknown"
+            )
+        except Exception:
+            return None
+
+        try:
+            token_info = extract_client_token_info(client_token)
+        except Exception:
+            return None
+        if not (token_info.get("application") or token_info.get("environment")):
+            return None
+        return self._build_context_from_token_info(token_info)
+
+    @staticmethod
+    def _has_overwrites(
+        overwrite_application: Optional[str],
+        overwrite_application_id: Optional[str],
+        overwrite_environment: Optional[str],
+    ) -> bool:
+        """Return True when at least one overwrite is provided."""
+        return (
+            overwrite_application is not None
+            or overwrite_application_id is not None
+            or overwrite_environment is not None
+        )
+
+    async def _resolve_uncached_context(self) -> ApplicationContext:
+        """Resolve context using token, then clientId fallback."""
+        token_context = await self._try_context_from_client_token_async()
+        return (
+            token_context
+            if token_context is not None
+            else self._build_context_from_parsed_client_id()
+        )
+
     def get_application_context_sync(self) -> ApplicationContext:
         """Get application context synchronously (no controller calls).
 
@@ -113,53 +203,10 @@ class ApplicationContextService:
         if self._cached_context is not None:
             return self._cached_context
 
-        # Try to get cached client token (synchronous, no fetch)
-        client_token = self.internal_http_client.token_manager.client_token
-
-        if client_token:
-            try:
-                token_info = extract_client_token_info(client_token)
-
-                application = token_info.get("application")
-                application_id = token_info.get("applicationId")
-                environment = token_info.get("environment")
-
-                # If we got values from token, use them
-                if application or environment:
-                    context = ApplicationContext(
-                        application=application or self.config.client_id,
-                        application_id=application_id,
-                        environment=environment or "unknown",
-                    )
-                    self._cached_context = context
-                    return context
-            except Exception:
-                # Token extraction failed, fall back to clientId parsing
-                pass
-
-        # Fall back to parsing clientId format
-        parsed = self._parse_client_id_format(self.config.client_id)
-        application = parsed.get("application")
-        environment = parsed.get("environment")
-
-        # If parsing succeeded, use parsed values
-        if application and environment:
-            context = ApplicationContext(
-                application=application,
-                application_id=None,
-                environment=environment,
-            )
-            self._cached_context = context
-            return context
-
-        # Final fallback: use clientId as application name
-        context = ApplicationContext(
-            application=self.config.client_id,
-            application_id=None,
-            environment="unknown",
-        )
-        self._cached_context = context
-        return context
+        token_context = self._try_context_from_cached_token_sync()
+        if token_context is not None:
+            return self._cache_context(token_context)
+        return self._cache_context(self._build_context_from_parsed_client_id())
 
     async def get_application_context(
         self,
@@ -167,86 +214,18 @@ class ApplicationContextService:
         overwrite_application_id: Optional[str] = None,
         overwrite_environment: Optional[str] = None,
     ) -> ApplicationContext:
-        """Get application context with optional overwrites.
-
-        Supports overwriting values for dataplane use cases where external
-        applications need logging on their behalf.
-
-        Args:
-            overwrite_application: Override application name
-            overwrite_application_id: Override application ID
-            overwrite_environment: Override environment name
-
-        Returns:
-            ApplicationContext object with application, applicationId, and environment
-
-        """
-        # If overwrites are provided, use them directly (don't cache)
-        if (
-            overwrite_application is not None
-            or overwrite_application_id is not None
-            or overwrite_environment is not None
+        """Get application context with optional overwrite values."""
+        if self._has_overwrites(
+            overwrite_application, overwrite_application_id, overwrite_environment
         ):
             return self._build_context_with_overwrites(
                 overwrite_application, overwrite_application_id, overwrite_environment
             )
 
-        # Use cached context if available
         if self._cached_context is not None:
             return self._cached_context
 
-        # Extract from client token first
-        try:
-            # Handle case where HTTP client might be closed during teardown
-            try:
-                client_token = await self.internal_http_client.token_manager.get_client_token()
-            except (RuntimeError, asyncio.CancelledError, ConnectionError):
-                # Event loop closed or connection error - return default context
-                return ApplicationContext(
-                    application="unknown", application_id=None, environment="unknown"
-                )
-            token_info = extract_client_token_info(client_token)
-
-            application = token_info.get("application")
-            application_id = token_info.get("applicationId")
-            environment = token_info.get("environment")
-
-            # If we got values from token, use them
-            if application or environment:
-                context = ApplicationContext(
-                    application=application or self.config.client_id,
-                    application_id=application_id,
-                    environment=environment or "unknown",
-                )
-                self._cached_context = context
-                return context
-        except Exception:
-            # Token extraction failed, fall back to clientId parsing
-            pass
-
-        # Fall back to parsing clientId format
-        parsed = self._parse_client_id_format(self.config.client_id)
-        application = parsed.get("application")
-        environment = parsed.get("environment")
-
-        # If parsing succeeded, use parsed values
-        if application and environment:
-            context = ApplicationContext(
-                application=application,
-                application_id=None,
-                environment=environment,
-            )
-            self._cached_context = context
-            return context
-
-        # Final fallback: use clientId as application name
-        context = ApplicationContext(
-            application=self.config.client_id,
-            application_id=None,
-            environment="unknown",
-        )
-        self._cached_context = context
-        return context
+        return self._cache_context(await self._resolve_uncached_context())
 
     def _build_context_with_overwrites(
         self,
@@ -254,54 +233,35 @@ class ApplicationContextService:
         overwrite_application_id: Optional[str],
         overwrite_environment: Optional[str],
     ) -> ApplicationContext:
-        """Build context with overwrites, falling back to defaults for non-overwritten values.
-
-        Args:
-            overwrite_application: Override application name
-            overwrite_application_id: Override application ID
-            overwrite_environment: Override environment name
-
-        Returns:
-            ApplicationContext with overwrites applied
-
-        """
-        # Get base context for non-overwritten values
-        base_context = self._cached_context
-        if base_context is None:
-            # Try to get context synchronously (without async call)
-            # This is a fallback for when cache is not available
-            try:
-                # Parse clientId format as fallback
-                parsed = self._parse_client_id_format(self.config.client_id)
-                base_context = ApplicationContext(
-                    application=parsed.get("application") or self.config.client_id,
-                    application_id=None,
-                    environment=parsed.get("environment") or "unknown",
-                )
-            except Exception:
-                base_context = ApplicationContext(
-                    application=self.config.client_id,
-                    application_id=None,
-                    environment="unknown",
-                )
-
+        """Build context with overwrite values plus fallback defaults."""
+        base_context = self._resolve_base_context_for_overwrites()
+        application = self._pick_overwrite_str(overwrite_application, base_context.application)
+        application_id = self._pick_overwrite(overwrite_application_id, base_context.application_id)
+        environment = self._pick_overwrite_str(overwrite_environment, base_context.environment)
         return ApplicationContext(
-            application=(
-                overwrite_application
-                if overwrite_application is not None
-                else base_context.application
-            ),
-            application_id=(
-                overwrite_application_id
-                if overwrite_application_id is not None
-                else base_context.application_id
-            ),
-            environment=(
-                overwrite_environment
-                if overwrite_environment is not None
-                else base_context.environment
-            ),
+            application=application,
+            application_id=application_id,
+            environment=environment,
         )
+
+    def _resolve_base_context_for_overwrites(self) -> ApplicationContext:
+        """Resolve base context used when applying overwrite values."""
+        if self._cached_context is not None:
+            return self._cached_context
+        try:
+            return self._build_context_from_parsed_client_id()
+        except Exception:
+            return self._build_default_context()
+
+    @staticmethod
+    def _pick_overwrite(value: Optional[str], fallback: Optional[str]) -> Optional[str]:
+        """Pick overwrite value when provided, otherwise fallback."""
+        return value if value is not None else fallback
+
+    @staticmethod
+    def _pick_overwrite_str(value: Optional[str], fallback: str) -> str:
+        """Pick overwrite value for required string fields."""
+        return value if value is not None else fallback
 
     def clear_cache(self) -> None:
         """Clear cached application context."""

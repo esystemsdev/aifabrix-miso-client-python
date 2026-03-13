@@ -59,89 +59,33 @@ def transformError(error_data: dict) -> ErrorResponse:
     return ErrorResponse(**error_data)
 
 
+def _prepare_error_data(response_data: dict, status_code: int, instance: Optional[str]) -> dict:
+    """Prepare normalized error payload for ErrorResponse construction."""
+    data = response_data.copy()
+    if instance:
+        data["instance"] = instance
+    data["statusCode"] = status_code
+    data.setdefault("title", None)
+    return data
+
+
 def handleApiError(
     response_data: dict, status_code: int, instance: Optional[str] = None
 ) -> ApiErrorException:
-    """Handle API error and raise camelCase ApiErrorException.
-
-    Creates ApiErrorException from camelCase API response.
-
-    Args:
-        response_data: Error response data from API (must be camelCase)
-        status_code: HTTP status code (overrides statusCode in response_data)
-        instance: Optional request instance URI (overrides instance in response_data)
-
-    Returns:
-        ApiErrorException with camelCase error format
-
-    Raises:
-        ApiErrorException: Always raises this exception
-
-    Examples:
-        >>> response_data = {
-        ...     'errors': ['Validation failed'],
-        ...     'type': '/Errors/Validation',
-        ...     'title': 'Validation Error',
-        ...     'statusCode': 422
-        ... }
-        >>> try:
-        ...     handleApiError(response_data, 422, '/api/endpoint')
-        ... except ApiErrorException as e:
-        ...     e.statusCode
-        422
-
-    """
-    # Create a copy to avoid mutating the original
-    data = response_data.copy()
-
-    # Override instance if provided
-    if instance:
-        data["instance"] = instance
-
-    # Override statusCode if provided
-    data["statusCode"] = status_code
-
-    # Ensure title has a default if missing
-    if "title" not in data:
-        data["title"] = None
-
-    # Transform to ErrorResponse
-    error_response = transformError(data)
-
-    # Raise ApiErrorException
-    raise ApiErrorException(error_response)
+    """Handle API error and raise camelCase ApiErrorException."""
+    raise ApiErrorException(
+        transformError(_prepare_error_data(response_data, status_code, instance))
+    )
 
 
 def extract_correlation_id_from_error(error: Exception) -> Optional[str]:
-    """Extract correlation ID from exception if available.
-
-    Checks MisoClientError.error_response.correlationId and ApiErrorException.correlationId.
-
-    Args:
-        error: Exception object
-
-    Returns:
-        Correlation ID string if found, None otherwise
-
-    Examples:
-        >>> error = MisoClientError("Error", error_response=ErrorResponse(
-        ...     errors=["Error"], type="/Errors/Test", statusCode=400,
-        ...     correlationId="req-123"
-        ... ))
-        >>> extract_correlation_id_from_error(error)
-        'req-123'
-
-    """
-    # Check MisoClientError with error_response
+    """Extract correlation ID from supported exception types."""
     if isinstance(error, MisoClientError) and error.error_response:
         correlation_id = error.error_response.correlationId
         if correlation_id is not None:
             return str(correlation_id)
-
-    # Check ApiErrorException with correlationId property
     if isinstance(error, ApiErrorException):
         correlation_id = error.correlationId
         if correlation_id is not None:
             return str(correlation_id)
-
     return None

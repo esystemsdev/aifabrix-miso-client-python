@@ -39,19 +39,10 @@ def handle_logging_task_error(task: asyncio.Task) -> None:
 
 
 async def wait_for_logging_tasks(logging_tasks: set[asyncio.Task], timeout: float = 0.5) -> None:
-    """Wait for all pending logging tasks to complete.
-
-    Useful for tests to ensure logging has finished before assertions.
-
-    Args:
-        logging_tasks: Set of logging tasks
-        timeout: Maximum time to wait in seconds
-
-    """
+    """Wait for active logging tasks to complete."""
     if not logging_tasks:
         return
 
-    # Filter out completed tasks
     active_tasks = [task for task in logging_tasks if not task.done()]
     if not active_tasks:
         return
@@ -62,7 +53,6 @@ async def wait_for_logging_tasks(logging_tasks: set[asyncio.Task], timeout: floa
             timeout=timeout,
         )
     except (asyncio.TimeoutError, RuntimeError):
-        # Timeout or event loop closed - cancel remaining tasks
         for task in active_tasks:
             if not task.done():
                 try:
@@ -131,39 +121,142 @@ async def log_debug_if_enabled(
     request_headers: Optional[Dict[str, Any]],
     correlation_id: Optional[str] = None,
 ) -> None:
-    """Log debug details if debug logging is enabled.
-
-    Args:
-        logger: LoggerService instance
-        config: MisoClientConfig instance
-        method: HTTP method
-        url: Request URL
-        response: Response data (if successful)
-        error: Exception (if request failed)
-        start_time: Request start time
-        user_id: User ID if available
-        request_data: Request body data
-        request_headers: Request headers
-
-    """
     if config.log_level != "debug":
         return
-
     duration_ms = int((time.perf_counter() - start_time) * 1000)
     status_code = calculate_status_code(response, error)
+    await _log_debug_request(
+        logger,
+        config,
+        method,
+        url,
+        response,
+        duration_ms,
+        status_code,
+        user_id,
+        request_data,
+        request_headers,
+        correlation_id,
+    )
+
+
+async def _log_debug_request(
+    logger: LoggerService,
+    config: MisoClientConfig,
+    method: str,
+    url: str,
+    response: Optional[Any],
+    duration_ms: int,
+    status_code: Optional[int],
+    user_id: Optional[str],
+    request_data: Optional[Dict[str, Any]],
+    request_headers: Optional[Dict[str, Any]],
+    correlation_id: Optional[str],
+) -> None:
+    """Delegate debug-request logging call to shared formatter function."""
     await log_http_request_debug(
-        logger=logger,
-        method=method,
-        url=url,
-        response=response,
-        duration_ms=duration_ms,
-        status_code=status_code,
-        user_id=user_id,
-        request_data=request_data,
-        request_headers=request_headers,
-        base_url=config.controller_url,
-        config=config,
+        logger,
+        method,
+        url,
+        response,
+        duration_ms,
+        status_code,
+        user_id,
+        request_data,
+        request_headers,
+        config.controller_url,
+        config,
+        correlation_id,
+    )
+
+
+def _resolve_correlation_id(
+    response: Optional[Any], request_headers: Optional[Dict[str, Any]]
+) -> Optional[str]:
+    """Resolve correlation id from response headers or request headers."""
+    correlation_id = (
+        extract_correlation_id_from_response(response)
+        if response is not None and hasattr(response, "headers")
+        else None
+    )
+    if correlation_id is not None or not request_headers:
+        return correlation_id
+    return (
+        request_headers.get("x-correlation-id")
+        or request_headers.get("X-Correlation-Id")
+        or request_headers.get("correlation-id")
+        or request_headers.get("x-request-id")
+        or request_headers.get("X-Request-Id")
+        or request_headers.get("request-id")
+    )
+
+
+async def _log_audit_and_debug(
+    logger: LoggerService,
+    config: MisoClientConfig,
+    method: str,
+    url: str,
+    response: Optional[Any],
+    error: Optional[Exception],
+    start_time: float,
+    request_data: Optional[Dict[str, Any]],
+    request_headers: Optional[Dict[str, Any]],
+    user_id: Optional[str],
+    correlation_id: Optional[str],
+) -> None:
+    """Log audit event first, then optional debug event."""
+    await _log_audit_only(
+        logger,
+        config,
+        method,
+        url,
+        response,
+        error,
+        start_time,
+        request_data,
+        user_id,
+        correlation_id,
+    )
+    await log_debug_if_enabled(
+        logger,
+        config,
+        method,
+        url,
+        response,
+        error,
+        start_time,
+        user_id,
+        request_data,
+        request_headers,
         correlation_id=correlation_id,
+    )
+
+
+async def _log_audit_only(
+    logger: LoggerService,
+    config: MisoClientConfig,
+    method: str,
+    url: str,
+    response: Optional[Any],
+    error: Optional[Exception],
+    start_time: float,
+    request_data: Optional[Dict[str, Any]],
+    user_id: Optional[str],
+    correlation_id: Optional[str],
+) -> None:
+    """Log audit-only event."""
+    await log_http_request_audit(
+        logger,
+        method,
+        url,
+        response,
+        error,
+        start_time,
+        request_data,
+        user_id,
+        config.log_level,
+        config,
+        correlation_id,
     )
 
 
@@ -179,50 +272,10 @@ async def log_http_request(
     request_data: Optional[Dict[str, Any]],
     request_headers: Optional[Dict[str, Any]],
 ) -> None:
-    """Log HTTP request with audit and optional debug logging.
-
-    Args:
-        logger: LoggerService instance
-        config: MisoClientConfig instance
-        jwt_cache: JWT token cache instance
-        method: HTTP method
-        url: Request URL
-        response: Response data (if successful)
-        error: Exception (if request failed)
-        start_time: Request start time
-        request_data: Request body data
-        request_headers: Request headers
-
-    """
+    """Log HTTP request with audit and optional debug details."""
     user_id = extract_user_id_from_headers(request_headers, jwt_cache)
-    correlation_id = None
-    if response is not None and hasattr(response, "headers"):
-        correlation_id = extract_correlation_id_from_response(response)
-    if correlation_id is None and request_headers:
-        correlation_id = (
-            request_headers.get("x-correlation-id")
-            or request_headers.get("X-Correlation-Id")
-            or request_headers.get("correlation-id")
-            or request_headers.get("x-request-id")
-            or request_headers.get("X-Request-Id")
-            or request_headers.get("request-id")
-        )
-
-    await log_http_request_audit(
-        logger=logger,
-        method=method,
-        url=url,
-        response=response,
-        error=error,
-        start_time=start_time,
-        request_data=request_data,
-        user_id=user_id,
-        log_level=config.log_level,
-        config=config,
-        correlation_id=correlation_id,
-    )
-
-    await log_debug_if_enabled(
+    correlation_id = _resolve_correlation_id(response, request_headers)
+    await _log_audit_and_debug(
         logger,
         config,
         method,
@@ -230,8 +283,8 @@ async def log_http_request(
         response,
         error,
         start_time,
-        user_id,
         request_data,
         request_headers,
-        correlation_id=correlation_id,
+        user_id,
+        correlation_id,
     )

@@ -44,14 +44,7 @@ class AuditLogQueue:
         redis: RedisService,
         config: MisoClientConfig,
     ):
-        """Initialize audit log queue.
-
-        Args:
-            http_client: HttpClient instance for sending logs
-            redis: RedisService instance for queuing
-            config: MisoClientConfig with audit configuration
-
-        """
+        """Initialize audit log queue."""
         self.http_client = http_client
         self.redis = redis
         self.config = config
@@ -60,25 +53,29 @@ class AuditLogQueue:
         self.is_flushing = False
 
         audit_config: Optional[AuditConfig] = config.audit
-        self.batch_size: int = (
+        self.batch_size, self.batch_interval = self._resolve_batch_config(audit_config)
+        circuit_breaker_config = audit_config.circuitBreaker if audit_config else None
+        self.circuit_breaker = CircuitBreaker(circuit_breaker_config)
+        self._setup_signal_handlers()
+
+    def _resolve_batch_config(self, audit_config: Optional[AuditConfig]) -> tuple[int, int]:
+        """Resolve batch size and interval from audit configuration."""
+        batch_size = (
             audit_config.batchSize if audit_config and audit_config.batchSize is not None else 10
         )
-        self.batch_interval: int = (
+        batch_interval = (
             audit_config.batchInterval
             if audit_config and audit_config.batchInterval is not None
             else 100
         )
+        return batch_size, batch_interval
 
-        # Initialize circuit breaker for HTTP logging
-        circuit_breaker_config = audit_config.circuitBreaker if audit_config else None
-        self.circuit_breaker = CircuitBreaker(circuit_breaker_config)
-
-        # Setup graceful shutdown handlers (if available)
+    def _setup_signal_handlers(self) -> None:
+        """Register graceful shutdown signal handlers when supported."""
         try:
             signal.signal(signal.SIGINT, self._signal_handler)
             signal.signal(signal.SIGTERM, self._signal_handler)
         except (ValueError, OSError):
-            # Signal handlers may not be available in all environments
             pass
 
     def _signal_handler(self, signum: int, frame: Optional[FrameType]) -> None:
@@ -131,71 +128,66 @@ class AuditLogQueue:
             sync: If True, wait for flush to complete (for shutdown)
 
         """
+        _ = sync
         if self.is_flushing:
             return
-
-        # Cancel flush timer
-        if self.flush_timer:
-            self.flush_timer.cancel()
-            try:
-                await self.flush_timer
-            except asyncio.CancelledError:
-                pass
-            self.flush_timer = None
-
+        await self._cancel_flush_timer()
         if len(self.queue) == 0:
             return
-
         self.is_flushing = True
-
         try:
-            entries = self.queue[:]  # Copy queue
-            self.queue.clear()  # Clear queue
-
-            if len(entries) == 0:
-                self.is_flushing = False
+            entries = self._drain_queue()
+            if not entries:
                 return
-
-            log_entries = [e.entry for e in entries]
-
-            # Try Redis first (if available)
-            if self.redis.is_connected():
-                queue_name = f"audit-logs:{self.config.client_id}"
-                # Serialize all entries as JSON array
-                import json
-
-                entries_json = json.dumps([entry.model_dump() for entry in log_entries])
-                success = await self.redis.rpush(queue_name, entries_json)
-
-                if success:
-                    self.is_flushing = False
-                    return  # Successfully queued in Redis
-
-            # Check circuit breaker before attempting HTTP logging
+            if await self._try_redis_enqueue(entries):
+                return
             if self.circuit_breaker.is_open():
-                # Circuit is open, skip HTTP logging to prevent infinite retry loops
-                self.is_flushing = False
                 return
-
-            # Fallback to HTTP batch endpoint
-            try:
-                await self.http_client.request(
-                    "POST",
-                    "/api/v1/logs/batch",
-                    {"logs": [entry.model_dump(exclude_none=True) for entry in log_entries]},
-                )
-                # Record success in circuit breaker
-                self.circuit_breaker.record_success()
-            except Exception:
-                # Failed to send logs - record failure in circuit breaker
-                self.circuit_breaker.record_failure()
-                # Silently fail to avoid infinite loops
-                pass
+            await self._send_http_batch(entries)
         except Exception:
-            # Silently swallow errors - never break logging
             pass
         finally:
             self.is_flushing = False
+
+    async def _cancel_flush_timer(self) -> None:
+        """Cancel scheduled flush timer if it exists."""
+        if not self.flush_timer:
+            return
+        self.flush_timer.cancel()
+        try:
+            await self.flush_timer
+        except asyncio.CancelledError:
+            pass
+        self.flush_timer = None
+
+    def _drain_queue(self) -> List[LogEntry]:
+        """Drain in-memory queue and return copied entries."""
+        entries = self.queue[:]
+        self.queue.clear()
+        return [queued.entry for queued in entries]
+
+    async def _try_redis_enqueue(self, entries: List[LogEntry]) -> bool:
+        """Try to enqueue batch to Redis, return success flag."""
+        if not self.redis.is_connected():
+            return False
+        import json
+
+        queue_name = f"audit-logs:{self.config.client_id}"
+        entries_json = json.dumps([entry.model_dump() for entry in entries])
+        success = await self.redis.rpush(queue_name, entries_json)
+        return bool(success)
+
+    async def _send_http_batch(self, entries: List[LogEntry]) -> None:
+        """Send log batch via HTTP fallback and update circuit breaker."""
+        try:
+            await self.http_client.request(
+                "POST",
+                "/api/v1/logs/batch",
+                {"logs": [entry.model_dump(exclude_none=True) for entry in entries]},
+            )
+            self.circuit_breaker.record_success()
+        except Exception:
+            self.circuit_breaker.record_failure()
 
     def get_queue_size(self) -> int:
         """Get current queue size.

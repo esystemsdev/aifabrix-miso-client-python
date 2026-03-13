@@ -75,27 +75,59 @@ class UserTokenRefreshManager:
             True if token is expired or will expire within buffer time
 
         """
-        # Check cached expiration first
         if token in self._token_expirations:
-            expires_at = self._token_expirations[token]
-            return datetime.now() + timedelta(seconds=buffer_seconds) >= expires_at
-
-        # Decode token to check expiration
+            return self._is_expired_by_time(self._token_expirations[token], buffer_seconds)
         decoded = decode_token(token)
         if not decoded:
-            return True  # Invalid token, consider expired
+            return True
+        token_exp = self._extract_expiration(decoded)
+        if token_exp is None:
+            return False
+        self._token_expirations[token] = token_exp
+        return self._is_expired_by_time(token_exp, buffer_seconds)
 
-        # Check exp claim
-        if "exp" in decoded and isinstance(decoded["exp"], (int, float)):
-            token_exp = datetime.fromtimestamp(decoded["exp"])
-            buffer_time = datetime.now() + timedelta(seconds=buffer_seconds)
-            is_expired = buffer_time >= token_exp
-            # Cache expiration for future checks
-            self._token_expirations[token] = token_exp
-            return is_expired
+    def _is_expired_by_time(self, expires_at: datetime, buffer_seconds: int) -> bool:
+        """Check if expiration timestamp is within configured buffer window."""
+        return datetime.now() + timedelta(seconds=buffer_seconds) >= expires_at
 
-        # No expiration claim - assume not expired
-        return False
+    def _extract_expiration(self, decoded: Dict[str, Any]) -> Optional[datetime]:
+        """Extract expiration datetime from decoded JWT payload."""
+        exp = decoded.get("exp")
+        if not isinstance(exp, (int, float)):
+            return None
+        return datetime.fromtimestamp(exp)
+
+    def _get_tokens_for_user(self, token_map: Dict[str, Any], user_id: str) -> list[str]:
+        """Return map keys whose token belongs to given user."""
+        return [
+            old_token for old_token in token_map.keys() if self._get_user_id(old_token) == user_id
+        ]
+
+    def _remove_user_token_entries(self, token_map: Dict[str, Any], user_id: str) -> None:
+        """Remove all token entries mapped to a specific user id."""
+        for old_token in self._get_tokens_for_user(token_map, user_id):
+            token_map.pop(old_token, None)
+
+    def _clear_user_registrations(self, user_id: str) -> None:
+        """Clear user refresh callback, token and lock registrations."""
+        self._refresh_callbacks.pop(user_id, None)
+        self._refresh_tokens.pop(user_id, None)
+        self._refresh_locks.pop(user_id, None)
+
+    def clear_user_tokens(self, user_id: str) -> None:
+        """Clear all tokens and refresh data for a user."""
+        self._clear_user_registrations(user_id)
+        self._remove_user_token_entries(self._refreshed_tokens, user_id)
+        self._remove_user_token_entries(self._token_expirations, user_id)
+
+    async def get_valid_token(self, token: str, refresh_if_needed: bool = True) -> Optional[str]:
+        """Get valid token, refreshing if expired."""
+        if refresh_if_needed and self._is_token_expired(token):
+            user_id = self._get_user_id(token)
+            refreshed = await self._refresh_token(token, user_id)
+            if refreshed:
+                return refreshed
+        return token
 
     def _get_refresh_token_from_jwt(self, token: str) -> Optional[str]:
         """Extract refresh token from JWT claims.
@@ -112,132 +144,89 @@ class UserTokenRefreshManager:
         )
         return str(refresh_token) if refresh_token else None
 
+    def _get_refresh_lock(self, user_id: str) -> asyncio.Lock:
+        """Get or create per-user refresh lock."""
+        if user_id not in self._refresh_locks:
+            self._refresh_locks[user_id] = asyncio.Lock()
+        return self._refresh_locks[user_id]
+
+    def _token_to_str(self, token_value: Any) -> str:
+        """Normalize token value to string."""
+        return token_value if isinstance(token_value, str) else str(token_value)
+
+    def _cache_refreshed_token(self, old_token: str, refreshed_token: str) -> str:
+        """Cache refreshed token mapping for concurrent requests."""
+        self._refreshed_tokens[old_token] = refreshed_token
+        return refreshed_token
+
+    async def _refresh_via_callback(self, user_id: str, token: str) -> Optional[str]:
+        """Refresh token via registered callback."""
+        callback = self._refresh_callbacks.get(user_id)
+        if callback is None:
+            return None
+        new_token = await callback(token)
+        if not new_token:
+            return None
+        return self._cache_refreshed_token(token, self._token_to_str(new_token))
+
+    def _update_refresh_token(self, user_id: str, refresh_response: Dict[str, Any]) -> None:
+        """Update stored refresh token from refresh response payload."""
+        refresh_token = refresh_response.get("refreshToken")
+        if refresh_token:
+            self._refresh_tokens[user_id] = str(refresh_token)
+
+    async def _refresh_with_refresh_token(
+        self, user_id: str, token: str, refresh_token: Optional[str]
+    ) -> Optional[str]:
+        """Refresh token via AuthService using provided refresh token."""
+        if not refresh_token or not self._auth_service:
+            return None
+        refresh_response = await self._auth_service.refresh_user_token(refresh_token)
+        if not refresh_response or not refresh_response.get("token"):
+            return None
+        refreshed = self._cache_refreshed_token(
+            token, self._token_to_str(refresh_response["token"])
+        )
+        self._update_refresh_token(user_id, refresh_response)
+        return refreshed
+
+    async def _try_refresh_mechanisms(self, token: str, user_id: str) -> Optional[str]:
+        """Try all available refresh mechanisms in priority order."""
+        callback_token = await self._refresh_via_callback(user_id, token)
+        if callback_token:
+            logger.info("Token refreshed successfully for user %s via callback", user_id)
+            return callback_token
+
+        stored_refresh = self._refresh_tokens.get(user_id)
+        stored_token_result = await self._refresh_with_refresh_token(user_id, token, stored_refresh)
+        if stored_token_result:
+            logger.info("Token refreshed successfully for user %s via refresh token", user_id)
+            return stored_token_result
+
+        jwt_refresh = self._get_refresh_token_from_jwt(token)
+        jwt_token_result = await self._refresh_with_refresh_token(user_id, token, jwt_refresh)
+        if jwt_token_result:
+            logger.info("Token refreshed successfully for user %s via JWT refresh token", user_id)
+            return jwt_token_result
+        return None
+
     async def _refresh_token(self, token: str, user_id: Optional[str] = None) -> Optional[str]:
-        """Refresh user token using available refresh mechanism.
-
-        Args:
-            token: Current user token
-            user_id: Optional user ID (extracted from token if not provided)
-            auth_service: Optional AuthService instance for refresh endpoint calls
-
-        Returns:
-            New token if refresh successful, None otherwise
-
-        """
+        """Refresh user token using available refresh mechanisms."""
         if not user_id:
             user_id = self._get_user_id(token)
             if not user_id:
                 logger.warning("Cannot refresh token: user ID not found")
                 return None
 
-        # Get or create lock for this user
-        if user_id not in self._refresh_locks:
-            self._refresh_locks[user_id] = asyncio.Lock()
-
-        async with self._refresh_locks[user_id]:
-            # Check if token was already refreshed (by another concurrent request)
+        async with self._get_refresh_lock(user_id):
             if token in self._refreshed_tokens:
                 return self._refreshed_tokens[token]
-
             try:
-                # Try refresh callback first
-                if user_id in self._refresh_callbacks:
-                    callback = self._refresh_callbacks[user_id]
-                    new_token = await callback(token)
-                    if new_token:
-                        token_str = str(new_token) if not isinstance(new_token, str) else new_token
-                        self._refreshed_tokens[token] = token_str
-                        logger.info(f"Token refreshed successfully for user {user_id} via callback")
-                        return token_str
-
-                # Try stored refresh token
-                if user_id in self._refresh_tokens and self._auth_service:
-                    refresh_token = self._refresh_tokens[user_id]
-                    refresh_response = await self._auth_service.refresh_user_token(refresh_token)
-                    if refresh_response and refresh_response.get("token"):
-                        new_token = refresh_response["token"]
-                        token_str = str(new_token) if not isinstance(new_token, str) else new_token
-                        self._refreshed_tokens[token] = token_str
-                        # Update refresh token if new one provided
-                        if refresh_response.get("refreshToken"):
-                            self._refresh_tokens[user_id] = refresh_response["refreshToken"]
-                        logger.info(
-                            f"Token refreshed successfully for user {user_id} via refresh token"
-                        )
-                        return token_str
-
-                # Try refresh token from JWT claims
-                jwt_refresh_token = self._get_refresh_token_from_jwt(token)
-                if jwt_refresh_token and self._auth_service:
-                    refresh_response = await self._auth_service.refresh_user_token(
-                        jwt_refresh_token
-                    )
-                    if refresh_response and refresh_response.get("token"):
-                        new_token = refresh_response["token"]
-                        token_str = str(new_token) if not isinstance(new_token, str) else new_token
-                        self._refreshed_tokens[token] = token_str
-                        # Update refresh token if new one provided
-                        if refresh_response.get("refreshToken"):
-                            self._refresh_tokens[user_id] = refresh_response["refreshToken"]
-                        logger.info(
-                            f"Token refreshed successfully for user {user_id} via JWT refresh token"
-                        )
-                        return token_str
-
+                refreshed = await self._try_refresh_mechanisms(token, user_id)
+                if refreshed:
+                    return refreshed
                 logger.warning(f"No refresh mechanism available for user {user_id}")
                 return None
-
             except Exception as error:
                 logger.error(f"Token refresh failed for user {user_id}", exc_info=error)
                 return None
-
-    async def get_valid_token(self, token: str, refresh_if_needed: bool = True) -> Optional[str]:
-        """Get valid token, refreshing if expired.
-
-        Args:
-            token: Current user token
-            refresh_if_needed: Whether to refresh if token is expired
-
-        Returns:
-            Valid token (original or refreshed), None if refresh failed
-
-        """
-        # Check if token is expired
-        if refresh_if_needed and self._is_token_expired(token):
-            user_id = self._get_user_id(token)
-            refreshed = await self._refresh_token(token, user_id)
-            if refreshed:
-                return refreshed
-            # Refresh failed, return original token (let request fail naturally)
-
-        return token
-
-    def clear_user_tokens(self, user_id: str) -> None:
-        """Clear all tokens and refresh data for a user.
-
-        Args:
-            user_id: User ID
-
-        """
-        # Clear refresh callback
-        self._refresh_callbacks.pop(user_id, None)
-        # Clear refresh token
-        self._refresh_tokens.pop(user_id, None)
-        # Clear refresh lock
-        self._refresh_locks.pop(user_id, None)
-        # Clear cached refreshed tokens (find by user_id in old tokens)
-        tokens_to_remove = [
-            old_token
-            for old_token in self._refreshed_tokens.keys()
-            if self._get_user_id(old_token) == user_id
-        ]
-        for old_token in tokens_to_remove:
-            self._refreshed_tokens.pop(old_token, None)
-        # Clear token expirations
-        expirations_to_remove = [
-            old_token
-            for old_token in self._token_expirations.keys()
-            if self._get_user_id(old_token) == user_id
-        ]
-        for old_token in expirations_to_remove:
-            self._token_expirations.pop(old_token, None)

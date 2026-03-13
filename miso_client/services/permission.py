@@ -70,6 +70,13 @@ class PermissionService(ApplicationContextMixin):
         )
         return user_info.get("data", {}).get("user", {}).get("id") if user_info else None
 
+    async def _resolve_user_id_from_token_only(
+        self, token: str, auth_strategy: Optional[AuthStrategy]
+    ) -> Optional[str]:
+        """Resolve user id using JWT claims first, then validate fallback."""
+        user_id = extract_user_id(token)
+        return await self._resolve_user_id(token, user_id, auth_strategy)
+
     def _get_request_context(self) -> tuple[Optional[str], Optional[str]]:
         context = self._get_app_context_service().get_application_context_sync()
         environment = (
@@ -145,11 +152,92 @@ class PermissionService(ApplicationContextMixin):
         permission_data = PermissionResult(**permission_result)
         return permission_data.permissions or []
 
+    async def _fetch_permissions_via_http_endpoint(
+        self,
+        endpoint: str,
+        token: str,
+        environment: Optional[str],
+        application: Optional[str],
+        auth_strategy: Optional[AuthStrategy],
+    ) -> List[str]:
+        """Fetch permissions from HTTP endpoint and normalize response."""
+        params: dict[str, str] = {}
+        if environment:
+            params["environment"] = environment
+        if application:
+            params["application"] = application
+        if auth_strategy is not None:
+            permission_result = await self.http_client.authenticated_request(
+                "GET",
+                endpoint,
+                token,
+                params=params,
+                auth_strategy=auth_strategy,
+            )
+        else:
+            permission_result = await self.http_client.authenticated_request(
+                "GET", endpoint, token, params=params
+            )
+        permission_data = PermissionResult(**permission_result)
+        return permission_data.permissions or []
+
     async def _cache_permissions(self, cache_key: str, permissions: List[str]) -> None:
         await self.cache.set(
             cache_key,
             {"permissions": permissions, "timestamp": int(time.time() * 1000)},
             self.permission_ttl,
+        )
+
+    async def _fetch_and_cache_permissions(
+        self,
+        token: str,
+        user_id: str,
+        auth_strategy: Optional[AuthStrategy],
+        refresh: bool = False,
+    ) -> List[str]:
+        """Fetch permissions and store them in cache."""
+        cache_key = self._build_cache_key(user_id)
+        environment, application = self._get_request_context()
+        permissions = (
+            await self._fetch_permissions_from_refresh(
+                token, environment, application, auth_strategy
+            )
+            if refresh
+            else await self._fetch_permissions(token, environment, application, auth_strategy)
+        )
+        assert cache_key is not None
+        await self._cache_permissions(cache_key, permissions)
+        return permissions
+
+    async def _resolve_permissions_for_request(
+        self, token: str, auth_strategy: Optional[AuthStrategy]
+    ) -> List[str]:
+        """Resolve permissions, using cache and API fallback."""
+        user_id = extract_user_id(token)
+        cache_key = self._build_cache_key(user_id)
+        cached_permissions = await self._get_cached_permissions(cache_key)
+        if cached_permissions is not None:
+            return cached_permissions
+
+        resolved_user_id = await self._resolve_user_id(token, user_id, auth_strategy)
+        if not resolved_user_id:
+            return []
+
+        cache_key = self._build_cache_key(resolved_user_id)
+        environment, application = self._get_request_context()
+        permissions = await self._fetch_permissions(token, environment, application, auth_strategy)
+        if cache_key is not None:
+            await self._cache_permissions(cache_key, permissions)
+        return permissions
+
+    @staticmethod
+    def _log_permission_error(message: str, error: Exception) -> None:
+        """Log permission service errors with correlation id when possible."""
+        correlation_id = extract_correlation_id_from_error(error)
+        logger.error(
+            message,
+            exc_info=error,
+            extra={"correlationId": correlation_id} if correlation_id else None,
         )
 
     async def get_permissions(
@@ -170,33 +258,9 @@ class PermissionService(ApplicationContextMixin):
 
         """
         try:
-            user_id = extract_user_id(token)
-            cache_key = self._build_cache_key(user_id)
-            cached_permissions = await self._get_cached_permissions(cache_key)
-            if cached_permissions is not None:
-                return cached_permissions
-
-            resolved_user_id = await self._resolve_user_id(token, user_id, auth_strategy)
-            if not resolved_user_id:
-                return []
-
-            cache_key = self._build_cache_key(resolved_user_id)
-            environment, application = self._get_request_context()
-            permissions = await self._fetch_permissions(
-                token, environment, application, auth_strategy
-            )
-
-            assert cache_key is not None
-            await self._cache_permissions(cache_key, permissions)
-            return permissions
-
+            return await self._resolve_permissions_for_request(token, auth_strategy)
         except Exception as error:
-            correlation_id = extract_correlation_id_from_error(error)
-            logger.error(
-                "Failed to get permissions",
-                exc_info=error,
-                extra={"correlationId": correlation_id} if correlation_id else None,
-            )
+            self._log_permission_error("Failed to get permissions", error)
             return []
 
     async def has_permission(
@@ -275,27 +339,15 @@ class PermissionService(ApplicationContextMixin):
 
         """
         try:
-            user_id = await self._resolve_user_id(token, None, auth_strategy)
+            user_id = await self._resolve_user_id_from_token_only(token, auth_strategy)
             if not user_id:
                 return []
-
-            cache_key = self._build_cache_key(user_id)
-            environment, application = self._get_request_context()
-            permissions = await self._fetch_permissions_from_refresh(
-                token, environment, application, auth_strategy
+            return await self._fetch_and_cache_permissions(
+                token, user_id, auth_strategy, refresh=True
             )
-
-            assert cache_key is not None
-            await self._cache_permissions(cache_key, permissions)
-            return permissions
 
         except Exception as error:
-            correlation_id = extract_correlation_id_from_error(error)
-            logger.error(
-                "Failed to refresh permissions",
-                exc_info=error,
-                extra={"correlationId": correlation_id} if correlation_id else None,
-            )
+            self._log_permission_error("Failed to refresh permissions", error)
             return []
 
     async def _fetch_permissions_from_refresh(
@@ -315,28 +367,13 @@ class PermissionService(ApplicationContextMixin):
                 auth_strategy=auth_strategy,
             )
             return response.data.permissions or []
-
-        params: dict[str, str] = {}
-        if environment:
-            params["environment"] = environment
-        if application:
-            params["application"] = application
-
-        if auth_strategy is not None:
-            permission_result = await self.http_client.authenticated_request(
-                "GET",
-                "/api/v1/auth/permissions/refresh",
-                token,
-                params=params,
-                auth_strategy=auth_strategy,
-            )
-        else:
-            permission_result = await self.http_client.authenticated_request(
-                "GET", "/api/v1/auth/permissions/refresh", token, params=params
-            )
-
-        permission_data = PermissionResult(**permission_result)
-        return permission_data.permissions or []
+        return await self._fetch_permissions_via_http_endpoint(
+            "/api/v1/auth/permissions/refresh",
+            token,
+            environment,
+            application,
+            auth_strategy,
+        )
 
     async def clear_permissions_cache(
         self, token: str, auth_strategy: Optional[AuthStrategy] = None
@@ -349,28 +386,10 @@ class PermissionService(ApplicationContextMixin):
 
         """
         try:
-            # Extract userId from token first (avoids API call if userId is in token)
-            user_id = extract_user_id(token)
+            user_id = await self._resolve_user_id_from_token_only(token, auth_strategy)
             if not user_id:
-                # Fallback to validate endpoint if userId not in token
-                user_info = await validate_token_request(
-                    token, self.http_client, self.api_client, auth_strategy
-                )
-                # validate_token_request returns {"data": {"user": {...}}} format
-                user_id = user_info.get("data", {}).get("user", {}).get("id") if user_info else None
-                if not user_id:
-                    return
-
+                return
             cache_key = f"permissions:{user_id}"
-
-            # Clear from cache (CacheService handles Redis + in-memory automatically)
             await self.cache.delete(cache_key)
-
         except Exception as error:
-            correlation_id = extract_correlation_id_from_error(error)
-            logger.error(
-                "Failed to clear permissions cache",
-                exc_info=error,
-                extra={"correlationId": correlation_id} if correlation_id else None,
-            )
-            # Silently continue per service method pattern
+            self._log_permission_error("Failed to clear permissions cache", error)

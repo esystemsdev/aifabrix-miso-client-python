@@ -70,6 +70,32 @@ class RoleService(ApplicationContextMixin):
         )
         return user_info.get("data", {}).get("user", {}).get("id") if user_info else None
 
+    async def _resolve_user_id_from_token_only(
+        self, token: str, auth_strategy: Optional[AuthStrategy]
+    ) -> Optional[str]:
+        """Resolve user id, preferring JWT claims before validate endpoint call."""
+        user_id = extract_user_id(token)
+        return await self._resolve_user_id(token, user_id, auth_strategy)
+
+    async def _fetch_and_cache_roles(
+        self,
+        token: str,
+        user_id: str,
+        auth_strategy: Optional[AuthStrategy],
+        refresh: bool = False,
+    ) -> List[str]:
+        """Fetch roles from controller and update cache for user."""
+        cache_key = self._build_cache_key(user_id)
+        environment, application = self._get_request_context()
+        roles = (
+            await self._fetch_roles_from_refresh(token, environment, application, auth_strategy)
+            if refresh
+            else await self._fetch_roles(token, environment, application, auth_strategy)
+        )
+        assert cache_key is not None
+        await self._cache_roles(cache_key, roles)
+        return roles
+
     def _get_request_context(self) -> tuple[Optional[str], Optional[str]]:
         context = self._get_app_context_service().get_application_context_sync()
         environment = (
@@ -145,6 +171,35 @@ class RoleService(ApplicationContextMixin):
         role_data = RoleResult(**role_result)
         return role_data.roles or []
 
+    async def _fetch_roles_via_http_endpoint(
+        self,
+        endpoint: str,
+        token: str,
+        environment: Optional[str],
+        application: Optional[str],
+        auth_strategy: Optional[AuthStrategy],
+    ) -> List[str]:
+        """Fetch roles from specific HTTP endpoint and normalize response."""
+        params: dict[str, str] = {}
+        if environment:
+            params["environment"] = environment
+        if application:
+            params["application"] = application
+        if auth_strategy is not None:
+            role_result = await self.http_client.authenticated_request(
+                "GET",
+                endpoint,
+                token,
+                params=params,
+                auth_strategy=auth_strategy,
+            )
+        else:
+            role_result = await self.http_client.authenticated_request(
+                "GET", endpoint, token, params=params
+            )
+        role_data = RoleResult(**role_result)
+        return role_data.roles or []
+
     async def _cache_roles(self, cache_key: str, roles: List[str]) -> None:
         await self.cache.set(
             cache_key, {"roles": roles, "timestamp": int(time.time() * 1000)}, self.role_ttl
@@ -173,26 +228,12 @@ class RoleService(ApplicationContextMixin):
             cached_roles = await self._get_cached_roles(cache_key)
             if cached_roles is not None:
                 return cached_roles
-
             resolved_user_id = await self._resolve_user_id(token, user_id, auth_strategy)
             if not resolved_user_id:
                 return []
-
-            cache_key = self._build_cache_key(resolved_user_id)
-            environment, application = self._get_request_context()
-            roles = await self._fetch_roles(token, environment, application, auth_strategy)
-
-            assert cache_key is not None
-            await self._cache_roles(cache_key, roles)
-            return roles
-
+            return await self._fetch_and_cache_roles(token, resolved_user_id, auth_strategy)
         except Exception as error:
-            correlation_id = extract_correlation_id_from_error(error)
-            logger.error(
-                "Failed to get roles",
-                exc_info=error,
-                extra={"correlationId": correlation_id} if correlation_id else None,
-            )
+            self._log_role_error("Failed to get roles", error)
             return []
 
     async def has_role(
@@ -271,27 +312,12 @@ class RoleService(ApplicationContextMixin):
 
         """
         try:
-            user_id = await self._resolve_user_id(token, None, auth_strategy)
+            user_id = await self._resolve_user_id_from_token_only(token, auth_strategy)
             if not user_id:
                 return []
-
-            cache_key = self._build_cache_key(user_id)
-            environment, application = self._get_request_context()
-            roles = await self._fetch_roles_from_refresh(
-                token, environment, application, auth_strategy
-            )
-
-            assert cache_key is not None
-            await self._cache_roles(cache_key, roles)
-            return roles
-
+            return await self._fetch_and_cache_roles(token, user_id, auth_strategy, refresh=True)
         except Exception as error:
-            correlation_id = extract_correlation_id_from_error(error)
-            logger.error(
-                "Failed to refresh roles",
-                exc_info=error,
-                extra={"correlationId": correlation_id} if correlation_id else None,
-            )
+            self._log_role_error("Failed to refresh roles", error)
             return []
 
     async def _fetch_roles_from_refresh(
@@ -311,28 +337,22 @@ class RoleService(ApplicationContextMixin):
                 auth_strategy=auth_strategy,
             )
             return response.data.roles or []
+        return await self._fetch_roles_via_http_endpoint(
+            "/api/v1/auth/roles/refresh",
+            token,
+            environment,
+            application,
+            auth_strategy,
+        )
 
-        params: dict[str, str] = {}
-        if environment:
-            params["environment"] = environment
-        if application:
-            params["application"] = application
-
-        if auth_strategy is not None:
-            role_result = await self.http_client.authenticated_request(
-                "GET",
-                "/api/v1/auth/roles/refresh",
-                token,
-                params=params,
-                auth_strategy=auth_strategy,
-            )
-        else:
-            role_result = await self.http_client.authenticated_request(
-                "GET", "/api/v1/auth/roles/refresh", token, params=params
-            )
-
-        role_data = RoleResult(**role_result)
-        return role_data.roles or []
+    def _log_role_error(self, message: str, error: Exception) -> None:
+        """Log role service error with correlation id metadata."""
+        correlation_id = extract_correlation_id_from_error(error)
+        logger.error(
+            message,
+            exc_info=error,
+            extra={"correlationId": correlation_id} if correlation_id else None,
+        )
 
     async def clear_roles_cache(
         self, token: str, auth_strategy: Optional[AuthStrategy] = None
@@ -345,26 +365,10 @@ class RoleService(ApplicationContextMixin):
 
         """
         try:
-            # Extract userId from token to avoid unnecessary API calls
-            user_id = extract_user_id(token)
+            user_id = await self._resolve_user_id_from_token_only(token, auth_strategy)
             if not user_id:
-                # If userId not in token, try to get it from validate endpoint
-                user_info = await validate_token_request(
-                    token, self.http_client, self.api_client, auth_strategy
-                )
-                # validate_token_request returns {"data": {"user": {...}}} format
-                user_id = user_info.get("data", {}).get("user", {}).get("id") if user_info else None
-                if not user_id:
-                    return  # Cannot clear cache without userId
-
+                return
             cache_key = f"roles:{user_id}"
             await self.cache.delete(cache_key)
-
         except Exception as error:
-            correlation_id = extract_correlation_id_from_error(error)
-            logger.error(
-                "Failed to clear roles cache",
-                exc_info=error,
-                extra={"correlationId": correlation_id} if correlation_id else None,
-            )
-            # Silently continue per service method pattern
+            self._log_role_error("Failed to clear roles cache", error)
