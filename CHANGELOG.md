@@ -5,6 +5,30 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.8.0] - 2026-03-13
+
+### Added
+
+- **Logs/audit consumer migration guidance** - Added explicit migration documentation for SDK consumers covering `*Key -> *Id` contract updates, filter migration, and logger indexed-context updates.
+- **Client traceability alignment** - Expanded `clientId` and Id-based traceability support across logs/audit types and logger context pathways.
+
+### Changed
+
+- **Logs/audit contract migration (breaking)** - Replaced legacy indexed fields `sourceKey`, `externalSystemKey`, and `recordKey` with `sourceId`, `externalSystemId`, and `recordId` on Python SDK logs/audit surfaces.
+- **Logs/audit list filter contract** - Standardized list filters on Id-based fields (`applicationId`, `sourceId`, `externalSystemId`, `recordId`) and removed name-based `application` filtering from list methods.
+- **API and wrapper pass-through consistency** - Updated `LogsApi` and delegated stats/list pathways to preserve and forward the new Id-based filter parameters without parameter loss.
+- **Codebase maintainability** - Refactored core services and utilities into smaller helper-driven units to satisfy method/file size constraints and keep behavior stable.
+
+### Fixed
+
+- **Filter and wrapper regressions** - Resolved edge cases where updated logs/audit filter parameters could be dropped or inconsistently propagated across wrappers.
+- **Type and validation stability** - Addressed strict typing and runtime edge cases uncovered during refactoring and migration validation.
+
+### Technical
+
+- **Plan execution baseline** - Completed plan-driven implementation and validation for logs/audit Key-to-Id migration and code-quality refactoring tracks.
+- **Release validation** - Verified release readiness with `make validate` (ruff, black, isort, pytest) before version bump.
+
 ## [4.7.3] - 2026-03-07
 
 ### Added
