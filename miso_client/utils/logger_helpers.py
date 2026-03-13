@@ -80,6 +80,7 @@ def extract_metadata() -> Dict[str, Any]:
 
 AUTO_CONTEXT_KEYS = {
     "applicationId",
+    "clientId",
     "correlationId",
     "ipAddress",
     "requestId",
@@ -92,6 +93,7 @@ AUTO_CONTEXT_KEYS = {
 
 TRACEABILITY_KEYS = {
     "applicationId",
+    "clientId",
     "correlationId",
     "requestId",
     "userId",
@@ -233,9 +235,11 @@ def _resolve_traceability_identifiers(
     Optional[str],
     Optional[str],
     Optional[str],
+    Optional[str],
 ]:
     """Resolve traceability identifiers using non-empty precedence rules."""
     final_correlation_id = _pick_first_non_empty(correlation_id, auto_fields.get("correlationId"))
+    client_id_value = _pick_first_non_empty(auto_fields.get("clientId"))
     application_id_value = _pick_first_non_empty(
         auto_fields.get("applicationId"),
         app_context.get("applicationId"),
@@ -250,6 +254,7 @@ def _resolve_traceability_identifiers(
     user_agent_value = _pick_first_non_empty(auto_fields.get("userAgent"))
     return (
         final_correlation_id,
+        client_id_value,
         application_id_value,
         user_id_value,
         session_id_value,
@@ -283,6 +288,7 @@ def _build_log_entry_data(
     masked_context: Optional[Dict[str, Any]],
     stack_trace: Optional[str],
     final_correlation_id: Optional[str],
+    client_id_value: Optional[str],
     session_id_value: Optional[str],
     request_id_value: Optional[str],
     ip_address_value: Optional[str],
@@ -297,6 +303,7 @@ def _build_log_entry_data(
         "level": level,
         "environment": environment_name,
         "application": application_name,
+        "clientId": client_id_value,
         "applicationId": application_id_ref,
         "message": message,
         "context": masked_context,
@@ -308,11 +315,11 @@ def _build_log_entry_data(
         "ipAddress": ip_address_value,
         "userAgent": user_agent_value,
         **env_metadata,
-        "sourceKey": options.sourceKey if options else None,
+        "sourceId": options.sourceId if options else None,
         "sourceDisplayName": options.sourceDisplayName if options else None,
-        "externalSystemKey": options.externalSystemKey if options else None,
+        "externalSystemId": options.externalSystemId if options else None,
         "externalSystemDisplayName": options.externalSystemDisplayName if options else None,
-        "recordKey": options.recordKey if options else None,
+        "recordId": options.recordId if options else None,
         "recordDisplayName": options.recordDisplayName if options else None,
         "credentialId": options.credentialId if options else None,
         "credentialType": options.credentialType if options else None,
@@ -354,6 +361,7 @@ def _resolve_log_entry_inputs(
     )
     (
         final_correlation_id,
+        client_id_value,
         application_id_value,
         user_id_value,
         session_id_value,
@@ -372,6 +380,7 @@ def _resolve_log_entry_inputs(
         "application_name": application_name,
         "environment_name": environment_name,
         "final_correlation_id": final_correlation_id,
+        "client_id_value": client_id_value,
         "application_id_value": application_id_value,
         "user_id_value": user_id_value,
         "session_id_value": session_id_value,
@@ -445,6 +454,7 @@ def _build_log_entry_internal(
     application_name = resolved_inputs["application_name"]
     environment_name = resolved_inputs["environment_name"]
     final_correlation_id = resolved_inputs["final_correlation_id"]
+    client_id_value = resolved_inputs["client_id_value"] or config_client_id
     application_id_value = resolved_inputs["application_id_value"]
     user_id_value = resolved_inputs["user_id_value"]
     session_id_value = resolved_inputs["session_id_value"]
@@ -464,6 +474,7 @@ def _build_log_entry_internal(
         masked_context=masked_context,
         stack_trace=stack_trace,
         final_correlation_id=final_correlation_id,
+        client_id_value=client_id_value,
         session_id_value=session_id_value,
         request_id_value=request_id_value,
         ip_address_value=ip_address_value,
@@ -508,7 +519,14 @@ def transform_log_entry_to_request(log_entry: LogEntry) -> Any:
                 application=log_entry.application,
                 environment=log_entry.environment,
                 applicationId=application_id,
+                clientId=log_entry.clientId,
                 userId=user_id,
+                sourceId=log_entry.sourceId,
+                sourceDisplayName=log_entry.sourceDisplayName,
+                externalSystemId=log_entry.externalSystemId,
+                externalSystemDisplayName=log_entry.externalSystemDisplayName,
+                recordId=log_entry.recordId,
+                recordDisplayName=log_entry.recordDisplayName,
                 requestId=log_entry.requestId,
                 sessionId=log_entry.sessionId,
                 ipAddress=log_entry.ipAddress,
@@ -527,7 +545,14 @@ def transform_log_entry_to_request(log_entry: LogEntry) -> Any:
             application=log_entry.application,
             environment=log_entry.environment,
             applicationId=application_id,
+            clientId=log_entry.clientId,
             userId=user_id,
+            sourceId=log_entry.sourceId,
+            sourceDisplayName=log_entry.sourceDisplayName,
+            externalSystemId=log_entry.externalSystemId,
+            externalSystemDisplayName=log_entry.externalSystemDisplayName,
+            recordId=log_entry.recordId,
+            recordDisplayName=log_entry.recordDisplayName,
             requestId=log_entry.requestId,
             sessionId=log_entry.sessionId,
             ipAddress=log_entry.ipAddress,

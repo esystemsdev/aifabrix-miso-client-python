@@ -45,6 +45,10 @@ class LogsStatsApi:
         self,
         environment: Optional[str] = None,
         application: Optional[str] = None,
+        application_id: Optional[str] = None,
+        source_id: Optional[str] = None,
+        external_system_id: Optional[str] = None,
+        record_id: Optional[str] = None,
         user_id: Optional[str] = None,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
@@ -56,6 +60,14 @@ class LogsStatsApi:
             params["environment"] = environment
         if application:
             params["application"] = application
+        if application_id:
+            params["applicationId"] = application_id
+        if source_id:
+            params["sourceId"] = source_id
+        if external_system_id:
+            params["externalSystemId"] = external_system_id
+        if record_id:
+            params["recordId"] = record_id
         if user_id:
             params["userId"] = user_id
         if start_date:
@@ -71,6 +83,10 @@ class LogsStatsApi:
         token: str,
         environment: Optional[Literal["dev", "tst", "pro", "miso"]] = None,
         application: Optional[str] = None,
+        application_id: Optional[str] = None,
+        source_id: Optional[str] = None,
+        external_system_id: Optional[str] = None,
+        record_id: Optional[str] = None,
         user_id: Optional[str] = None,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
@@ -82,6 +98,10 @@ class LogsStatsApi:
             token: User authentication token
             environment: Filter by environment
             application: Filter by application
+            application_id: Filter by application ID
+            source_id: Filter by source ID
+            external_system_id: Filter by external system ID
+            record_id: Filter by record ID
             user_id: Filter by user ID
             start_date: Start date (ISO 8601)
             end_date: End date (ISO 8601)
@@ -97,6 +117,10 @@ class LogsStatsApi:
         params = self._build_stats_params(
             environment=environment,
             application=application,
+            application_id=application_id,
+            source_id=source_id,
+            external_system_id=external_system_id,
+            record_id=record_id,
             user_id=user_id,
             start_date=start_date,
             end_date=end_date,
@@ -116,6 +140,10 @@ class LogsStatsApi:
         token: str,
         environment: Optional[Literal["dev", "tst", "pro", "miso"]] = None,
         application: Optional[str] = None,
+        application_id: Optional[str] = None,
+        source_id: Optional[str] = None,
+        external_system_id: Optional[str] = None,
+        record_id: Optional[str] = None,
         user_id: Optional[str] = None,
         limit: int = 10,
         start_date: Optional[str] = None,
@@ -128,6 +156,10 @@ class LogsStatsApi:
             token: User authentication token
             environment: Filter by environment
             application: Filter by application
+            application_id: Filter by application ID
+            source_id: Filter by source ID
+            external_system_id: Filter by external system ID
+            record_id: Filter by record ID
             user_id: Filter by user ID
             limit: Number of top errors to return (default 10, max 100)
             start_date: Start date (ISO 8601)
@@ -144,6 +176,10 @@ class LogsStatsApi:
         params = self._build_stats_params(
             environment=environment,
             application=application,
+            application_id=application_id,
+            source_id=source_id,
+            external_system_id=external_system_id,
+            record_id=record_id,
             user_id=user_id,
             start_date=start_date,
             end_date=end_date,
@@ -164,6 +200,10 @@ class LogsStatsApi:
         token: str,
         environment: Optional[Literal["dev", "tst", "pro", "miso"]] = None,
         application: Optional[str] = None,
+        application_id: Optional[str] = None,
+        source_id: Optional[str] = None,
+        external_system_id: Optional[str] = None,
+        record_id: Optional[str] = None,
         limit: int = 10,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
@@ -175,6 +215,10 @@ class LogsStatsApi:
             token: User authentication token
             environment: Filter by environment
             application: Filter by application
+            application_id: Filter by application ID
+            source_id: Filter by source ID
+            external_system_id: Filter by external system ID
+            record_id: Filter by record ID
             limit: Number of top users to return (default 10, max 100)
             start_date: Start date (ISO 8601)
             end_date: End date (ISO 8601)
@@ -190,6 +234,10 @@ class LogsStatsApi:
         params = self._build_stats_params(
             environment=environment,
             application=application,
+            application_id=application_id,
+            source_id=source_id,
+            external_system_id=external_system_id,
+            record_id=record_id,
             start_date=start_date,
             end_date=end_date,
             limit=limit,
@@ -250,6 +298,10 @@ class LogsStatsApi:
         format: Literal["csv", "json"],
         environment: Optional[Literal["dev", "tst", "pro", "miso"]] = None,
         application: Optional[str] = None,
+        application_id: Optional[str] = None,
+        source_id: Optional[str] = None,
+        external_system_id: Optional[str] = None,
+        record_id: Optional[str] = None,
         user_id: Optional[str] = None,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
@@ -266,6 +318,10 @@ class LogsStatsApi:
             format: Export format (csv, json)
             environment: Filter by environment
             application: Filter by application
+            application_id: Filter by application ID
+            source_id: Filter by source ID
+            external_system_id: Filter by external system ID
+            record_id: Filter by record ID
             user_id: Filter by user ID
             start_date: Start date (ISO 8601)
             end_date: End date (ISO 8601)
@@ -287,6 +343,14 @@ class LogsStatsApi:
             params["environment"] = environment
         if application:
             params["application"] = application
+        if application_id:
+            params["applicationId"] = application_id
+        if source_id:
+            params["sourceId"] = source_id
+        if external_system_id:
+            params["externalSystemId"] = external_system_id
+        if record_id:
+            params["recordId"] = record_id
         if user_id:
             params["userId"] = user_id
         if start_date:

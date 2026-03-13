@@ -401,7 +401,10 @@ class TestLogsApi:
             sort="-timestamp",
             level="error",
             environment="pro",
-            application="app1",
+            application_id="app-1",
+            source_id="source-1",
+            external_system_id="ext-1",
+            record_id="record-1",
             user_id="user-123",
             correlation_id="corr-456",
             start_date="2024-01-01T00:00:00Z",
@@ -419,7 +422,10 @@ class TestLogsApi:
         assert params["sort"] == "-timestamp"
         assert params["level"] == "error"
         assert params["environment"] == "pro"
-        assert params["application"] == "app1"
+        assert params["applicationId"] == "app-1"
+        assert params["sourceId"] == "source-1"
+        assert params["externalSystemId"] == "ext-1"
+        assert params["recordId"] == "record-1"
         assert params["userId"] == "user-123"
         assert params["correlationId"] == "corr-456"
         assert params["startDate"] == "2024-01-01T00:00:00Z"
@@ -486,7 +492,10 @@ class TestLogsApi:
             page_size=25,
             sort="timestamp",
             environment="tst",
-            application="app2",
+            application_id="app-2",
+            source_id="source-2",
+            external_system_id="ext-2",
+            record_id="record-2",
             user_id="user-456",
             correlation_id="corr-789",
             start_date="2024-01-01T00:00:00Z",
@@ -500,6 +509,10 @@ class TestLogsApi:
         assert isinstance(result, ListAuditLogsResponse)
         call_kwargs = mock_http_client.authenticated_request.call_args[1]
         params = call_kwargs["params"]
+        assert params["applicationId"] == "app-2"
+        assert params["sourceId"] == "source-2"
+        assert params["externalSystemId"] == "ext-2"
+        assert params["recordId"] == "record-2"
         assert params["entityType"] == "Group"
         assert params["entityId"] == "group-123"
         assert params["action"] == "UPDATE"
@@ -990,7 +1003,10 @@ class TestLogsApi:
             sort="-timestamp",
             level="error",
             environment="pro",
-            application="app1",
+            application_id="app-1",
+            source_id="source-1",
+            external_system_id="ext-1",
+            record_id="record-1",
             user_id="user-123",
             correlation_id="corr-456",
             start_date="2024-01-01T00:00:00Z",
@@ -1003,7 +1019,10 @@ class TestLogsApi:
         assert params["sort"] == "-timestamp"
         assert params["level"] == "error"
         assert params["environment"] == "pro"
-        assert params["application"] == "app1"
+        assert params["applicationId"] == "app-1"
+        assert params["sourceId"] == "source-1"
+        assert params["externalSystemId"] == "ext-1"
+        assert params["recordId"] == "record-1"
         assert params["userId"] == "user-123"
         assert params["correlationId"] == "corr-456"
         assert params["startDate"] == "2024-01-01T00:00:00Z"
@@ -1018,7 +1037,10 @@ class TestLogsApi:
             sort=None,
             level=None,
             environment=None,
-            application=None,
+            application_id=None,
+            source_id=None,
+            external_system_id=None,
+            record_id=None,
             user_id=None,
             correlation_id=None,
             start_date=None,

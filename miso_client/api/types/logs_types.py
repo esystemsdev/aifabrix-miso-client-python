@@ -39,7 +39,16 @@ class GeneralLogData(BaseModel):
     applicationId: Optional[Dict[str, Any]] = Field(
         default=None, description="Application reference"
     )
+    clientId: Optional[str] = Field(default=None, description="Pipeline/client credential ID")
     userId: Optional[Dict[str, Any]] = Field(default=None, description="User reference")
+    sourceId: Optional[str] = Field(default=None, description="External data source ID")
+    sourceDisplayName: Optional[str] = Field(default=None, description="External data source name")
+    externalSystemId: Optional[str] = Field(default=None, description="External system ID")
+    externalSystemDisplayName: Optional[str] = Field(
+        default=None, description="External system name"
+    )
+    recordId: Optional[str] = Field(default=None, description="External record ID")
+    recordDisplayName: Optional[str] = Field(default=None, description="External record name")
     requestId: Optional[str] = Field(default=None, description="Request ID")
     sessionId: Optional[str] = Field(default=None, description="Session ID")
     ipAddress: Optional[str] = Field(default=None, description="Client IP address")
@@ -61,7 +70,16 @@ class AuditLogData(BaseModel):
     applicationId: Optional[Dict[str, Any]] = Field(
         default=None, description="Application reference"
     )
+    clientId: Optional[str] = Field(default=None, description="Pipeline/client credential ID")
     userId: Optional[Dict[str, Any]] = Field(default=None, description="User reference")
+    sourceId: Optional[str] = Field(default=None, description="External data source ID")
+    sourceDisplayName: Optional[str] = Field(default=None, description="External data source name")
+    externalSystemId: Optional[str] = Field(default=None, description="External system ID")
+    externalSystemDisplayName: Optional[str] = Field(
+        default=None, description="External system name"
+    )
+    recordId: Optional[str] = Field(default=None, description="External record ID")
+    recordDisplayName: Optional[str] = Field(default=None, description="External record name")
     requestId: Optional[str] = Field(default=None, description="Request ID")
     sessionId: Optional[str] = Field(default=None, description="Session ID")
     ipAddress: Optional[str] = Field(default=None, description="Client IP address")
@@ -124,7 +142,16 @@ class GeneralLogEntry(BaseModel):
     applicationId: Optional[ForeignKeyReference] = Field(
         default=None, description="Application reference"
     )
+    clientId: Optional[str] = Field(default=None, description="Pipeline/client credential ID")
     userId: Optional[ForeignKeyReference] = Field(default=None, description="User reference")
+    sourceId: Optional[str] = Field(default=None, description="External data source ID")
+    sourceDisplayName: Optional[str] = Field(default=None, description="External data source name")
+    externalSystemId: Optional[str] = Field(default=None, description="External system ID")
+    externalSystemDisplayName: Optional[str] = Field(
+        default=None, description="External system name"
+    )
+    recordId: Optional[str] = Field(default=None, description="External record ID")
+    recordDisplayName: Optional[str] = Field(default=None, description="External record name")
     message: str = Field(..., description="Log message")
     stackTrace: Optional[str] = Field(default=None, description="Stack trace for errors")
     context: Optional[Dict[str, Any]] = Field(default=None, description="Additional context")
@@ -145,7 +172,16 @@ class AuditLogEntry(BaseModel):
     applicationId: Optional[ForeignKeyReference] = Field(
         default=None, description="Application reference"
     )
+    clientId: Optional[str] = Field(default=None, description="Pipeline/client credential ID")
     userId: Optional[ForeignKeyReference] = Field(default=None, description="User reference")
+    sourceId: Optional[str] = Field(default=None, description="External data source ID")
+    sourceDisplayName: Optional[str] = Field(default=None, description="External data source name")
+    externalSystemId: Optional[str] = Field(default=None, description="External system ID")
+    externalSystemDisplayName: Optional[str] = Field(
+        default=None, description="External system name"
+    )
+    recordId: Optional[str] = Field(default=None, description="External record ID")
+    recordDisplayName: Optional[str] = Field(default=None, description="External record name")
     entityType: str = Field(..., description="Type of entity modified")
     entityId: str = Field(..., description="ID of the entity modified")
     action: str = Field(..., description="Action performed (CREATE, UPDATE, DELETE)")

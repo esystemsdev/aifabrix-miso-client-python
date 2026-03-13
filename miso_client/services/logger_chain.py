@@ -112,21 +112,21 @@ class LoggerChain:
 
     def with_indexed_context(
         self,
-        source_key: Optional[str] = None,
+        source_id: Optional[str] = None,
         source_display_name: Optional[str] = None,
-        external_system_key: Optional[str] = None,
+        external_system_id: Optional[str] = None,
         external_system_display_name: Optional[str] = None,
-        record_key: Optional[str] = None,
+        record_id: Optional[str] = None,
         record_display_name: Optional[str] = None,
     ) -> "LoggerChain":
         """Add indexed context fields for fast querying.
 
         Args:
-            source_key: ExternalDataSource.key
+            source_id: ExternalDataSource.id
             source_display_name: Human-readable source name
-            external_system_key: ExternalSystem.key
+            external_system_id: ExternalSystem.id
             external_system_display_name: Human-readable system name
-            record_key: ExternalRecord.key
+            record_id: ExternalRecord.id
             record_display_name: Human-readable record identifier
 
         Returns:
@@ -135,16 +135,16 @@ class LoggerChain:
         """
         if self.options is None:
             self.options = ClientLoggingOptions()
-        if source_key:
-            self.options.sourceKey = source_key
+        if source_id:
+            self.options.sourceId = source_id
         if source_display_name:
             self.options.sourceDisplayName = source_display_name
-        if external_system_key:
-            self.options.externalSystemKey = external_system_key
+        if external_system_id:
+            self.options.externalSystemId = external_system_id
         if external_system_display_name:
             self.options.externalSystemDisplayName = external_system_display_name
-        if record_key:
-            self.options.recordKey = record_key
+        if record_id:
+            self.options.recordId = record_id
         if record_display_name:
             self.options.recordDisplayName = record_display_name
         return self

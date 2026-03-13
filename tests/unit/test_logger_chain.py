@@ -135,33 +135,33 @@ class TestLoggerChain:
     def test_with_indexed_context(self, logger_chain):
         """Test with_indexed_context method."""
         result = logger_chain.with_indexed_context(
-            source_key="source-key",
+            source_id="source-key",
             source_display_name="Source Display",
-            external_system_key="system-key",
+            external_system_id="system-key",
             external_system_display_name="System Display",
-            record_key="record-key",
+            record_id="record-key",
             record_display_name="Record Display",
         )
 
         assert result is logger_chain
-        assert logger_chain.options.sourceKey == "source-key"
+        assert logger_chain.options.sourceId == "source-key"
         assert logger_chain.options.sourceDisplayName == "Source Display"
-        assert logger_chain.options.externalSystemKey == "system-key"
+        assert logger_chain.options.externalSystemId == "system-key"
         assert logger_chain.options.externalSystemDisplayName == "System Display"
-        assert logger_chain.options.recordKey == "record-key"
+        assert logger_chain.options.recordId == "record-key"
         assert logger_chain.options.recordDisplayName == "Record Display"
 
     def test_with_indexed_context_partial(self, logger_chain):
         """Test with_indexed_context with partial parameters."""
         result = logger_chain.with_indexed_context(
-            source_key="source-key", external_system_key="system-key"
+            source_id="source-key", external_system_id="system-key"
         )
 
         assert result is logger_chain
-        assert logger_chain.options.sourceKey == "source-key"
-        assert logger_chain.options.externalSystemKey == "system-key"
+        assert logger_chain.options.sourceId == "source-key"
+        assert logger_chain.options.externalSystemId == "system-key"
         assert logger_chain.options.sourceDisplayName is None
-        assert logger_chain.options.recordKey is None
+        assert logger_chain.options.recordId is None
 
     def test_with_credential_context(self, logger_chain):
         """Test with_credential_context method."""
@@ -244,9 +244,9 @@ class TestLoggerChain:
             chain = (
                 LoggerChain(logger_service, {}, ClientLoggingOptions())
                 .with_indexed_context(
-                    source_key="source-key",
+                    source_id="source-key",
                     source_display_name="Source",
-                    external_system_key="system-key",
+                    external_system_id="system-key",
                 )
                 .with_credential_context(credential_id="cred-123", credential_type="oauth2")
                 .with_request_metrics(response_size=2048, duration_ms=150, retry_count=1)
@@ -258,9 +258,9 @@ class TestLoggerChain:
             mock_info.assert_called_once()
             call_args = mock_info.call_args
             options = call_args[0][2]  # Third argument is options
-            assert options.sourceKey == "source-key"
+            assert options.sourceId == "source-key"
             assert options.sourceDisplayName == "Source"
-            assert options.externalSystemKey == "system-key"
+            assert options.externalSystemId == "system-key"
             assert options.credentialId == "cred-123"
             assert options.credentialType == "oauth2"
             assert options.responseSize == 2048
@@ -410,14 +410,12 @@ class TestLoggerChain:
     def test_with_indexed_context_with_none_options(self, logger_service):
         """Test with_indexed_context when options is None."""
         chain = LoggerChain(logger_service, {}, None)
-        result = chain.with_indexed_context(
-            source_key="source-key", external_system_key="system-key"
-        )
+        result = chain.with_indexed_context(source_id="source-key", external_system_id="system-key")
 
         assert result is chain
         assert chain.options is not None
-        assert chain.options.sourceKey == "source-key"
-        assert chain.options.externalSystemKey == "system-key"
+        assert chain.options.sourceId == "source-key"
+        assert chain.options.externalSystemId == "system-key"
 
     def test_with_credential_context_with_none_options(self, logger_service):
         """Test with_credential_context when options is None."""
@@ -515,7 +513,7 @@ class TestLoggerChain:
             .with_application("app-1")
             .with_environment("prod")
             .without_masking()
-            .with_indexed_context(source_key="source-1")
+            .with_indexed_context(source_id="source-1")
             .with_credential_context(credential_id="cred-1")
             .with_request_metrics(response_size=1024)
             .with_error_context(error_category="network")
