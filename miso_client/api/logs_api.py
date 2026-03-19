@@ -133,6 +133,7 @@ class LogsApi:
         level: Optional[Literal["error", "warn", "info", "debug"]] = None,
         environment: Optional[Literal["dev", "tst", "pro", "miso"]] = None,
         application_id: Optional[str] = None,
+        client_id: Optional[str] = None,
         source_id: Optional[str] = None,
         external_system_id: Optional[str] = None,
         record_id: Optional[str] = None,
@@ -153,6 +154,7 @@ class LogsApi:
             level: Filter by log level
             environment: Filter by environment
             application_id: Filter by application ID
+            client_id: Filter by client credential/pipeline ID
             source_id: Filter by source ID
             external_system_id: Filter by external system ID
             record_id: Filter by record ID
@@ -177,6 +179,7 @@ class LogsApi:
             level=level,
             environment=environment,
             application_id=application_id,
+            client_id=client_id,
             source_id=source_id,
             external_system_id=external_system_id,
             record_id=record_id,
@@ -204,6 +207,7 @@ class LogsApi:
         sort: Optional[str] = None,
         environment: Optional[Literal["dev", "tst", "pro", "miso"]] = None,
         application_id: Optional[str] = None,
+        client_id: Optional[str] = None,
         source_id: Optional[str] = None,
         external_system_id: Optional[str] = None,
         record_id: Optional[str] = None,
@@ -225,6 +229,7 @@ class LogsApi:
             sort: Sort field with optional direction prefix (e.g., '-timestamp')
             environment: Filter by environment
             application_id: Filter by application ID
+            client_id: Filter by client credential/pipeline ID
             source_id: Filter by source ID
             external_system_id: Filter by external system ID
             record_id: Filter by record ID
@@ -250,6 +255,7 @@ class LogsApi:
             sort=sort,
             environment=environment,
             application_id=application_id,
+            client_id=client_id,
             source_id=source_id,
             external_system_id=external_system_id,
             record_id=record_id,
@@ -526,6 +532,7 @@ class LogsApi:
         level: Optional[str] = None,
         environment: Optional[str] = None,
         application_id: Optional[str] = None,
+        client_id: Optional[str] = None,
         source_id: Optional[str] = None,
         external_system_id: Optional[str] = None,
         record_id: Optional[str] = None,
@@ -548,6 +555,8 @@ class LogsApi:
             params["environment"] = environment
         if application_id:
             params["applicationId"] = application_id
+        if client_id:
+            params["clientId"] = client_id
         if source_id:
             params["sourceId"] = source_id
         if external_system_id:

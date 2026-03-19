@@ -5,6 +5,21 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.8.1] - 2026-02-27
+
+### Changed
+
+- **Logs list filter contract parity** - Extended `LogsApi.list_general_logs()` and `LogsApi.list_audit_logs()` with optional `client_id` filtering and serialized pass-through as `clientId` query parameter.
+
+### Fixed
+
+- **Wave 4 filter propagation gap** - Closed parity gap where `clientId` existed in log models but was not available in logs list filtering surfaces.
+
+### Technical
+
+- **Regression coverage expansion** - Added/updated unit tests in `test_logs_api.py` to assert `clientId` pass-through for general and audit list endpoints, plus `_build_list_params` coverage.
+- **Release validation baseline** - Verified release readiness with `make validate` (ruff, black, isort, pytest).
+
 ## [4.8.0] - 2026-03-13
 
 ### Added

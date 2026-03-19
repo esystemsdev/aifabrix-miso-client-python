@@ -402,6 +402,7 @@ class TestLogsApi:
             level="error",
             environment="pro",
             application_id="app-1",
+            client_id="client-1",
             source_id="source-1",
             external_system_id="ext-1",
             record_id="record-1",
@@ -423,6 +424,7 @@ class TestLogsApi:
         assert params["level"] == "error"
         assert params["environment"] == "pro"
         assert params["applicationId"] == "app-1"
+        assert params["clientId"] == "client-1"
         assert params["sourceId"] == "source-1"
         assert params["externalSystemId"] == "ext-1"
         assert params["recordId"] == "record-1"
@@ -493,6 +495,7 @@ class TestLogsApi:
             sort="timestamp",
             environment="tst",
             application_id="app-2",
+            client_id="client-2",
             source_id="source-2",
             external_system_id="ext-2",
             record_id="record-2",
@@ -510,6 +513,7 @@ class TestLogsApi:
         call_kwargs = mock_http_client.authenticated_request.call_args[1]
         params = call_kwargs["params"]
         assert params["applicationId"] == "app-2"
+        assert params["clientId"] == "client-2"
         assert params["sourceId"] == "source-2"
         assert params["externalSystemId"] == "ext-2"
         assert params["recordId"] == "record-2"
@@ -1004,6 +1008,7 @@ class TestLogsApi:
             level="error",
             environment="pro",
             application_id="app-1",
+            client_id="client-1",
             source_id="source-1",
             external_system_id="ext-1",
             record_id="record-1",
@@ -1020,6 +1025,7 @@ class TestLogsApi:
         assert params["level"] == "error"
         assert params["environment"] == "pro"
         assert params["applicationId"] == "app-1"
+        assert params["clientId"] == "client-1"
         assert params["sourceId"] == "source-1"
         assert params["externalSystemId"] == "ext-1"
         assert params["recordId"] == "record-1"
@@ -1038,6 +1044,7 @@ class TestLogsApi:
             level=None,
             environment=None,
             application_id=None,
+            client_id=None,
             source_id=None,
             external_system_id=None,
             record_id=None,
@@ -1053,6 +1060,48 @@ class TestLogsApi:
         assert "sort" not in params
         assert "level" not in params
         assert "environment" not in params
+
+    @pytest.mark.asyncio
+    async def test_list_general_logs_client_id_pass_through(self, logs_api, mock_http_client):
+        """Test list_general_logs forwards clientId filter in query params."""
+        mock_response = {
+            "data": [],
+            "meta": {
+                "currentPage": 1,
+                "pageSize": 10,
+                "totalItems": 0,
+                "totalPages": 0,
+                "type": "generalLog",
+            },
+            "links": {"first": None, "prev": None, "next": None, "last": None},
+        }
+        mock_http_client.authenticated_request.return_value = mock_response
+
+        await logs_api.list_general_logs("test-token", client_id="client-pass-through")
+
+        call_kwargs = mock_http_client.authenticated_request.call_args[1]
+        assert call_kwargs["params"]["clientId"] == "client-pass-through"
+
+    @pytest.mark.asyncio
+    async def test_list_audit_logs_client_id_pass_through(self, logs_api, mock_http_client):
+        """Test list_audit_logs forwards clientId filter in query params."""
+        mock_response = {
+            "data": [],
+            "meta": {
+                "currentPage": 1,
+                "pageSize": 10,
+                "totalItems": 0,
+                "totalPages": 0,
+                "type": "auditLog",
+            },
+            "links": {"first": None, "prev": None, "next": None, "last": None},
+        }
+        mock_http_client.authenticated_request.return_value = mock_response
+
+        await logs_api.list_audit_logs("test-token", client_id="client-pass-through")
+
+        call_kwargs = mock_http_client.authenticated_request.call_args[1]
+        assert call_kwargs["params"]["clientId"] == "client-pass-through"
 
     def test_build_stats_params_minimal(self, logs_api):
         """Test _build_stats_params with minimal parameters."""
