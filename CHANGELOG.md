@@ -5,6 +5,28 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.9.0] - 2026-03-23
+
+### Added
+
+- **Stats/export delegation mixin** - Added `logs_stats_delegation_mixin.py` and moved stats/export wrapper methods out of `LogsApi` to keep API modules within code-size guidelines while preserving behavior.
+- **Consumer migration guide for applicationId-only stats/export inputs** - Added `.temp/logs-wave-4/python-sdk-applicationid-only-migration.md` with before/after migration examples.
+
+### Changed
+
+- **Logs stats/export input contract (breaking)** - Removed legacy `application` input for `get_stats_summary`, `get_stats_errors`, `get_stats_users`, and `export_logs`; these now accept `application_id` only (serialized as `applicationId`).
+- **Logs API wrapper alignment** - Synced `LogsApi` passthrough signatures with `LogsStatsApi` input-only `application_id` contract.
+- **Wave 4 migration documentation** - Updated wave4 consumer/status notes to reflect `application_id`-only query inputs for list/stats/export surfaces.
+
+### Fixed
+
+- **Stats/export filter regression coverage** - Updated unit tests to assert `application_id -> applicationId` propagation and explicit absence of legacy `application` query key.
+- **Code size compliance for touched API module** - Reduced `miso_client/api/logs_api.py` below 500 lines by extracting delegation wrappers.
+
+### Technical
+
+- **Validation baseline** - Verified release readiness with `make validate` and follow-up `make format && make lint && make type-check && make test` loops.
+
 ## [4.8.1] - 2026-02-27
 
 ### Changed
