@@ -694,7 +694,7 @@ class TestLogsApi:
         result = await logs_api.get_stats_summary(
             "test-token",
             environment="pro",
-            application="app1",
+            application_id="app1",
             user_id="user-123",
             start_date="2024-01-01T00:00:00Z",
             end_date="2024-01-31T23:59:59Z",
@@ -705,7 +705,8 @@ class TestLogsApi:
         call_kwargs = mock_http_client.authenticated_request.call_args[1]
         params = call_kwargs["params"]
         assert params["environment"] == "pro"
-        assert params["application"] == "app1"
+        assert params["applicationId"] == "app1"
+        assert "application" not in params
         assert params["userId"] == "user-123"
         assert call_kwargs["auth_strategy"] == auth_strategy
 
@@ -754,7 +755,7 @@ class TestLogsApi:
         result = await logs_api.get_stats_errors(
             "test-token",
             environment="tst",
-            application="app1",
+            application_id="app1",
             user_id="user-123",
             limit=20,
             start_date="2024-01-01T00:00:00Z",
@@ -766,6 +767,7 @@ class TestLogsApi:
         call_kwargs = mock_http_client.authenticated_request.call_args[1]
         params = call_kwargs["params"]
         assert params["limit"] == 20
+        assert "application" not in params
         assert call_kwargs["auth_strategy"] == auth_strategy
 
     @pytest.mark.asyncio
@@ -815,7 +817,7 @@ class TestLogsApi:
         result = await logs_api.get_stats_users(
             "test-token",
             environment="pro",
-            application="app1",
+            application_id="app1",
             limit=15,
             start_date="2024-01-01T00:00:00Z",
             end_date="2024-01-31T23:59:59Z",
@@ -826,6 +828,7 @@ class TestLogsApi:
         call_kwargs = mock_http_client.authenticated_request.call_args[1]
         params = call_kwargs["params"]
         assert params["limit"] == 15
+        assert "application" not in params
         assert call_kwargs["auth_strategy"] == auth_strategy
 
     @pytest.mark.asyncio
@@ -967,7 +970,7 @@ class TestLogsApi:
             log_type="jobs",
             format="json",
             environment="tst",
-            application="app1",
+            application_id="app1",
             user_id="user-123",
             start_date="2024-01-01T00:00:00Z",
             end_date="2024-01-31T23:59:59Z",
@@ -981,7 +984,8 @@ class TestLogsApi:
         assert params["type"] == "jobs"
         assert params["format"] == "json"
         assert params["environment"] == "tst"
-        assert params["application"] == "app1"
+        assert params["applicationId"] == "app1"
+        assert "application" not in params
         assert params["userId"] == "user-123"
         assert params["limit"] == 5000
         assert call_kwargs["auth_strategy"] == auth_strategy
@@ -1113,7 +1117,7 @@ class TestLogsApi:
         """Test _build_stats_params with all parameters."""
         params = logs_api._stats._build_stats_params(
             environment="pro",
-            application="app1",
+            application_id="app1",
             user_id="user-123",
             start_date="2024-01-01T00:00:00Z",
             end_date="2024-01-31T23:59:59Z",
@@ -1121,7 +1125,8 @@ class TestLogsApi:
         )
 
         assert params["environment"] == "pro"
-        assert params["application"] == "app1"
+        assert params["applicationId"] == "app1"
+        assert "application" not in params
         assert params["userId"] == "user-123"
         assert params["startDate"] == "2024-01-01T00:00:00Z"
         assert params["endDate"] == "2024-01-31T23:59:59Z"
@@ -1131,7 +1136,7 @@ class TestLogsApi:
         """Test _build_stats_params with None optional parameters."""
         params = logs_api._stats._build_stats_params(
             environment=None,
-            application=None,
+            application_id=None,
             user_id=None,
             start_date=None,
             end_date=None,

@@ -44,7 +44,6 @@ class LogsStatsApi:
     def _build_stats_params(
         self,
         environment: Optional[str] = None,
-        application: Optional[str] = None,
         application_id: Optional[str] = None,
         source_id: Optional[str] = None,
         external_system_id: Optional[str] = None,
@@ -58,8 +57,6 @@ class LogsStatsApi:
         params: Dict[str, Any] = {}
         if environment:
             params["environment"] = environment
-        if application:
-            params["application"] = application
         if application_id:
             params["applicationId"] = application_id
         if source_id:
@@ -82,7 +79,6 @@ class LogsStatsApi:
         self,
         token: str,
         environment: Optional[Literal["dev", "tst", "pro", "miso"]] = None,
-        application: Optional[str] = None,
         application_id: Optional[str] = None,
         source_id: Optional[str] = None,
         external_system_id: Optional[str] = None,
@@ -97,7 +93,6 @@ class LogsStatsApi:
         Args:
             token: User authentication token
             environment: Filter by environment
-            application: Filter by application
             application_id: Filter by application ID
             source_id: Filter by source ID
             external_system_id: Filter by external system ID
@@ -116,7 +111,6 @@ class LogsStatsApi:
         """
         params = self._build_stats_params(
             environment=environment,
-            application=application,
             application_id=application_id,
             source_id=source_id,
             external_system_id=external_system_id,
@@ -139,7 +133,6 @@ class LogsStatsApi:
         self,
         token: str,
         environment: Optional[Literal["dev", "tst", "pro", "miso"]] = None,
-        application: Optional[str] = None,
         application_id: Optional[str] = None,
         source_id: Optional[str] = None,
         external_system_id: Optional[str] = None,
@@ -155,7 +148,6 @@ class LogsStatsApi:
         Args:
             token: User authentication token
             environment: Filter by environment
-            application: Filter by application
             application_id: Filter by application ID
             source_id: Filter by source ID
             external_system_id: Filter by external system ID
@@ -175,7 +167,6 @@ class LogsStatsApi:
         """
         params = self._build_stats_params(
             environment=environment,
-            application=application,
             application_id=application_id,
             source_id=source_id,
             external_system_id=external_system_id,
@@ -199,7 +190,6 @@ class LogsStatsApi:
         self,
         token: str,
         environment: Optional[Literal["dev", "tst", "pro", "miso"]] = None,
-        application: Optional[str] = None,
         application_id: Optional[str] = None,
         source_id: Optional[str] = None,
         external_system_id: Optional[str] = None,
@@ -214,7 +204,6 @@ class LogsStatsApi:
         Args:
             token: User authentication token
             environment: Filter by environment
-            application: Filter by application
             application_id: Filter by application ID
             source_id: Filter by source ID
             external_system_id: Filter by external system ID
@@ -233,7 +222,6 @@ class LogsStatsApi:
         """
         params = self._build_stats_params(
             environment=environment,
-            application=application,
             application_id=application_id,
             source_id=source_id,
             external_system_id=external_system_id,
@@ -297,7 +285,6 @@ class LogsStatsApi:
         log_type: Literal["general", "audit", "jobs"],
         format: Literal["csv", "json"],
         environment: Optional[Literal["dev", "tst", "pro", "miso"]] = None,
-        application: Optional[str] = None,
         application_id: Optional[str] = None,
         source_id: Optional[str] = None,
         external_system_id: Optional[str] = None,
@@ -317,7 +304,6 @@ class LogsStatsApi:
             log_type: Type of logs to export (general, audit, jobs)
             format: Export format (csv, json)
             environment: Filter by environment
-            application: Filter by application
             application_id: Filter by application ID
             source_id: Filter by source ID
             external_system_id: Filter by external system ID
@@ -341,8 +327,6 @@ class LogsStatsApi:
         }
         if environment:
             params["environment"] = environment
-        if application:
-            params["application"] = application
         if application_id:
             params["applicationId"] = application_id
         if source_id:

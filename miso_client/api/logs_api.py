@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Literal, Optional
 from ..models.config import AuthStrategy, LogEntry
 from ..utils.http_client import HttpClient
 from .logs_stats_api import LogsStatsApi
+from .logs_stats_delegation_mixin import LogsStatsDelegationMixin
 from .response_utils import normalize_api_response
 from .types.logs_types import (
     BatchLogRequest,
@@ -20,17 +21,12 @@ from .types.logs_types import (
     ListAuditLogsResponse,
     ListGeneralLogsResponse,
     ListJobLogsResponse,
-    LogExportResponse,
     LogRequest,
     LogResponse,
-    LogStatsApplicationsResponse,
-    LogStatsErrorsResponse,
-    LogStatsSummaryResponse,
-    LogStatsUsersResponse,
 )
 
 
-class LogsApi:
+class LogsApi(LogsStatsDelegationMixin):
     """Logs API client for logging endpoints."""
 
     # Endpoint constants
@@ -374,151 +370,6 @@ class LogsApi:
         )
         response = normalize_api_response(response)
         return GetJobLogResponse(**response)
-
-    # =========================================================================
-    # Log Statistics Endpoints (delegated to LogsStatsApi)
-    # =========================================================================
-
-    async def get_stats_summary(
-        self,
-        token: str,
-        environment: Optional[Literal["dev", "tst", "pro", "miso"]] = None,
-        application: Optional[str] = None,
-        application_id: Optional[str] = None,
-        source_id: Optional[str] = None,
-        external_system_id: Optional[str] = None,
-        record_id: Optional[str] = None,
-        user_id: Optional[str] = None,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-        auth_strategy: Optional[AuthStrategy] = None,
-    ) -> LogStatsSummaryResponse:
-        """Get log statistics summary. See LogsStatsApi.get_stats_summary for details."""
-        return await self._stats.get_stats_summary(
-            token=token,
-            environment=environment,
-            application=application,
-            application_id=application_id,
-            source_id=source_id,
-            external_system_id=external_system_id,
-            record_id=record_id,
-            user_id=user_id,
-            start_date=start_date,
-            end_date=end_date,
-            auth_strategy=auth_strategy,
-        )
-
-    async def get_stats_errors(
-        self,
-        token: str,
-        environment: Optional[Literal["dev", "tst", "pro", "miso"]] = None,
-        application: Optional[str] = None,
-        application_id: Optional[str] = None,
-        source_id: Optional[str] = None,
-        external_system_id: Optional[str] = None,
-        record_id: Optional[str] = None,
-        user_id: Optional[str] = None,
-        limit: int = 10,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-        auth_strategy: Optional[AuthStrategy] = None,
-    ) -> LogStatsErrorsResponse:
-        """Get error statistics. See LogsStatsApi.get_stats_errors for details."""
-        return await self._stats.get_stats_errors(
-            token=token,
-            environment=environment,
-            application=application,
-            application_id=application_id,
-            source_id=source_id,
-            external_system_id=external_system_id,
-            record_id=record_id,
-            user_id=user_id,
-            limit=limit,
-            start_date=start_date,
-            end_date=end_date,
-            auth_strategy=auth_strategy,
-        )
-
-    async def get_stats_users(
-        self,
-        token: str,
-        environment: Optional[Literal["dev", "tst", "pro", "miso"]] = None,
-        application: Optional[str] = None,
-        application_id: Optional[str] = None,
-        source_id: Optional[str] = None,
-        external_system_id: Optional[str] = None,
-        record_id: Optional[str] = None,
-        limit: int = 10,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-        auth_strategy: Optional[AuthStrategy] = None,
-    ) -> LogStatsUsersResponse:
-        """Get user activity statistics. See LogsStatsApi.get_stats_users for details."""
-        return await self._stats.get_stats_users(
-            token=token,
-            environment=environment,
-            application=application,
-            application_id=application_id,
-            source_id=source_id,
-            external_system_id=external_system_id,
-            record_id=record_id,
-            limit=limit,
-            start_date=start_date,
-            end_date=end_date,
-            auth_strategy=auth_strategy,
-        )
-
-    async def get_stats_applications(
-        self,
-        token: str,
-        environment: Optional[Literal["dev", "tst", "pro", "miso"]] = None,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-        auth_strategy: Optional[AuthStrategy] = None,
-    ) -> LogStatsApplicationsResponse:
-        """Get application statistics. See LogsStatsApi.get_stats_applications for details."""
-        return await self._stats.get_stats_applications(
-            token, environment, start_date, end_date, auth_strategy
-        )
-
-    # =========================================================================
-    # Log Export Endpoint (delegated to LogsStatsApi)
-    # =========================================================================
-
-    async def export_logs(
-        self,
-        token: str,
-        log_type: Literal["general", "audit", "jobs"],
-        format: Literal["csv", "json"],
-        environment: Optional[Literal["dev", "tst", "pro", "miso"]] = None,
-        application: Optional[str] = None,
-        application_id: Optional[str] = None,
-        source_id: Optional[str] = None,
-        external_system_id: Optional[str] = None,
-        record_id: Optional[str] = None,
-        user_id: Optional[str] = None,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-        limit: int = 1000,
-        auth_strategy: Optional[AuthStrategy] = None,
-    ) -> LogExportResponse:
-        """Export logs. See LogsStatsApi.export_logs for details."""
-        return await self._stats.export_logs(
-            token,
-            log_type,
-            format,
-            environment,
-            application,
-            application_id,
-            source_id,
-            external_system_id,
-            record_id,
-            user_id,
-            start_date,
-            end_date,
-            limit,
-            auth_strategy,
-        )
 
     # =========================================================================
     # Helper Methods
