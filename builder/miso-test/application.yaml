@@ -6,8 +6,13 @@ app:
 image:
   name: miso-test
   tag: latest
-  registry: ''
-  registryMode: external
+  # Required for deploy: controller pulls this image from a registry (not local Docker).
+  # Replace with your ACR login server, e.g. output of:
+  #   az acr show -n <acrName> --query loginServer -o tsv
+  # Full ref becomes: <registry>/<name>:<tag>  →  myacr.azurecr.io/miso-test:latest
+  registry: myacr.azurecr.io
+  # Use "acr" when deploying to Azure with ACR integration; "external" if the platform treats it as a generic registry.
+  registryMode: acr
 port: 8083
 requires:
   database: false
