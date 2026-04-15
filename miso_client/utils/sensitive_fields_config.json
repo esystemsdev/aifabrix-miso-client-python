@@ -1,4 +1,17 @@
 {
+  "mergeWithHardcodedDefaults": true,
+  "substringMinLength": 4,
+  "neverMaskFields": [
+    "success",
+    "key",
+    "message",
+    "status",
+    "error",
+    "hint",
+    "code",
+    "name",
+    "id"
+  ],
   "fields": {
     "authentication": [
       "password",
@@ -6,14 +19,12 @@
       "pwd",
       "token",
       "secret",
-      "key",
       "auth",
       "authorization"
     ],
     "pii": [
       "ssn",
       "creditcard",
-      "cc",
       "cvv",
       "pin",
       "otp"
@@ -32,4 +43,3 @@
   },
   "fieldPatterns": []
 }
-

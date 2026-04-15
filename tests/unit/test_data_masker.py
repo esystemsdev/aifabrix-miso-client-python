@@ -2,6 +2,8 @@
 Unit tests for DataMasker.
 """
 
+from pathlib import Path
+
 from miso_client.utils.data_masker import DataMasker
 
 
@@ -176,3 +178,42 @@ class TestDataMasker:
         assert DataMasker.is_sensitive_field("password") is True
         assert DataMasker.contains_sensitive_data({"token": "x"}) is True
         assert "***" in DataMasker.mask_value("secret123", show_first=2)
+
+    def test_default_config_never_masks_key_and_success(self):
+        """Datasource ``key`` and ``success`` stay visible (neverMaskFields + no bare cc)."""
+        masked = DataMasker.mask_sensitive_data(
+            {
+                "success": True,
+                "key": "my-datasource",
+                "message": "ok",
+                "password": "secret",
+            }
+        )
+        assert masked["success"] is True
+        assert masked["key"] == "my-datasource"
+        assert masked["message"] == "ok"
+        assert masked["password"] == DataMasker.MASKED_VALUE
+
+    def test_oauth_access_token_still_masked(self):
+        """Compound token field names remain masked."""
+        masked = DataMasker.mask_sensitive_data({"oauthAccessToken": "t0ken", "name": "x"})
+        assert masked["oauthAccessToken"] == DataMasker.MASKED_VALUE
+        assert masked["name"] == "x"
+
+    def test_mask_sensitive_data_config_path_isolated(self, tmp_path: Path) -> None:
+        """Per-call config_path does not require set_config_path; neverMaskFields applies."""
+        cfg = tmp_path / "mask.json"
+        cfg.write_text(
+            '{"mergeWithHardcodedDefaults": true, "substringMinLength": 4, '
+            '"neverMaskFields": ["customId"], "fields": {}}',
+            encoding="utf-8",
+        )
+        masked = DataMasker.mask_sensitive_data(
+            {"customId": "visible", "password": "x"},
+            config_path=str(cfg),
+        )
+        assert masked["customId"] == "visible"
+        assert masked["password"] == DataMasker.MASKED_VALUE
+        # Global masker unchanged: password still masked with default rules
+        again = DataMasker.mask_sensitive_data({"password": "y"})
+        assert again["password"] == DataMasker.MASKED_VALUE

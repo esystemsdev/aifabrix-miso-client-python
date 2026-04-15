@@ -29,15 +29,13 @@ import sys
 import time
 import traceback
 from contextlib import contextmanager
-from io import StringIO
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 import httpx
 
 from miso_client import MisoClient, load_config
 from miso_client.errors import AuthenticationError, ConnectionError, MisoClientError
 from miso_client.models.filter import FilterBuilder
-from miso_client.utils.internal_http_client import InternalHttpClient
 
 # Suppress logging output during tests (unless verbose mode)
 if "--verbose" not in sys.argv and "-v" not in sys.argv:
@@ -97,7 +95,9 @@ class TestRunner:
         """Print section header."""
         print(f"\n{Colors.CYAN}{Colors.BOLD}[{text}]{Colors.RESET}")
 
-    def print_test(self, name: str, passed: Optional[bool], message: str = "", duration: float = 0.0):
+    def print_test(
+        self, name: str, passed: Optional[bool], message: str = "", duration: float = 0.0
+    ):
         """Print test result."""
         if passed is None:
             status = f"{Colors.YELLOW}⊘{Colors.RESET}"
@@ -136,7 +136,7 @@ class TestRunner:
     def _is_rate_limit_error(self, e: Exception) -> bool:
         """
         Check if exception is a rate limit (429) error that should be skipped.
-        
+
         Note: HTTP 401 (authentication) errors are NOT skipped - they are real failures
         and should be reported as test failures.
         """
@@ -189,7 +189,7 @@ class TestRunner:
                 if "--verbose" in sys.argv or "-v" in sys.argv:
                     print(f"    {Colors.RED}{traceback.format_exc()}{Colors.RESET}")
                 return False
-        
+
         # Test passed
         duration = time.perf_counter() - start
         self.results.append(TestResult(name, True, "", duration))
@@ -221,10 +221,14 @@ class TestRunner:
             internal_client = self.client._internal_http_client
             # Make a request to trigger token fetch (token is on token_manager)
             await internal_client.token_manager.get_client_token()
-            assert internal_client.token_manager.client_token is not None, "Client token should be set"
+            assert (
+                internal_client.token_manager.client_token is not None
+            ), "Client token should be set"
             # Verify token is in headers when making a request
             await internal_client._ensure_client_token()
-            assert "x-client-token" in internal_client.client.headers, "x-client-token should be in headers"
+            assert (
+                "x-client-token" in internal_client.client.headers
+            ), "x-client-token should be in headers"
             return True
 
         await self.run_test("Client token in headers", test_token_in_headers)
@@ -235,7 +239,7 @@ class TestRunner:
 
             internal_client = self.client._internal_http_client
             # Get initial token (token is on token_manager)
-            token1 = await internal_client.token_manager.get_client_token()
+            await internal_client.token_manager.get_client_token()
             # Force refresh by setting expiration in the past
             internal_client.token_manager.token_expires_at = datetime.now() - timedelta(seconds=1)
             # Get token again (should refresh)
@@ -250,7 +254,9 @@ class TestRunner:
             # Test that token fetch uses correct headers (token is on token_manager)
             internal_client = self.client._internal_http_client
             await internal_client.token_manager.fetch_client_token()
-            assert internal_client.token_manager.client_token is not None, "Token should be fetched with client credentials"
+            assert (
+                internal_client.token_manager.client_token is not None
+            ), "Token should be fetched with client credentials"
             return True
 
         await self.run_test("Client token with client ID and secret", test_token_with_credentials)
@@ -300,14 +306,18 @@ class TestRunner:
         # Test 4: get_user_info with API_KEY (should return None)
         async def test_get_user_info_api_key():
             if not api_key:
-                self.skip_test("get_user_info with API_KEY (returns None)", "API_KEY not configured")
+                self.skip_test(
+                    "get_user_info with API_KEY (returns None)", "API_KEY not configured"
+                )
                 return
             user = await self.client.get_user_info(api_key)
             assert user is None, "API_KEY should return None for get_user_info"
             return True
 
         if api_key:
-            await self.run_test("get_user_info with API_KEY (returns None)", test_get_user_info_api_key)
+            await self.run_test(
+                "get_user_info with API_KEY (returns None)", test_get_user_info_api_key
+            )
         else:
             self.skip_test("get_user_info with API_KEY (returns None)", "API_KEY not configured")
 
@@ -564,9 +574,7 @@ class TestRunner:
 
         # Test 5: LoggerChain - with_context
         async def test_logger_chain_context():
-            await (
-                self.client.log.with_context({"test": "context"}).info("Chain test message")
-            )
+            await self.client.log.with_context({"test": "context"}).info("Chain test message")
             return True
 
         await self.run_test("LoggerChain - with_context", test_logger_chain_context)
@@ -603,7 +611,7 @@ class TestRunner:
         async def test_get_request():
             # Try a simple GET request (may fail if endpoint doesn't exist, but should not crash)
             try:
-                result = await self.client.http_client.get("/api/v1/test")
+                await self.client.http_client.get("/api/v1/test")
                 return True
             except MisoClientError:
                 # Expected if endpoint doesn't exist
@@ -617,7 +625,7 @@ class TestRunner:
         # Test 2: POST request
         async def test_post_request():
             try:
-                result = await self.client.http_client.post("/api/v1/test", {"test": "data"})
+                await self.client.http_client.post("/api/v1/test", {"test": "data"})
                 return True
             except MisoClientError:
                 return True
@@ -629,7 +637,7 @@ class TestRunner:
         # Test 3: PUT request
         async def test_put_request():
             try:
-                result = await self.client.http_client.put("/api/v1/test", {"test": "data"})
+                await self.client.http_client.put("/api/v1/test", {"test": "data"})
                 return True
             except MisoClientError:
                 return True
@@ -641,7 +649,7 @@ class TestRunner:
         # Test 4: DELETE request
         async def test_delete_request():
             try:
-                result = await self.client.http_client.delete("/api/v1/test")
+                await self.client.http_client.delete("/api/v1/test")
                 return True
             except MisoClientError:
                 return True
@@ -656,9 +664,7 @@ class TestRunner:
                 self.skip_test("authenticated_request", "API_KEY not configured")
                 return
             try:
-                result = await self.client.http_client.authenticated_request(
-                    "GET", "/api/v1/test", api_key
-                )
+                await self.client.http_client.authenticated_request("GET", "/api/v1/test", api_key)
                 return True
             except MisoClientError:
                 return True
@@ -674,7 +680,7 @@ class TestRunner:
         async def test_get_with_filters():
             try:
                 filter_builder = FilterBuilder().add("status", "eq", "active")
-                result = await self.client.http_client.get_with_filters(
+                await self.client.http_client.get_with_filters(
                     "/api/v1/test", filter_builder=filter_builder
                 )
                 return True
@@ -688,7 +694,7 @@ class TestRunner:
         # Test 7: get_paginated
         async def test_get_paginated():
             try:
-                result = await self.client.http_client.get_paginated("/api/v1/test", page=1, page_size=10)
+                await self.client.http_client.get_paginated("/api/v1/test", page=1, page_size=10)
                 return True
             except MisoClientError:
                 return True
@@ -887,4 +893,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-

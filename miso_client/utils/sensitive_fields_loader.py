@@ -47,7 +47,10 @@ def load_sensitive_fields_config(
         config_path: Optional custom path to JSON config file
 
     Returns:
-        Dictionary with 'fields' and 'fieldPatterns' keys
+        Dictionary with optional keys: ``fields``, ``fieldPatterns``,
+        ``neverMaskFields`` (list of field names to never redact),
+        ``substringMinLength`` (int, min length for substring keyword matching; default 4),
+        ``mergeWithHardcodedDefaults`` (bool; default true).
         Returns empty dict if file cannot be loaded
 
     Example:

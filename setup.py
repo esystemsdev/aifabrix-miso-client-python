@@ -1,6 +1,6 @@
 """Setup configuration for miso-client package."""
 
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 # Read the README file
 with open("README.md", "r", encoding="utf-8") as fh:
@@ -8,7 +8,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="miso-client",
-    version="4.9.0",
+    version="4.10.0",
     author="AI Fabrix Team",
     author_email="team@aifabrix.ai",
     description="Python client SDK for AI Fabrix authentication, authorization, and logging",
@@ -61,4 +61,3 @@ setup(
     include_package_data=True,
     zip_safe=False,
 )
-

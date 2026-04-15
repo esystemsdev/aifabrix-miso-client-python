@@ -12,6 +12,7 @@ Usage:
 Requires: Node.js, and aifabrix-builder at ../aifabrix-builder or
   AIFABRIX_BUILDER_ROOT pointing to it.
 """
+
 import os
 import re
 import subprocess
@@ -22,15 +23,20 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent
 
+
 def _find_config_paths():
     yield os.environ.get("AIFABRIX_HOME")
     yield "/workspace/.aifabrix"
     yield str(Path.home() / ".aifabrix")
     yield str(PROJECT_ROOT / ".aifabrix")
 
+
 def _find_secrets_script():
     for p in [
-        Path(os.environ.get("AIFABRIX_BUILDER_ROOT", "")) / "lib" / "utils" / "secrets-encryption.js",
+        Path(os.environ.get("AIFABRIX_BUILDER_ROOT", ""))
+        / "lib"
+        / "utils"
+        / "secrets-encryption.js",
         PROJECT_ROOT.parent / "aifabrix-builder" / "lib" / "utils" / "secrets-encryption.js",
         Path("/workspace/aifabrix-builder/lib/utils/secrets-encryption.js"),
     ]:
@@ -38,10 +44,14 @@ def _find_secrets_script():
             return p
     return None
 
+
 def main():
     script_path = _find_secrets_script()
     if not script_path:
-        print("secrets-encryption.js not found. Set AIFABRIX_BUILDER_ROOT or run from workspace with aifabrix-builder.", file=sys.stderr)
+        print(
+            "secrets-encryption.js not found. Set AIFABRIX_BUILDER_ROOT or run from workspace with aifabrix-builder.",
+            file=sys.stderr,
+        )
         return 1
     for base in _find_config_paths():
         if not base:
@@ -68,7 +78,13 @@ def main():
             f.write(encryption_key)
             key_file = f.name
         try:
-            result = subprocess.run(["node", str(decrypt_js), builder_root, enc_file, key_file], capture_output=True, text=True, timeout=10, cwd=str(PROJECT_ROOT))
+            result = subprocess.run(
+                ["node", str(decrypt_js), builder_root, enc_file, key_file],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                cwd=str(PROJECT_ROOT),
+            )
             if result.returncode == 0 and result.stdout:
                 print(result.stdout.strip())
                 return 0
@@ -80,6 +96,7 @@ def main():
         break
     print("No config with refreshToken found or decryption failed.", file=sys.stderr)
     return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

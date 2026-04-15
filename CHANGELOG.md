@@ -5,6 +5,24 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.10.0] - 2026-04-15
+
+### Added
+
+- **Data masking policy controls** - `sensitive_fields_config.json` supports `neverMaskFields` (normalized-name allowlist) and `substringMinLength` (clamped 1–64, default 4) so audit masking can avoid false positives on common keys such as datasource `key` or `success` while still matching longer sensitive tokens in compound names.
+- **`mask_sensitive_data` optional `config_path`** - Per-call override loads that JSON for one invocation without changing global `DataMasker` cache; if the path is missing or not a file, behavior falls back to the default config (`MISO_SENSITIVE_FIELDS_CONFIG` or packaged default).
+
+### Changed
+
+- **Hardcoded sensitive-name fallbacks** - Default set no longer treats bare `key` or `cc` as sensitive; prefers explicit security-oriented names. Packaged JSON adds categories/entries such as `encryptionkey` / `encryptionKey` alongside existing authentication, PII, and security groups.
+
+### Technical
+
+- **Upstream merge** - Integrated `origin/main` through **4.9.0** (logs stats/export delegation, applicationId-only stats/export contract, refactors) with local data-masking updates.
+- **Release version alignment** - Set package version to `4.10.0` in `pyproject.toml`, `setup.py`, `miso_client.__version__`, and `.bumpversion.cfg`.
+- **Validation baseline** - `ruff format` / `ruff check`, `black`, `isort`, and `pytest tests/` pass.
+- **`test_integration.py`** - Removed unused imports and unused assignment noise so Ruff stays clean on the manual integration script.
+
 ## [4.9.0] - 2026-03-23
 
 ### Added
