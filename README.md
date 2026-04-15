@@ -263,6 +263,20 @@ result = await client.http_client.get('/api/users')
 
 **What happens to logs?** They're sent to the Miso Controller for centralized monitoring and analysis. Client token is automatically included. Audit logs are automatically batched using `AuditLogQueue` for improved performance (configurable via `AuditConfig`).
 
+**Migration note (breaking):**
+
+- Indexed context fields are id-based now:
+  - `sourceKey` -> `sourceId`
+  - `externalSystemKey` -> `externalSystemId`
+  - `recordKey` -> `recordId`
+- `LoggerChain.with_indexed_context()` now uses:
+  - `source_id`, `external_system_id`, `record_id`
+- Logs/audit list methods are id-filter based:
+  - `list_general_logs(..., application_id=..., source_id=..., external_system_id=..., record_id=...)`
+  - `list_audit_logs(..., application_id=..., source_id=..., external_system_id=..., record_id=...)`
+  - Application-name list filtering is removed from these two methods.
+- Stats/export APIs keep `application` for compatibility and also accept id-based filters where supported.
+
 **ISO 27001 Compliance:** All HTTP requests are automatically audited with sensitive data masked. Configure audit logging behavior using `AuditConfig`:
 
 - **Audit Levels**: Choose from `minimal`, `standard`, `detailed`, or `full` (default: `detailed`)

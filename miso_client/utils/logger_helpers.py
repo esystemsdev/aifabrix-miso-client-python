@@ -1,16 +1,16 @@
-"""Logger helper functions for building log entries.
-
-Extracted from logger.py to reduce file size and improve maintainability.
-"""
+"""Logger helper functions for building log entries."""
 
 import os
 import sys
 from datetime import datetime, timezone
-from typing import Any, Dict, Literal, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 from ..models.config import ClientLoggingOptions, ForeignKeyReference, LogEntry, LogLevel
 from ..utils.data_masker import DataMasker
 from ..utils.jwt_tools import decode_token
+from ..utils.log_request_transformer import (
+    transform_log_entry_to_request as _transform_log_entry_to_request,
+)
 
 
 def extract_jwt_context(token: Optional[str]) -> Dict[str, Any]:
@@ -28,33 +28,36 @@ def extract_jwt_context(token: Optional[str]) -> Dict[str, Any]:
 
     try:
         decoded = decode_token(token)
-        if not decoded:
-            return {}
-
-        # Extract roles - handle different formats
-        roles = []
-        if "roles" in decoded:
-            roles = decoded["roles"] if isinstance(decoded["roles"], list) else []
-        elif "realm_access" in decoded and isinstance(decoded["realm_access"], dict):
-            roles = decoded["realm_access"].get("roles", [])
-
-        # Extract permissions - handle different formats
-        permissions = []
-        if "permissions" in decoded:
-            permissions = decoded["permissions"] if isinstance(decoded["permissions"], list) else []
-        elif "scope" in decoded and isinstance(decoded["scope"], str):
-            permissions = decoded["scope"].split()
-
-        return {
-            "userId": decoded.get("sub") or decoded.get("userId") or decoded.get("user_id"),
-            "applicationId": decoded.get("applicationId") or decoded.get("app_id"),
-            "sessionId": decoded.get("sessionId") or decoded.get("sid"),
-            "roles": roles,
-            "permissions": permissions,
-        }
     except Exception:
-        # JWT parsing failed, return empty context
         return {}
+    if not decoded:
+        return {}
+    return {
+        "userId": decoded.get("sub") or decoded.get("userId") or decoded.get("user_id"),
+        "applicationId": decoded.get("applicationId") or decoded.get("app_id"),
+        "sessionId": decoded.get("sessionId") or decoded.get("sid"),
+        "roles": _extract_jwt_roles(decoded),
+        "permissions": _extract_jwt_permissions(decoded),
+    }
+
+
+def _extract_jwt_roles(decoded: Dict[str, Any]) -> list[Any]:
+    """Extract roles from decoded JWT claims."""
+    if "roles" in decoded:
+        return decoded["roles"] if isinstance(decoded["roles"], list) else []
+    if "realm_access" in decoded and isinstance(decoded["realm_access"], dict):
+        roles = decoded["realm_access"].get("roles", [])
+        return roles if isinstance(roles, list) else []
+    return []
+
+
+def _extract_jwt_permissions(decoded: Dict[str, Any]) -> list[Any]:
+    """Extract permissions from decoded JWT claims."""
+    if "permissions" in decoded:
+        return decoded["permissions"] if isinstance(decoded["permissions"], list) else []
+    if "scope" in decoded and isinstance(decoded["scope"], str):
+        return decoded["scope"].split()
+    return []
 
 
 def extract_metadata() -> Dict[str, Any]:
@@ -80,6 +83,7 @@ def extract_metadata() -> Dict[str, Any]:
 
 AUTO_CONTEXT_KEYS = {
     "applicationId",
+    "clientId",
     "correlationId",
     "ipAddress",
     "requestId",
@@ -92,6 +96,7 @@ AUTO_CONTEXT_KEYS = {
 
 TRACEABILITY_KEYS = {
     "applicationId",
+    "clientId",
     "correlationId",
     "requestId",
     "userId",
@@ -159,33 +164,18 @@ def split_log_context(context: Optional[Dict[str, Any]]) -> Tuple[Dict[str, Any]
 def _convert_to_foreign_key_reference(
     value: Optional[Union[str, ForeignKeyReference]], entity_type: str
 ) -> Optional[ForeignKeyReference]:
-    """Convert string ID or ForeignKeyReference to ForeignKeyReference object.
-
-    Args:
-        value: String ID or ForeignKeyReference object
-        entity_type: Entity type (e.g., 'User', 'Application')
-
-    Returns:
-        ForeignKeyReference object or None
-
-    """
+    """Convert string id or object into `ForeignKeyReference`."""
     if value is None:
         return None
-
-    # If already a ForeignKeyReference, return as-is
     if isinstance(value, ForeignKeyReference):
         return value
-
-    # If string, create minimal ForeignKeyReference
-    # Note: This is a minimal conversion - full ForeignKeyReference should come from API responses
     if isinstance(value, str):
         return ForeignKeyReference(
             id=value,
-            key=value,  # Use id as key when key is not available
-            name=value,  # Use id as name when name is not available
+            key=value,
+            name=value,
             type=entity_type,
         )
-
     return None
 
 
@@ -225,38 +215,28 @@ def _resolve_traceability_identifiers(
     jwt_context: Dict[str, Any],
     app_context: Dict[str, Optional[str]],
     correlation_id: Optional[str],
-) -> Tuple[
-    Optional[str],
-    Optional[str],
-    Optional[str],
-    Optional[str],
-    Optional[str],
-    Optional[str],
-    Optional[str],
-]:
+) -> Dict[str, Optional[str]]:
     """Resolve traceability identifiers using non-empty precedence rules."""
-    final_correlation_id = _pick_first_non_empty(correlation_id, auto_fields.get("correlationId"))
-    application_id_value = _pick_first_non_empty(
-        auto_fields.get("applicationId"),
-        app_context.get("applicationId"),
-        jwt_context.get("applicationId"),
-    )
-    user_id_value = _pick_first_non_empty(auto_fields.get("userId"), jwt_context.get("userId"))
-    session_id_value = _pick_first_non_empty(
-        auto_fields.get("sessionId"), jwt_context.get("sessionId")
-    )
-    request_id_value = _pick_first_non_empty(auto_fields.get("requestId"))
-    ip_address_value = _pick_first_non_empty(auto_fields.get("ipAddress"))
-    user_agent_value = _pick_first_non_empty(auto_fields.get("userAgent"))
-    return (
-        final_correlation_id,
-        application_id_value,
-        user_id_value,
-        session_id_value,
-        request_id_value,
-        ip_address_value,
-        user_agent_value,
-    )
+    return {
+        "final_correlation_id": _pick_first_non_empty(
+            correlation_id, auto_fields.get("correlationId")
+        ),
+        "client_id_value": _pick_first_non_empty(auto_fields.get("clientId")),
+        "application_id_value": _pick_first_non_empty(
+            auto_fields.get("applicationId"),
+            app_context.get("applicationId"),
+            jwt_context.get("applicationId"),
+        ),
+        "user_id_value": _pick_first_non_empty(
+            auto_fields.get("userId"), jwt_context.get("userId")
+        ),
+        "session_id_value": _pick_first_non_empty(
+            auto_fields.get("sessionId"), jwt_context.get("sessionId")
+        ),
+        "request_id_value": _pick_first_non_empty(auto_fields.get("requestId")),
+        "ip_address_value": _pick_first_non_empty(auto_fields.get("ipAddress")),
+        "user_agent_value": _pick_first_non_empty(auto_fields.get("userAgent")),
+    }
 
 
 def _ensure_nested_application_id(
@@ -273,46 +253,16 @@ def _ensure_nested_application_id(
         masked_context["applicationId"] = resolved_context_application_id
 
 
-def _build_log_entry_data(
-    level: LogLevel,
-    message: str,
-    environment_name: str,
-    application_name: str,
-    application_id_ref: Optional[ForeignKeyReference],
-    user_id_ref: Optional[ForeignKeyReference],
-    masked_context: Optional[Dict[str, Any]],
-    stack_trace: Optional[str],
-    final_correlation_id: Optional[str],
-    session_id_value: Optional[str],
-    request_id_value: Optional[str],
-    ip_address_value: Optional[str],
-    user_agent_value: Optional[str],
-    env_metadata: Dict[str, Any],
-    options: Optional[ClientLoggingOptions],
-    request_size: Any,
+def _build_optional_option_fields(
+    options: Optional[ClientLoggingOptions], request_size: Any
 ) -> Dict[str, Any]:
-    """Build raw LogEntry payload before model validation."""
+    """Build optional option-derived fields for LogEntry payload."""
     return {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "level": level,
-        "environment": environment_name,
-        "application": application_name,
-        "applicationId": application_id_ref,
-        "message": message,
-        "context": masked_context,
-        "stackTrace": stack_trace,
-        "correlationId": final_correlation_id,
-        "userId": user_id_ref,
-        "sessionId": session_id_value,
-        "requestId": request_id_value,
-        "ipAddress": ip_address_value,
-        "userAgent": user_agent_value,
-        **env_metadata,
-        "sourceKey": options.sourceKey if options else None,
+        "sourceId": options.sourceId if options else None,
         "sourceDisplayName": options.sourceDisplayName if options else None,
-        "externalSystemKey": options.externalSystemKey if options else None,
+        "externalSystemId": options.externalSystemId if options else None,
         "externalSystemDisplayName": options.externalSystemDisplayName if options else None,
-        "recordKey": options.recordKey if options else None,
+        "recordId": options.recordId if options else None,
         "recordDisplayName": options.recordDisplayName if options else None,
         "credentialId": options.credentialId if options else None,
         "credentialType": options.credentialType if options else None,
@@ -327,7 +277,109 @@ def _build_log_entry_data(
     }
 
 
-def _resolve_log_entry_inputs(
+def _build_log_entry_data(level: LogLevel, message: str, values: Dict[str, Any]) -> Dict[str, Any]:
+    """Build raw LogEntry payload before model validation."""
+    options = values["options"]
+    base_payload = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "level": level,
+        "environment": values["environment_name"],
+        "application": values["application_name"],
+        "clientId": values["client_id_value"],
+        "applicationId": values["application_id_ref"],
+        "message": message,
+        "context": values["masked_context"],
+        "stackTrace": values["stack_trace"],
+        "correlationId": values["final_correlation_id"],
+        "userId": values["user_id_ref"],
+        "sessionId": values["session_id_value"],
+        "requestId": values["request_id_value"],
+        "ipAddress": values["ip_address_value"],
+        "userAgent": values["user_agent_value"],
+        **values["env_metadata"],
+    }
+    base_payload.update(_build_optional_option_fields(options, values["request_size"]))
+    return base_payload
+
+
+def _resolve_auto_fields_and_context(
+    context: Optional[Dict[str, Any]], auto_fields: Optional[Dict[str, Any]]
+) -> Tuple[Optional[Dict[str, Any]], Dict[str, Any]]:
+    """Resolve auto fields and normalized context."""
+    resolved_auto_fields = auto_fields or {}
+    if auto_fields is None:
+        context, resolved_auto_fields = split_log_context(context)
+    return context, resolved_auto_fields
+
+
+def _resolve_masked_context(
+    context: Optional[Dict[str, Any]],
+    options: Optional[ClientLoggingOptions],
+    mask_sensitive: bool,
+) -> Optional[Dict[str, Any]]:
+    """Resolve masking decision and return context payload."""
+    should_mask = (options.maskSensitiveData if options else None) is not False and mask_sensitive
+    return DataMasker.mask_sensitive_data(context) if should_mask and context else context
+
+
+def _resolve_log_entry_inputs(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Resolve normalized inputs used by log entry construction."""
+    context, auto_fields = params["context"], params["auto_fields"]
+    options, config_client_id = params["options"], params["config_client_id"]
+    correlation_id, jwt_token = params["correlation_id"], params["jwt_token"]
+    metadata, mask_sensitive = params["metadata"], params["mask_sensitive"]
+    application_context = params["application_context"]
+    context, resolved_auto_fields = _resolve_auto_fields_and_context(context, auto_fields)
+    token_value = jwt_token or resolved_auto_fields.get("token")
+    jwt_context = extract_jwt_context(token_value)
+    env_metadata = metadata or extract_metadata()
+    masked_context = _resolve_masked_context(context, options, mask_sensitive)
+    app_context = application_context or {}
+    application_name, environment_name = _resolve_application_and_environment(
+        context, options, app_context, config_client_id
+    )
+    traceability = _resolve_traceability_identifiers(
+        resolved_auto_fields, jwt_context, app_context, correlation_id
+    )
+    _ensure_nested_application_id(masked_context, traceability["application_id_value"])
+    return {
+        "resolved_auto_fields": resolved_auto_fields,
+        "env_metadata": env_metadata,
+        "masked_context": masked_context,
+        "application_name": application_name,
+        "environment_name": environment_name,
+        **traceability,
+    }
+
+
+def _drop_none_values(log_entry_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Drop None values from payload before LogEntry validation."""
+    return {k: v for k, v in log_entry_data.items() if v is not None}
+
+
+def _build_log_entry_values(
+    resolved_inputs: Dict[str, Any],
+    options: Optional[ClientLoggingOptions],
+    stack_trace: Optional[str],
+    config_client_id: str,
+) -> Dict[str, Any]:
+    """Build values map used by final LogEntry payload assembly."""
+    application_id_ref = _convert_to_foreign_key_reference(
+        resolved_inputs["application_id_value"], "Application"
+    )
+    user_id_ref = _convert_to_foreign_key_reference(resolved_inputs["user_id_value"], "User")
+    return {
+        **resolved_inputs,
+        "client_id_value": resolved_inputs["client_id_value"] or config_client_id,
+        "application_id_ref": application_id_ref,
+        "user_id_ref": user_id_ref,
+        "stack_trace": stack_trace,
+        "options": options,
+        "request_size": resolved_inputs["resolved_auto_fields"].get("requestSize"),
+    }
+
+
+def _build_resolve_params(
     context: Optional[Dict[str, Any]],
     auto_fields: Optional[Dict[str, Any]],
     options: Optional[ClientLoggingOptions],
@@ -338,46 +390,17 @@ def _resolve_log_entry_inputs(
     mask_sensitive: bool,
     application_context: Optional[Dict[str, Optional[str]]],
 ) -> Dict[str, Any]:
-    """Resolve normalized inputs used by log entry construction."""
-    resolved_auto_fields = auto_fields or {}
-    if auto_fields is None:
-        context, resolved_auto_fields = split_log_context(context)
-
-    token_value = jwt_token or resolved_auto_fields.get("token")
-    jwt_context = extract_jwt_context(token_value)
-    env_metadata = metadata or extract_metadata()
-    should_mask = (options.maskSensitiveData if options else None) is not False and mask_sensitive
-    masked_context = DataMasker.mask_sensitive_data(context) if should_mask and context else context
-    app_context = application_context or {}
-    application_name, environment_name = _resolve_application_and_environment(
-        context, options, app_context, config_client_id
-    )
-    (
-        final_correlation_id,
-        application_id_value,
-        user_id_value,
-        session_id_value,
-        request_id_value,
-        ip_address_value,
-        user_agent_value,
-    ) = _resolve_traceability_identifiers(
-        resolved_auto_fields, jwt_context, app_context, correlation_id
-    )
-    _ensure_nested_application_id(masked_context, application_id_value)
-
+    """Build resolver input dictionary for log entry normalization."""
     return {
-        "resolved_auto_fields": resolved_auto_fields,
-        "env_metadata": env_metadata,
-        "masked_context": masked_context,
-        "application_name": application_name,
-        "environment_name": environment_name,
-        "final_correlation_id": final_correlation_id,
-        "application_id_value": application_id_value,
-        "user_id_value": user_id_value,
-        "session_id_value": session_id_value,
-        "request_id_value": request_id_value,
-        "ip_address_value": ip_address_value,
-        "user_agent_value": user_agent_value,
+        "context": context,
+        "auto_fields": auto_fields,
+        "options": options,
+        "config_client_id": config_client_id,
+        "correlation_id": correlation_id,
+        "jwt_token": jwt_token,
+        "metadata": metadata,
+        "mask_sensitive": mask_sensitive,
+        "application_context": application_context,
     }
 
 
@@ -426,112 +449,24 @@ def _build_log_entry_internal(
     mask_sensitive: bool = True,
     application_context: Optional[Dict[str, Optional[str]]] = None,
 ) -> LogEntry:
-    """Internal implementation for `build_log_entry` to keep wrapper concise."""
     resolved_inputs = _resolve_log_entry_inputs(
-        context=context,
-        auto_fields=auto_fields,
-        options=options,
-        config_client_id=config_client_id,
-        correlation_id=correlation_id,
-        jwt_token=jwt_token,
-        metadata=metadata,
-        mask_sensitive=mask_sensitive,
-        application_context=application_context,
+        _build_resolve_params(
+            context,
+            auto_fields,
+            options,
+            config_client_id,
+            correlation_id,
+            jwt_token,
+            metadata,
+            mask_sensitive,
+            application_context,
+        )
     )
-
-    resolved_auto_fields = resolved_inputs["resolved_auto_fields"]
-    env_metadata = resolved_inputs["env_metadata"]
-    masked_context = resolved_inputs["masked_context"]
-    application_name = resolved_inputs["application_name"]
-    environment_name = resolved_inputs["environment_name"]
-    final_correlation_id = resolved_inputs["final_correlation_id"]
-    application_id_value = resolved_inputs["application_id_value"]
-    user_id_value = resolved_inputs["user_id_value"]
-    session_id_value = resolved_inputs["session_id_value"]
-    request_id_value = resolved_inputs["request_id_value"]
-    ip_address_value = resolved_inputs["ip_address_value"]
-    user_agent_value = resolved_inputs["user_agent_value"]
-    application_id_ref = _convert_to_foreign_key_reference(application_id_value, "Application")
-    user_id_ref = _convert_to_foreign_key_reference(user_id_value, "User")
-
-    log_entry_data = _build_log_entry_data(
-        level=level,
-        message=message,
-        environment_name=environment_name,
-        application_name=application_name,
-        application_id_ref=application_id_ref,
-        user_id_ref=user_id_ref,
-        masked_context=masked_context,
-        stack_trace=stack_trace,
-        final_correlation_id=final_correlation_id,
-        session_id_value=session_id_value,
-        request_id_value=request_id_value,
-        ip_address_value=ip_address_value,
-        user_agent_value=user_agent_value,
-        env_metadata=env_metadata,
-        options=options,
-        request_size=resolved_auto_fields.get("requestSize"),
-    )
-
-    # Remove None values
-    log_entry_data = {k: v for k, v in log_entry_data.items() if v is not None}
-
-    return LogEntry(**log_entry_data)
+    values = _build_log_entry_values(resolved_inputs, options, stack_trace, config_client_id)
+    log_entry_data = _build_log_entry_data(level=level, message=message, values=values)
+    return LogEntry(**_drop_none_values(log_entry_data))
 
 
 def transform_log_entry_to_request(log_entry: LogEntry) -> Any:
-    """Transform LogEntry to LogRequest format for API layer.
-
-    Args:
-        log_entry: LogEntry to transform
-
-    Returns:
-        LogRequest object for API layer
-
-    """
-    # Import here to avoid circular dependency
-    from ..api.types.logs_types import AuditLogData, GeneralLogData, LogRequest
-
-    ctx = log_entry.context or {}
-    application_id = log_entry.applicationId.model_dump() if log_entry.applicationId else None
-    user_id = log_entry.userId.model_dump() if log_entry.userId else None
-    if log_entry.level == "audit":
-        return LogRequest(
-            type="audit",
-            data=AuditLogData(
-                entityType=ctx.get("entityType", ctx.get("resource", "unknown")),
-                entityId=ctx.get("entityId", ctx.get("resourceId", "unknown")),
-                action=ctx.get("action", "unknown"),
-                oldValues=ctx.get("oldValues"),
-                newValues=ctx.get("newValues"),
-                context=ctx,
-                application=log_entry.application,
-                environment=log_entry.environment,
-                applicationId=application_id,
-                userId=user_id,
-                requestId=log_entry.requestId,
-                sessionId=log_entry.sessionId,
-                ipAddress=log_entry.ipAddress,
-                userAgent=log_entry.userAgent,
-                correlationId=log_entry.correlationId,
-            ),
-        )
-
-    log_type: Literal["error", "general"] = "error" if log_entry.level == "error" else "general"
-    return LogRequest(
-        type=log_type,
-        data=GeneralLogData(
-            level=log_entry.level if log_entry.level != "error" else "error",  # type: ignore
-            message=log_entry.message,
-            context=ctx,
-            application=log_entry.application,
-            environment=log_entry.environment,
-            applicationId=application_id,
-            userId=user_id,
-            requestId=log_entry.requestId,
-            sessionId=log_entry.sessionId,
-            ipAddress=log_entry.ipAddress,
-            userAgent=log_entry.userAgent,
-            correlationId=log_entry.correlationId,
-        ),
-    )
+    """Transform LogEntry to API ``LogRequest``."""
+    return _transform_log_entry_to_request(log_entry)

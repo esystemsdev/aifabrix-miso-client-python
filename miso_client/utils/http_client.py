@@ -1,21 +1,17 @@
-"""Public HTTP client utility for controller communication with ISO 27001 compliant logging.
-
-This module provides the public HTTP client interface that wraps InternalHttpClient
-and adds automatic audit and debug logging for all HTTP requests. All sensitive
-data is automatically masked using DataMasker before logging to comply with ISO 27001.
-"""
+"""Public HTTP client with audit/debug logging and token orchestration."""
 
 import asyncio
 import time
 from types import TracebackType
 from typing import Any, Awaitable, Callable, Dict, Literal, Optional, Set, Type, Union
 
-import httpx
-
 from ..models.config import AuthStrategy, MisoClientConfig
 from ..services.logger import LoggerService
 from ..utils.jwt_tools import JwtTokenCache
-from .http_client_auth_helpers import handle_401_refresh, prepare_authenticated_request
+from .http_client_auth_helpers import (
+    execute_authenticated_call,
+    prepare_authenticated_request,
+)
 from .http_client_query_helpers import (
     add_pagination_params,
     merge_filter_params,
@@ -190,22 +186,7 @@ class HttpClient:
         )
 
     async def post(self, url: str, data: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Any:
-        """Make POST request with automatic audit and debug logging.
-
-        Args:
-            url: Request URL
-            data: Request data (will be JSON encoded). Callers may also pass
-                json= in kwargs; body params are forwarded without duplication.
-            **kwargs: Additional httpx request parameters (e.g. json=, timeout=,
-                headers=). Body params are passed to httpx at most once.
-
-        Returns:
-            Response data (JSON parsed)
-
-        Raises:
-            MisoClientError: If request fails
-
-        """
+        """Make POST request with automatic audit and debug logging."""
 
         request_kwargs = dict(kwargs)
 
@@ -222,22 +203,7 @@ class HttpClient:
         )
 
     async def put(self, url: str, data: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Any:
-        """Make PUT request with automatic audit and debug logging.
-
-        Args:
-            url: Request URL
-            data: Request data (will be JSON encoded). Callers may also pass
-                json= in kwargs; body params are forwarded without duplication.
-            **kwargs: Additional httpx request parameters (e.g. json=, timeout=,
-                headers=). Body params are passed to httpx at most once.
-
-        Returns:
-            Response data (JSON parsed)
-
-        Raises:
-            MisoClientError: If request fails
-
-        """
+        """Make PUT request with automatic audit and debug logging."""
 
         request_kwargs = dict(kwargs)
 
@@ -284,32 +250,18 @@ class HttpClient:
         data: Optional[Dict[str, Any]] = None,
         **kwargs: Any,
     ) -> Any:
-        """Generic request method with automatic audit and debug logging.
-
-        Args:
-            method: HTTP method
-            url: Request URL
-            data: Request data (for POST/PUT)
-            **kwargs: Additional httpx request parameters
-
-        Returns:
-            Response data (JSON parsed)
-
-        Raises:
-            MisoClientError: If request fails
-
-        """
+        """Generic request method with automatic audit and debug logging."""
         method_upper = method.upper()
-        if method_upper == "GET":
-            return await self.get(url, **kwargs)
-        elif method_upper == "POST":
-            return await self.post(url, data, **kwargs)
-        elif method_upper == "PUT":
-            return await self.put(url, data, **kwargs)
-        elif method_upper == "DELETE":
-            return await self.delete(url, **kwargs)
-        else:
+        handlers: Dict[str, Callable[[], Awaitable[Any]]] = {
+            "GET": lambda: self.get(url, **kwargs),
+            "POST": lambda: self.post(url, data, **kwargs),
+            "PUT": lambda: self.put(url, data, **kwargs),
+            "DELETE": lambda: self.delete(url, **kwargs),
+        }
+        handler = handlers.get(method_upper)
+        if handler is None:
             raise ValueError(f"Unsupported HTTP method: {method}")
+        return await handler()
 
     def register_user_token_refresh_callback(self, user_id: str, callback: Any) -> None:
         """Register refresh callback for a user.
@@ -343,44 +295,32 @@ class HttpClient:
     async def _prepare_authenticated_request(
         self, token: str, auto_refresh: bool, **kwargs: Any
     ) -> str:
-        """Prepare authenticated request by getting valid token and setting headers.
-
-        Args:
-            token: User authentication token
-            auto_refresh: Whether to refresh token if expired
-            **kwargs: Request kwargs (headers will be modified)
-
-        Returns:
-            Valid token to use for request
-
-        """
+        """Prepare authenticated request and return valid bearer token."""
         return await prepare_authenticated_request(
             self._user_token_refresh, token, auto_refresh, **kwargs
         )
 
-    async def _handle_401_refresh(
+    async def _run_authenticated_internal(
         self,
         method: Literal["GET", "POST", "PUT", "DELETE"],
         url: str,
-        token: str,
+        valid_token: str,
         data: Optional[Dict[str, Any]],
         auth_strategy: Optional[AuthStrategy],
-        error: httpx.HTTPStatusError,
         auto_refresh: bool,
-        **kwargs: Any,
+        request_kwargs: Dict[str, Any],
     ) -> Any:
-        """Handle 401 error by refreshing token and retrying request."""
-        return await handle_401_refresh(
+        """Execute authenticated call via internal client with refresh handling."""
+        return await execute_authenticated_call(
             self._internal_client,
             self._user_token_refresh,
             method,
             url,
-            token,
+            valid_token,
             data,
             auth_strategy,
-            error,
             auto_refresh,
-            **kwargs,
+            request_kwargs,
         )
 
     async def authenticated_request(
@@ -393,40 +333,14 @@ class HttpClient:
         auto_refresh: bool = True,
         **kwargs: Any,
     ) -> Any:
-        """Make authenticated request with Bearer token and automatic refresh.
-
-        Client token sent as x-client-token (via InternalHttpClient), user token as Bearer.
-
-        Args:
-            method: HTTP method
-            url: Request URL
-            token: User authentication token (sent as Bearer)
-            data: Request data (for POST/PUT)
-            auth_strategy: Optional authentication strategy
-            auto_refresh: Whether to refresh token on 401 (default: True)
-
-        """
+        """Make authenticated request with Bearer token and automatic refresh."""
         request_kwargs = dict(kwargs)
         valid_token = await self._prepare_authenticated_request(token, auto_refresh, **kwargs)
 
         async def _authenticated_request() -> Any:
-            try:
-                return await self._internal_client.authenticated_request(
-                    method, url, valid_token, data, auth_strategy, **request_kwargs
-                )
-            except httpx.HTTPStatusError as e:
-                if e.response.status_code == 401:
-                    return await self._handle_401_refresh(
-                        method,
-                        url,
-                        valid_token,
-                        data,
-                        auth_strategy,
-                        e,
-                        auto_refresh,
-                        **request_kwargs,
-                    )
-                raise
+            return await self._run_authenticated_internal(
+                method, url, valid_token, data, auth_strategy, auto_refresh, request_kwargs
+            )
 
         return await self._execute_with_logging(
             method,

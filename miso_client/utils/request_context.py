@@ -78,50 +78,55 @@ class RequestContext:
 
 
 def extract_request_context(request: Any) -> RequestContext:
-    """Extract logging context from HTTP request object.
+    """Extract logging context from an HTTP request object."""
+    values = _extract_context_values(request)
+    return _build_request_context(
+        ip_address=values["ip_address"],
+        method=values["method"],
+        path=values["path"],
+        user_agent=values["user_agent"],
+        correlation_id=values["correlation_id"],
+        referer=values["referer"],
+        user_id=values["user_id"],
+        session_id=values["session_id"],
+        request_id=values["request_id"],
+        request_size=values["request_size"],
+    )
 
-    Supports multiple Python web frameworks:
-    - FastAPI/Starlette Request
-    - Flask Request
-    - Generic dict-like request objects
 
-    Args:
-        request: HTTP request object
-
-    Returns:
-        RequestContext with extracted fields
-
-    Example:
-        >>> from fastapi import Request
-        >>> ctx = extract_request_context(request)
-        >>> await logger.with_request(request).info("Processing")
-
-    """
-    # Extract IP address (handle proxies)
-    ip_address = _extract_ip_address(request)
-
-    # Extract correlation ID from common headers
-    correlation_id = _extract_correlation_id(request)
-
-    # Extract user from JWT if available
-    user_id, session_id = _extract_user_from_auth_header(request)
-
-    # Extract method
-    method = _extract_method(request)
-
-    # Extract path
-    path = _extract_path(request)
-
-    # Extract other headers
+def _extract_context_values(request: Any) -> Dict[str, Any]:
+    """Extract primitive request context values for RequestContext creation."""
     headers = _get_headers(request)
-    user_agent = headers.get("user-agent")
-    referer = headers.get("referer")
-    request_id = headers.get("x-request-id")
+    user_id, session_id = _extract_user_from_auth_header(request)
+    user_agent, referer, request_id = _extract_header_fields(headers)
+    return {
+        "ip_address": _extract_ip_address(request),
+        "method": _extract_method(request),
+        "path": _extract_path(request),
+        "user_agent": user_agent,
+        "correlation_id": _extract_correlation_id(request),
+        "referer": referer,
+        "user_id": user_id,
+        "session_id": session_id,
+        "request_id": request_id,
+        "request_size": _extract_request_size(headers),
+    }
 
-    # Extract request size
-    content_length = headers.get("content-length")
-    request_size = int(content_length) if content_length else None
 
+def _build_request_context(
+    *,
+    ip_address: Optional[str],
+    method: Optional[str],
+    path: Optional[str],
+    user_agent: Optional[str],
+    correlation_id: Optional[str],
+    referer: Optional[str],
+    user_id: Optional[str],
+    session_id: Optional[str],
+    request_id: Optional[str],
+    request_size: Optional[int],
+) -> RequestContext:
+    """Create RequestContext instance from extracted primitive values."""
     return RequestContext(
         ip_address=ip_address,
         method=method,
@@ -150,6 +155,33 @@ def _get_headers(request: Any) -> Dict[str, Optional[str]]:
     return {}
 
 
+def _extract_header_fields(
+    headers: Dict[str, Optional[str]],
+) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    """Extract common logger-related header fields."""
+    return headers.get("user-agent"), headers.get("referer"), headers.get("x-request-id")
+
+
+def _extract_request_size(headers: Dict[str, Optional[str]]) -> Optional[int]:
+    """Extract request body size from content-length header."""
+    content_length = headers.get("content-length")
+    if not content_length:
+        return None
+    try:
+        return int(content_length)
+    except (TypeError, ValueError):
+        return None
+
+
+def _extract_attr_str(source: Any, attr_name: str) -> Optional[str]:
+    """Return a string attribute if available and valid."""
+    try:
+        value = getattr(source, attr_name, None)
+        return value if isinstance(value, str) else None
+    except Exception:
+        return None
+
+
 def _extract_ip_address(request: Any) -> Optional[str]:
     """Extract client IP address, handling proxies."""
     headers = _get_headers(request)
@@ -165,26 +197,15 @@ def _extract_ip_address(request: Any) -> Optional[str]:
     if real_ip:
         return real_ip
 
-    # FastAPI/Starlette: request.client.host
-    # Check if client exists and has host attribute with actual value
     if hasattr(request, "client") and request.client:
-        try:
-            host = getattr(request.client, "host", None)
-            # Check if host is a real value (string) and not a MagicMock
-            if isinstance(host, str):
-                return host
-        except Exception:
-            pass
+        host = _extract_attr_str(request.client, "host")
+        if host:
+            return host
 
-    # Flask: request.remote_addr
     if hasattr(request, "remote_addr"):
-        try:
-            remote_addr = getattr(request, "remote_addr", None)
-            # Check if remote_addr is a real value (string) and not a MagicMock
-            if isinstance(remote_addr, str):
-                return remote_addr
-        except Exception:
-            pass
+        remote_addr = _extract_attr_str(request, "remote_addr")
+        if remote_addr:
+            return remote_addr
 
     return None
 
@@ -203,49 +224,26 @@ def _extract_correlation_id(request: Any) -> Optional[str]:
 
 def _extract_method(request: Any) -> Optional[str]:
     """Extract HTTP method from request."""
-    if hasattr(request, "method"):
-        try:
-            method = getattr(request, "method", None)
-            # Check if method is a real value (string) and not a MagicMock
-            if isinstance(method, str):
-                return method
-        except Exception:
-            pass
+    return _extract_attr_str(request, "method") if hasattr(request, "method") else None
+
+
+def _extract_first_path_candidate(request: Any, attr_name: str) -> Optional[str]:
+    """Extract first available path string from request or nested URL object."""
+    if attr_name == "path" and hasattr(request, "url") and request.url:
+        path_value = _extract_attr_str(request.url, "path")
+        if path_value:
+            return path_value
+    if hasattr(request, attr_name):
+        return _extract_attr_str(request, attr_name)
     return None
 
 
 def _extract_path(request: Any) -> Optional[str]:
     """Extract request path from request."""
-    # FastAPI/Starlette: request.url.path
-    if hasattr(request, "url") and request.url:
-        try:
-            url_path = getattr(request.url, "path", None)
-            # Check if path is a real value (string) and not a MagicMock
-            if isinstance(url_path, str):
-                return url_path
-        except Exception:
-            pass
-
-    # Flask: request.path
-    if hasattr(request, "path"):
-        try:
-            path = getattr(request, "path", None)
-            # Check if path is a real value (string) and not a MagicMock
-            if isinstance(path, str):
-                return path
-        except Exception:
-            pass
-
-    # Try original_url (some frameworks)
-    if hasattr(request, "original_url"):
-        try:
-            original_url = getattr(request, "original_url", None)
-            # Check if original_url is a real value (string) and not a MagicMock
-            if isinstance(original_url, str):
-                return original_url
-        except Exception:
-            pass
-
+    for candidate in ("path", "original_url"):
+        value = _extract_first_path_candidate(request, candidate)
+        if value:
+            return value
     return None
 
 
@@ -271,14 +269,15 @@ def _extract_user_from_auth_header(request: Any) -> Tuple[Optional[str], Optiona
         if not decoded:
             return None, None
 
-        user_id = (
-            decoded.get("sub")
-            or decoded.get("userId")
-            or decoded.get("user_id")
-            or decoded.get("id")
-        )
-        session_id = decoded.get("sessionId") or decoded.get("sid")
-
-        return user_id, session_id
+        return _extract_identity_fields(decoded)
     except Exception:
         return None, None
+
+
+def _extract_identity_fields(decoded: Dict[str, Any]) -> Tuple[Optional[str], Optional[str]]:
+    """Extract user and session identifiers from decoded JWT payload."""
+    user_id = (
+        decoded.get("sub") or decoded.get("userId") or decoded.get("user_id") or decoded.get("id")
+    )
+    session_id = decoded.get("sessionId") or decoded.get("sid")
+    return user_id, session_id

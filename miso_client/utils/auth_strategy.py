@@ -18,49 +18,35 @@ class AuthStrategyHandler:
         strategy: AuthStrategy,
         client_token: Optional[str] = None,
     ) -> Dict[str, str]:
-        """Build authentication headers for a specific auth method.
-
-        Args:
-            method: Authentication method to use
-            strategy: Auth strategy configuration
-            client_token: Optional client token (for client-token and client-credentials methods)
-
-        Returns:
-            Dictionary of headers to add to the request
-
-        Raises:
-            ValueError: If required credentials are missing for the method
-
-        """
-        headers: Dict[str, str] = {}
-
+        """Build authentication headers for a specific auth method."""
         if method == "bearer":
-            if not strategy.bearerToken:
-                raise ValueError("bearerToken is required for bearer authentication method")
-            headers["Authorization"] = f"Bearer {strategy.bearerToken}"
+            return AuthStrategyHandler._bearer_headers(strategy)
+        if method in ["client-token", "client-credentials"]:
+            return AuthStrategyHandler._client_token_headers(client_token, method)
+        if method == "api-key":
+            return AuthStrategyHandler._api_key_headers(strategy)
+        return {}
 
-        elif method == "client-token":
-            if not client_token:
-                raise ValueError("client_token is required for client-token authentication method")
-            headers["x-client-token"] = client_token
+    @staticmethod
+    def _bearer_headers(strategy: AuthStrategy) -> Dict[str, str]:
+        """Build headers for bearer authentication."""
+        if not strategy.bearerToken:
+            raise ValueError("bearerToken is required for bearer authentication method")
+        return {"Authorization": f"Bearer {strategy.bearerToken}"}
 
-        elif method == "client-credentials":
-            # Client credentials uses the same client token mechanism
-            # The client token is already automatically sent via _ensure_client_token
-            # This method is mainly for strategy ordering
-            if not client_token:
-                raise ValueError(
-                    "client_token is required for client-credentials authentication method"
-                )
-            headers["x-client-token"] = client_token
+    @staticmethod
+    def _client_token_headers(client_token: Optional[str], method: AuthMethod) -> Dict[str, str]:
+        """Build headers for client token-based authentication methods."""
+        if not client_token:
+            raise ValueError(f"client_token is required for {method} authentication method")
+        return {"x-client-token": client_token}
 
-        elif method == "api-key":
-            if not strategy.apiKey:
-                raise ValueError("apiKey is required for api-key authentication method")
-            # API key is sent as Bearer token (same format as bearer tokens)
-            headers["Authorization"] = f"Bearer {strategy.apiKey}"
-
-        return headers
+    @staticmethod
+    def _api_key_headers(strategy: AuthStrategy) -> Dict[str, str]:
+        """Build headers for API key authentication."""
+        if not strategy.apiKey:
+            raise ValueError("apiKey is required for api-key authentication method")
+        return {"Authorization": f"Bearer {strategy.apiKey}"}
 
     @staticmethod
     def should_try_method(method: AuthMethod, strategy: AuthStrategy) -> bool:

@@ -17,44 +17,33 @@ ERROR_TYPE_INVALID_DATE = "/Errors/FilterValidation/InvalidDate"
 ERROR_TYPE_INVALID_ENUM = "/Errors/FilterValidation/InvalidEnum"
 
 
-def coerce_single_value(
-    value: Any, field_type: str, enum_values: Optional[List[str]]
-) -> Tuple[Any, Optional[FilterError]]:
-    """Coerce a single value based on field type.
-
-    Args:
-        value: Value to coerce
-        field_type: Field type (string, number, boolean, uuid, timestamp, enum)
-        enum_values: Optional list of enum values (required if type is "enum")
-
-    Returns:
-        Tuple of (coerced_value, error)
-
-    """
-    if field_type == "string":
-        return str(value), None
-
-    if field_type == "number":
-        return coerce_number(value)
-
-    if field_type == "boolean":
-        return coerce_boolean(value)
-
-    if field_type == "uuid":
-        return coerce_uuid(value)
-
-    if field_type == "timestamp":
-        return coerce_timestamp(value)
-
-    if field_type == "enum":
-        return coerce_enum(value, enum_values)
-
-    return value, FilterError(
+def _unknown_field_type_error(field_type: str) -> FilterError:
+    """Build standard error payload for unknown field types."""
+    return FilterError(
         type=ERROR_TYPE_INVALID_TYPE,
         title="Invalid Type",
         statusCode=400,
         errors=[f"Unknown field type: {field_type}"],
     )
+
+
+def coerce_single_value(
+    value: Any, field_type: str, enum_values: Optional[List[str]]
+) -> Tuple[Any, Optional[FilterError]]:
+    """Coerce a single value based on field type."""
+    if field_type == "string":
+        return str(value), None
+    coercers = {
+        "number": lambda: coerce_number(value),
+        "boolean": lambda: coerce_boolean(value),
+        "uuid": lambda: coerce_uuid(value),
+        "timestamp": lambda: coerce_timestamp(value),
+        "enum": lambda: coerce_enum(value, enum_values),
+    }
+    coercer = coercers.get(field_type)
+    if coercer is None:
+        return value, _unknown_field_type_error(field_type)
+    return coercer()
 
 
 def coerce_number(value: Any) -> Tuple[Optional[Union[int, float]], Optional[FilterError]]:

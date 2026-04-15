@@ -47,36 +47,18 @@ class LoggerService:
         http_client: Optional[Any] = None,
         api_client: Optional["ApiClient"] = None,
     ):
-        """Initialize logger service.
-
-        Args:
-            internal_http_client: Internal HTTP client instance (used for log sending)
-            redis: Redis service instance
-            http_client: Optional HttpClient instance for audit log queue (if available)
-            api_client: Optional API client instance (for typed API calls, avoid circular deps)
-
-        """
+        """Initialize logger service."""
         self.config = internal_http_client.config
         self.internal_http_client = internal_http_client
         self.redis = redis
         self.api_client = api_client
-        self.mask_sensitive_data = True  # Default: mask sensitive data
+        self.mask_sensitive_data = True
         self.correlation_counter = 0
         self.audit_log_queue: Optional[AuditLogQueue] = None
-
-        # Initialize application context service
         self.application_context_service = ApplicationContextService(internal_http_client)
-
-        # Initialize circuit breaker for HTTP logging
         circuit_breaker_config = self.config.audit.circuitBreaker if self.config.audit else None
         self.circuit_breaker = CircuitBreaker(circuit_breaker_config)
-
-        # Event emission mode: list of callbacks for log events
-        # Callbacks receive (log_entry: LogEntry) as argument
         self._event_listeners: List[Callable[[LogEntry], None]] = []
-
-        # Audit log queue will be initialized later by MisoClient after http_client is created
-        # This avoids circular dependency issues
 
     def set_masking(self, enabled: bool) -> None:
         """Enable or disable sensitive data masking.

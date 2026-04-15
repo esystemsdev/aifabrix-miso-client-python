@@ -92,56 +92,51 @@ class JwtTokenCache:
         self._cache: Dict[str, Tuple[Dict[str, Any], datetime]] = {}
         self._max_size = max_size
 
+    def _get_cached_token(self, token: str, now: datetime) -> Optional[Dict[str, Any]]:
+        """Return cached token when still valid, else remove expired cache entry."""
+        cached = self._cache.get(token)
+        if not cached:
+            return None
+        cached_decoded, expires_at = cached
+        if expires_at > now:
+            return cached_decoded
+        del self._cache[token]
+        return None
+
+    def _resolve_cache_expiration(self, decoded: Dict[str, Any], now: datetime) -> datetime:
+        """Resolve cache expiration timestamp from JWT claims."""
+        default_exp = now + timedelta(hours=1)
+        exp = decoded.get("exp")
+        if isinstance(exp, (int, float)):
+            token_exp = datetime.fromtimestamp(exp)
+            return min(token_exp - timedelta(minutes=5), default_exp)
+        return default_exp
+
+    def _evict_cache_entries(self) -> None:
+        """Evict oldest cache entries to maintain max cache size bound."""
+        if len(self._cache) < self._max_size:
+            return
+        keys_to_remove = list(self._cache.keys())[: self._max_size // 10]
+        for key in keys_to_remove:
+            del self._cache[key]
+
+    def _decode_and_cache_token(self, token: str, now: datetime) -> Optional[Dict[str, Any]]:
+        """Decode token and cache the decoded payload with expiration."""
+        decoded = decode_token(token)
+        if not decoded:
+            return None
+        self._evict_cache_entries()
+        self._cache[token] = (decoded, self._resolve_cache_expiration(decoded, now))
+        return decoded
+
     def get_decoded_token(self, token: str) -> Optional[Dict[str, Any]]:
-        """Get decoded JWT token with caching for performance optimization.
-
-        Tokens are cached with expiration tracking to avoid repeated decoding.
-
-        Args:
-            token: JWT token string
-
-        Returns:
-            Decoded token payload as dictionary, or None if decoding fails
-
-        """
+        """Get decoded JWT token with cache and expiration handling."""
         now = datetime.now()
-
-        # Check cache first
-        if token in self._cache:
-            cached_decoded, expires_at = self._cache[token]
-            # If not expired, return cached value
-            if expires_at > now:
-                return cached_decoded
-            # Expired, remove from cache
-            del self._cache[token]
-
-        # Decode token
+        cached = self._get_cached_token(token, now)
+        if cached is not None:
+            return cached
         try:
-            decoded = decode_token(token)
-            if not decoded:
-                return None
-
-            # Extract expiration from token (if available)
-            expires_at = now + timedelta(hours=1)  # Default: 1 hour cache
-            if "exp" in decoded and isinstance(decoded["exp"], (int, float)):
-                # Use token expiration minus 5 minutes buffer
-                token_exp = datetime.fromtimestamp(decoded["exp"])
-                expires_at = min(token_exp - timedelta(minutes=5), now + timedelta(hours=1))
-            elif "iat" in decoded and "exp" not in decoded:
-                # Estimate expiration if only issued_at is present
-                expires_at = now + timedelta(hours=1)
-
-            # Cache the decoded token
-            # Limit cache size to prevent memory leaks
-            if len(self._cache) >= self._max_size:
-                # Remove oldest entries (simple FIFO - remove first 10%)
-                keys_to_remove = list(self._cache.keys())[: self._max_size // 10]
-                for key in keys_to_remove:
-                    del self._cache[key]
-
-            self._cache[token] = (decoded, expires_at)
-            return decoded
-
+            return self._decode_and_cache_token(token, now)
         except Exception:
             return None
 

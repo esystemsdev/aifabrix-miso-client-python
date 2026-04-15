@@ -401,7 +401,11 @@ class TestLogsApi:
             sort="-timestamp",
             level="error",
             environment="pro",
-            application="app1",
+            application_id="app-1",
+            client_id="client-1",
+            source_id="source-1",
+            external_system_id="ext-1",
+            record_id="record-1",
             user_id="user-123",
             correlation_id="corr-456",
             start_date="2024-01-01T00:00:00Z",
@@ -419,7 +423,11 @@ class TestLogsApi:
         assert params["sort"] == "-timestamp"
         assert params["level"] == "error"
         assert params["environment"] == "pro"
-        assert params["application"] == "app1"
+        assert params["applicationId"] == "app-1"
+        assert params["clientId"] == "client-1"
+        assert params["sourceId"] == "source-1"
+        assert params["externalSystemId"] == "ext-1"
+        assert params["recordId"] == "record-1"
         assert params["userId"] == "user-123"
         assert params["correlationId"] == "corr-456"
         assert params["startDate"] == "2024-01-01T00:00:00Z"
@@ -486,7 +494,11 @@ class TestLogsApi:
             page_size=25,
             sort="timestamp",
             environment="tst",
-            application="app2",
+            application_id="app-2",
+            client_id="client-2",
+            source_id="source-2",
+            external_system_id="ext-2",
+            record_id="record-2",
             user_id="user-456",
             correlation_id="corr-789",
             start_date="2024-01-01T00:00:00Z",
@@ -500,6 +512,11 @@ class TestLogsApi:
         assert isinstance(result, ListAuditLogsResponse)
         call_kwargs = mock_http_client.authenticated_request.call_args[1]
         params = call_kwargs["params"]
+        assert params["applicationId"] == "app-2"
+        assert params["clientId"] == "client-2"
+        assert params["sourceId"] == "source-2"
+        assert params["externalSystemId"] == "ext-2"
+        assert params["recordId"] == "record-2"
         assert params["entityType"] == "Group"
         assert params["entityId"] == "group-123"
         assert params["action"] == "UPDATE"
@@ -677,7 +694,7 @@ class TestLogsApi:
         result = await logs_api.get_stats_summary(
             "test-token",
             environment="pro",
-            application="app1",
+            application_id="app1",
             user_id="user-123",
             start_date="2024-01-01T00:00:00Z",
             end_date="2024-01-31T23:59:59Z",
@@ -688,7 +705,8 @@ class TestLogsApi:
         call_kwargs = mock_http_client.authenticated_request.call_args[1]
         params = call_kwargs["params"]
         assert params["environment"] == "pro"
-        assert params["application"] == "app1"
+        assert params["applicationId"] == "app1"
+        assert "application" not in params
         assert params["userId"] == "user-123"
         assert call_kwargs["auth_strategy"] == auth_strategy
 
@@ -737,7 +755,7 @@ class TestLogsApi:
         result = await logs_api.get_stats_errors(
             "test-token",
             environment="tst",
-            application="app1",
+            application_id="app1",
             user_id="user-123",
             limit=20,
             start_date="2024-01-01T00:00:00Z",
@@ -749,6 +767,7 @@ class TestLogsApi:
         call_kwargs = mock_http_client.authenticated_request.call_args[1]
         params = call_kwargs["params"]
         assert params["limit"] == 20
+        assert "application" not in params
         assert call_kwargs["auth_strategy"] == auth_strategy
 
     @pytest.mark.asyncio
@@ -798,7 +817,7 @@ class TestLogsApi:
         result = await logs_api.get_stats_users(
             "test-token",
             environment="pro",
-            application="app1",
+            application_id="app1",
             limit=15,
             start_date="2024-01-01T00:00:00Z",
             end_date="2024-01-31T23:59:59Z",
@@ -809,6 +828,7 @@ class TestLogsApi:
         call_kwargs = mock_http_client.authenticated_request.call_args[1]
         params = call_kwargs["params"]
         assert params["limit"] == 15
+        assert "application" not in params
         assert call_kwargs["auth_strategy"] == auth_strategy
 
     @pytest.mark.asyncio
@@ -950,7 +970,7 @@ class TestLogsApi:
             log_type="jobs",
             format="json",
             environment="tst",
-            application="app1",
+            application_id="app1",
             user_id="user-123",
             start_date="2024-01-01T00:00:00Z",
             end_date="2024-01-31T23:59:59Z",
@@ -964,7 +984,8 @@ class TestLogsApi:
         assert params["type"] == "jobs"
         assert params["format"] == "json"
         assert params["environment"] == "tst"
-        assert params["application"] == "app1"
+        assert params["applicationId"] == "app1"
+        assert "application" not in params
         assert params["userId"] == "user-123"
         assert params["limit"] == 5000
         assert call_kwargs["auth_strategy"] == auth_strategy
@@ -990,7 +1011,11 @@ class TestLogsApi:
             sort="-timestamp",
             level="error",
             environment="pro",
-            application="app1",
+            application_id="app-1",
+            client_id="client-1",
+            source_id="source-1",
+            external_system_id="ext-1",
+            record_id="record-1",
             user_id="user-123",
             correlation_id="corr-456",
             start_date="2024-01-01T00:00:00Z",
@@ -1003,7 +1028,11 @@ class TestLogsApi:
         assert params["sort"] == "-timestamp"
         assert params["level"] == "error"
         assert params["environment"] == "pro"
-        assert params["application"] == "app1"
+        assert params["applicationId"] == "app-1"
+        assert params["clientId"] == "client-1"
+        assert params["sourceId"] == "source-1"
+        assert params["externalSystemId"] == "ext-1"
+        assert params["recordId"] == "record-1"
         assert params["userId"] == "user-123"
         assert params["correlationId"] == "corr-456"
         assert params["startDate"] == "2024-01-01T00:00:00Z"
@@ -1018,7 +1047,11 @@ class TestLogsApi:
             sort=None,
             level=None,
             environment=None,
-            application=None,
+            application_id=None,
+            client_id=None,
+            source_id=None,
+            external_system_id=None,
+            record_id=None,
             user_id=None,
             correlation_id=None,
             start_date=None,
@@ -1032,6 +1065,48 @@ class TestLogsApi:
         assert "level" not in params
         assert "environment" not in params
 
+    @pytest.mark.asyncio
+    async def test_list_general_logs_client_id_pass_through(self, logs_api, mock_http_client):
+        """Test list_general_logs forwards clientId filter in query params."""
+        mock_response = {
+            "data": [],
+            "meta": {
+                "currentPage": 1,
+                "pageSize": 10,
+                "totalItems": 0,
+                "totalPages": 0,
+                "type": "generalLog",
+            },
+            "links": {"first": None, "prev": None, "next": None, "last": None},
+        }
+        mock_http_client.authenticated_request.return_value = mock_response
+
+        await logs_api.list_general_logs("test-token", client_id="client-pass-through")
+
+        call_kwargs = mock_http_client.authenticated_request.call_args[1]
+        assert call_kwargs["params"]["clientId"] == "client-pass-through"
+
+    @pytest.mark.asyncio
+    async def test_list_audit_logs_client_id_pass_through(self, logs_api, mock_http_client):
+        """Test list_audit_logs forwards clientId filter in query params."""
+        mock_response = {
+            "data": [],
+            "meta": {
+                "currentPage": 1,
+                "pageSize": 10,
+                "totalItems": 0,
+                "totalPages": 0,
+                "type": "auditLog",
+            },
+            "links": {"first": None, "prev": None, "next": None, "last": None},
+        }
+        mock_http_client.authenticated_request.return_value = mock_response
+
+        await logs_api.list_audit_logs("test-token", client_id="client-pass-through")
+
+        call_kwargs = mock_http_client.authenticated_request.call_args[1]
+        assert call_kwargs["params"]["clientId"] == "client-pass-through"
+
     def test_build_stats_params_minimal(self, logs_api):
         """Test _build_stats_params with minimal parameters."""
         params = logs_api._stats._build_stats_params()
@@ -1042,7 +1117,7 @@ class TestLogsApi:
         """Test _build_stats_params with all parameters."""
         params = logs_api._stats._build_stats_params(
             environment="pro",
-            application="app1",
+            application_id="app1",
             user_id="user-123",
             start_date="2024-01-01T00:00:00Z",
             end_date="2024-01-31T23:59:59Z",
@@ -1050,7 +1125,8 @@ class TestLogsApi:
         )
 
         assert params["environment"] == "pro"
-        assert params["application"] == "app1"
+        assert params["applicationId"] == "app1"
+        assert "application" not in params
         assert params["userId"] == "user-123"
         assert params["startDate"] == "2024-01-01T00:00:00Z"
         assert params["endDate"] == "2024-01-31T23:59:59Z"
@@ -1060,7 +1136,7 @@ class TestLogsApi:
         """Test _build_stats_params with None optional parameters."""
         params = logs_api._stats._build_stats_params(
             environment=None,
-            application=None,
+            application_id=None,
             user_id=None,
             start_date=None,
             end_date=None,

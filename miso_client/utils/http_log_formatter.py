@@ -20,6 +20,20 @@ def _add_optional_fields(context: Dict[str, Any], **fields: Any) -> None:
             context[key] = value
 
 
+def _base_debug_context(
+    method: str, url: str, status_code: Optional[int], duration_ms: int, base_url: str
+) -> Dict[str, Any]:
+    """Build base debug context before optional fields are merged."""
+    return {
+        "method": method,
+        "url": url,
+        "statusCode": status_code,
+        "duration": duration_ms,
+        "baseURL": base_url,
+        "timeout": 30.0,
+    }
+
+
 def build_audit_context(
     method: str,
     url: str,
@@ -31,23 +45,7 @@ def build_audit_context(
     error_message: Optional[str],
     correlation_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Build audit context dictionary for logging.
-
-    Args:
-        method: HTTP method
-        url: Request URL
-        status_code: HTTP status code
-        duration_ms: Request duration in milliseconds
-        user_id: User ID if available
-        request_size: Request size in bytes (optional)
-        response_size: Response size in bytes (optional)
-        error_message: Error message if request failed (optional)
-        correlation_id: Correlation ID if available (optional)
-
-    Returns:
-        Audit context dictionary
-
-    """
+    """Build audit context dictionary for logging."""
     audit_context: Dict[str, Any] = {
         "method": method,
         "url": url,
@@ -78,32 +76,8 @@ def build_debug_context(
     query_params: Optional[Dict[str, Any]],
     correlation_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Build debug context dictionary for detailed logging.
-
-    Args:
-        method: HTTP method
-        url: Request URL
-        status_code: HTTP status code
-        duration_ms: Request duration in milliseconds
-        base_url: Base URL from config
-        user_id: User ID if available
-        masked_headers: Masked request headers
-        masked_body: Masked request body
-        masked_response: Masked response body
-        query_params: Masked query parameters
-
-    Returns:
-        Debug context dictionary
-
-    """
-    debug_context: Dict[str, Any] = {
-        "method": method,
-        "url": url,
-        "statusCode": status_code,
-        "duration": duration_ms,
-        "baseURL": base_url,
-        "timeout": 30.0,  # Default timeout
-    }
+    """Build debug context dictionary."""
+    debug_context = _base_debug_context(method, url, status_code, duration_ms, base_url)
     _add_optional_fields(
         debug_context,
         userId=user_id,

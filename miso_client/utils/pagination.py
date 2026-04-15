@@ -11,6 +11,33 @@ from ..models.pagination import Meta, PaginatedListResponse
 T = TypeVar("T")
 
 
+def _parse_positive_int(value: Any, default: int, minimum: int = 1) -> int:
+    """Parse integer with fallback default and minimum constraint."""
+    try:
+        parsed = int(value) if value is not None else default
+    except (ValueError, TypeError):
+        return default
+    return parsed if parsed >= minimum else minimum
+
+
+def _pick_first(params: dict, keys: list[str]) -> Any:
+    """Return first non-None value for provided key candidates."""
+    for key in keys:
+        value = params.get(key)
+        if value is not None:
+            return value
+    return None
+
+
+def _parse_page_size_legacy(value: Any, default: int) -> int:
+    """Parse legacy page_size where non-positive values fallback to default."""
+    try:
+        parsed = int(value) if value is not None else default
+    except (ValueError, TypeError):
+        return default
+    return parsed if parsed >= 1 else default
+
+
 def parsePaginationParams(params: dict) -> Dict[str, int]:
     """Parse query parameters into pagination values.
 
@@ -31,93 +58,23 @@ def parsePaginationParams(params: dict) -> Dict[str, int]:
         {'currentPage': 2, 'pageSize': 20}  # Default pageSize is 20
 
     """
-    # Default values (matching TypeScript default of 20)
     default_page = 1
     default_page_size = 20
-
-    # Parse page (must be >= 1)
-    page_str = params.get("page") or params.get("current_page")
-    if page_str is None:
-        current_page = default_page
+    page_value = _pick_first(params, ["page", "current_page"])
+    current_page = _parse_positive_int(page_value, default_page, minimum=1)
+    if params.get("pageSize") is not None:
+        page_size = _parse_positive_int(params.get("pageSize"), default_page_size, minimum=1)
     else:
-        try:
-            current_page = int(page_str)
-            if current_page < 1:
-                current_page = default_page
-        except (ValueError, TypeError):
-            current_page = default_page
-
-    # Parse page_size (must be >= 1)
-    page_size_str = params.get("page_size") or params.get("pageSize")
-    if page_size_str is None:
-        page_size = default_page_size
-    else:
-        try:
-            page_size = int(page_size_str)
-            if page_size < 1:
-                page_size = default_page_size
-        except (ValueError, TypeError):
-            page_size = default_page_size
-
+        page_size = _parse_page_size_legacy(params.get("page_size"), default_page_size)
     return {"currentPage": current_page, "pageSize": page_size}
 
 
 def parse_pagination_params(params: dict[str, Any]) -> tuple[int, int]:
-    """Parse pagination parameters from a dictionary.
-
-    This function normalizes pagination parameters, ensuring they are valid integers
-    and enforcing minimum values. It follows the same pattern as parse_filter_params
-    and parse_sort_params.
-
-    Args:
-        params: Dictionary with "page" and "pageSize" keys.
-                Values can be int, str, or None.
-
-    Returns:
-        Tuple of (page, page_size) as integers.
-
-    Defaults:
-        - page: 1 if not provided or invalid
-        - page_size: 20 if not provided or invalid
-
-    Validation:
-        - page must be >= 1 (enforced via max(1, page))
-        - page_size must be >= 1 (enforced via max(1, page_size))
-        - Invalid values (non-numeric strings, None) default to safe values
-
-    Examples:
-        >>> parse_pagination_params({"page": 2, "pageSize": 50})
-        (2, 50)
-        >>> parse_pagination_params({"page": "3", "pageSize": "25"})
-        (3, 25)
-        >>> parse_pagination_params({"page": 1})
-        (1, 20)
-        >>> parse_pagination_params({})
-        (1, 20)
-        >>> parse_pagination_params({"page": 0, "page_size": -5})
-        (1, 1)
-        >>> parse_pagination_params({"page": None, "page_size": "invalid"})
-        (1, 20)
-
-    """
-    page = params.get("page", 1)
-    page_size = params.get("page_size", params.get("pageSize", 20))
-
-    # Convert to int if needed (handles string inputs from query params)
-    try:
-        page = int(page) if page is not None else 1
-    except (ValueError, TypeError):
-        page = 1
-
-    try:
-        page_size = int(page_size) if page_size is not None else 20
-    except (ValueError, TypeError):
-        page_size = 20
-
-    # Ensure minimum values (page and page_size must be >= 1)
-    page = max(1, page)
-    page_size = max(1, page_size)
-
+    """Parse and normalize pagination params into (page, page_size)."""
+    page_value = _pick_first(params, ["page"])
+    page_size_value = _pick_first(params, ["page_size", "pageSize"])
+    page = _parse_positive_int(page_value, 1, minimum=1)
+    page_size = _parse_positive_int(page_size_value, 20, minimum=1)
     return page, page_size
 
 
@@ -150,24 +107,7 @@ def createMetaObject(totalItems: int, currentPage: int, pageSize: int, type: str
 
 
 def applyPaginationToArray(items: List[T], currentPage: int, pageSize: int) -> List[T]:
-    """Apply pagination to an array (for mock/testing).
-
-    Args:
-        items: Array of items to paginate
-        currentPage: Current page index (1-based)
-        pageSize: Number of items per page
-
-    Returns:
-        Paginated slice of the array
-
-    Examples:
-        >>> items = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-        >>> applyPaginationToArray(items, 1, 3)
-        [1, 2, 3]
-        >>> applyPaginationToArray(items, 2, 3)
-        [4, 5, 6]
-
-    """
+    """Apply pagination to a local array for mocks/tests."""
     if not items:
         return []
 

@@ -1,6 +1,6 @@
 # validate-code
 
-This command analyzes all core code (`miso_client/services`, `miso_client/utils`, `miso_client/models`) against development rules and creates or updates a single detailed improvement plan with the full list of required fixes.
+This command analyzes all core code (`miso_client/services`, `miso_client/utils`, `miso_client/models`) against development rules and always creates a new detailed improvement plan with the full list of required unfinished fixes.
 
 ## Purpose
 
@@ -12,11 +12,10 @@ The command:
    - `miso_client/models/` (Pydantic models - config, error_response, filter, pagination, sort)
    - `miso_client/__init__.py` (Main MisoClient class exports)
 3. Aggregates all findings across modules into a single unified list of required fixes
-4. Checks if a plan file already exists with pattern `*-fix-and-improve-code.plan.md`
-5. If a plan exists, updates the existing plan file
-6. If no plan exists, creates a new plan file with format: `<next-number>-fix-and-improve-code.plan.md`
-7. **Immediately starts implementing the plan right after creation/update**, applying fixes automatically unless they are breaking changes that require confirmation
-8. Documents all violations and required improvements based on cursor rules in one plan file
+4. Always creates a new plan file with format: `<next-number>-fix-and-improve-code.plan.md`
+5. The new plan must include all fixes that are still not done, even if they were listed in older plans
+6. **Immediately starts implementing the new plan right after creation**, applying fixes automatically unless they are breaking changes that require confirmation
+7. Documents all violations and required improvements based on cursor rules in one plan file
 
 ## Usage
 
@@ -24,7 +23,7 @@ Run this command in chat with `/validate-code`
 
 ## What It Does
 
-For the single unified plan, the command:
+For each newly created unified plan, the command:
 
 1. **Analyzes Code Reuse**:
    - Checks for code duplication across modules
@@ -162,7 +161,7 @@ For the single unified plan, the command:
 
 ## Output
 
-Creates or updates a single plan file in `.cursor/plans/` with:
+Creates a new plan file in `.cursor/plans/` with:
 - Overview of the overall codebase scope analyzed
 - List of all files/modules analyzed
 - Detailed violation analysis grouped by category and file
@@ -171,9 +170,9 @@ Creates or updates a single plan file in `.cursor/plans/` with:
 - Testing requirements
 - Priority recommendations
 
-**Important**: If a plan file with pattern `*-fix-and-improve-code.plan.md` already exists (e.g., `70-fix-and-improve-code.plan.md`), the command will **update** the existing plan instead of creating a new one. This ensures that progress on the single unified plan is preserved and updated with the latest analysis.
+**Important**: Even if previous `*-fix-and-improve-code.plan.md` files exist, the command must **never update** them. It must always create a new file with the next sequential number and include all still-unfinished fixes.
 
-**Execution Behavior**: When generating or updating a plan, it should be clearly identified as a "code improvement plan and execution". The command must immediately start implementing the plan right after creation/update and execute improvements automatically without asking for user input or showing progress details, unless there are breaking changes or other critical reasons that require user confirmation. The focus is on silent, automated execution of code improvements based on the analysis.
+**Execution Behavior**: When generating a plan, it should be clearly identified as a "code improvement plan and execution". The command must immediately start implementing the plan right after creation and execute improvements automatically without asking for user input or showing progress details, unless there are breaking changes or other critical reasons that require user confirmation. The focus is on silent, automated execution of code improvements based on the analysis.
 
 ## Example Plan Structure
 
@@ -275,15 +274,15 @@ The unified plan groups findings under these categories for readability, but all
 
 ## Notes
 
-- **Existing Plans**: If a plan file matching pattern `*-fix-and-improve-code.plan.md` already exists, it will be updated rather than creating a new one
-- **New Plans**: If no existing plan is found, a new plan is created with sequential numbering (starting from biggest number in plan folder plus 1). New plans are **code improvement plans and execution** - they should be executed automatically without user input or progress updates, unless breaking changes or other critical reasons require user confirmation
+- **Existing Plans**: Existing `*-fix-and-improve-code.plan.md` files are historical snapshots and must not be edited by this command
+- **New Plans**: A new plan is always created with sequential numbering (starting from biggest number in plan folder plus 1), and it must include all fixes that are still not completed
 - **Execution**: Do NOT ask the user for input or show what's being done unless necessary for breaking changes or other critical reasons. The command should execute improvements silently and automatically
-- Only one plan file is created or updated
+- Only one new plan file is created per run
 - Plans include actionable tasks with specific file locations and line numbers where applicable
 - Plans reference specific cursor rules that are violated
 - Focus is on `miso_client/services/` and `miso_client/utils/` as the primary targets, but all core code is analyzed
 - The command prioritizes code reuse violations as they are critical for maintainability
-- When updating the existing plan, the command preserves the plan number and updates the content with the latest analysis
+- Previous plans are not modified; the latest analysis is written only into the newly created plan
 - All analysis should follow the patterns defined in the repository-specific cursor rules (`.cursorrules`)
 - Security and ISO 27001 compliance are critical - all plans must address security concerns
 - File size limits (≤500 lines per file, ≤20-30 lines per method) must be checked and enforced

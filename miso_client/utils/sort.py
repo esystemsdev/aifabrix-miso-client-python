@@ -10,6 +10,31 @@ from urllib.parse import quote
 from ..models.sort import SortOption, SortOrder
 
 
+def _normalize_sort_strings(sort_param: object) -> List[str]:
+    """Normalize raw sort query parameter into list of strings."""
+    if isinstance(sort_param, str):
+        return [sort_param]
+    if isinstance(sort_param, list):
+        return [item for item in sort_param if isinstance(item, str)]
+    return []
+
+
+def _parse_sort_option(sort_str: str) -> SortOption | None:
+    """Parse a single sort expression into SortOption."""
+    normalized = sort_str.strip()
+    if not normalized:
+        return None
+    if normalized.startswith("-"):
+        field = normalized[1:].strip()
+        order: SortOrder = "desc"
+    else:
+        field = normalized
+        order = "asc"
+    if not field:
+        return None
+    return SortOption(field=field, order=cast(SortOrder, order))
+
+
 def parse_sort_params(params: dict) -> List[SortOption]:
     """Parse sort query parameters into SortOption list.
 
@@ -30,69 +55,19 @@ def parse_sort_params(params: dict) -> List[SortOption]:
         [SortOption(field='updated_at', order='desc'), SortOption(field='created_at', order='asc')]
 
     """
-    sort_options: List[SortOption] = []
-
-    # Get sort parameter (can be string or list)
     sort_param = params.get("sort")
     if not sort_param:
-        return sort_options
-
-    # Normalize to list
-    if isinstance(sort_param, str):
-        sort_strings = [sort_param]
-    elif isinstance(sort_param, list):
-        sort_strings = sort_param
-    else:
-        return sort_options
-
-    # Parse each sort string
-    for sort_str in sort_strings:
-        if not isinstance(sort_str, str):
-            continue
-
-        sort_str = sort_str.strip()
-        if not sort_str:
-            continue
-
-        # Check for descending order (prefix with '-')
-        if sort_str.startswith("-"):
-            field = sort_str[1:].strip()
-            order: SortOrder = "desc"
-        else:
-            field = sort_str.strip()
-            order = "asc"
-
-        if field:
-            sort_options.append(SortOption(field=field, order=cast(SortOrder, order)))
-
+        return []
+    sort_options: List[SortOption] = []
+    for sort_str in _normalize_sort_strings(sort_param):
+        parsed = _parse_sort_option(sort_str)
+        if parsed:
+            sort_options.append(parsed)
     return sort_options
 
 
 def build_sort_string(sort_options: List[SortOption]) -> str:
-    """Convert SortOption list to query string format.
-
-    Converts SortOption objects to sort query string format.
-    Descending order fields are prefixed with '-'.
-
-    Args:
-        sort_options: List of SortOption objects
-
-    Returns:
-        Sort query string (e.g., '-updated_at,created_at' or single value '-updated_at')
-
-    Examples:
-        >>> from miso_client.models.sort import SortOption
-        >>> sort_options = [SortOption(field='updated_at', order='desc')]
-        >>> build_sort_string(sort_options)
-        '-updated_at'
-        >>> sort_options = [
-        ...     SortOption(field='updated_at', order='desc'),
-        ...     SortOption(field='created_at', order='asc')
-        ... ]
-        >>> build_sort_string(sort_options)
-        '-updated_at,created_at'
-
-    """
+    """Convert sort options into comma-separated query-string value."""
     if not sort_options:
         return ""
 

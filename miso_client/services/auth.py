@@ -5,13 +5,20 @@ token validation, user information retrieval, and logout functionality.
 """
 
 import logging
-from typing import TYPE_CHECKING, Any, Dict, Optional, cast
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from ..api.types.auth_types import (
     TokenExchangeResponse,
     ValidateClientTokenResponse,
 )
 from ..models.config import AuthResult, AuthStrategy, UserInfo
+from ..services.auth_flow_helpers import (
+    exchange_delegated_token,
+    fetch_user_info,
+    fetch_validation_result,
+    logout_user,
+    refresh_user_access_token,
+)
 from ..services.auth_token_cache import (
     cache_validation_result,
     check_cache_for_token,
@@ -28,7 +35,6 @@ from ..utils.auth_cache_helpers import (
     get_cache_ttl_from_token,
     get_client_token_validation_cache_key,
     get_token_cache_key,
-    get_token_exchange_cache_key,
 )
 from ..utils.error_utils import extract_correlation_id_from_error
 from ..utils.http_client import HttpClient
@@ -137,41 +143,17 @@ class AuthService:
     async def _fetch_validation_from_api_client(
         self, token: str, auth_strategy: Optional[AuthStrategy] = None
     ) -> Dict[str, Any]:
-        """Fetch token validation using ApiClient.
-
-        Args:
-            token: JWT token to validate
-            auth_strategy: Optional authentication strategy
-
-        Returns:
-            Validation result dictionary
-
-        """
+        """Fetch token validation using typed ApiClient path."""
         if not self.api_client:
             raise ValueError("ApiClient is required for this method")
-        response = await self.api_client.auth.validate_token(token, auth_strategy=auth_strategy)
-        # Extract data from typed response (matches OpenAPI spec format)
-        return {
-            "data": {
-                "authenticated": response.data.authenticated,
-                "user": response.data.user.model_dump() if response.data.user else None,
-                "expiresAt": response.data.expiresAt,
-            },
-        }
+        return await fetch_validation_result(
+            self.api_client, self.http_client, token, auth_strategy
+        )
 
     async def _fetch_validation_from_http_client(
         self, token: str, auth_strategy: Optional[AuthStrategy] = None
     ) -> Dict[str, Any]:
-        """Fetch token validation using HttpClient (backward compatibility).
-
-        Args:
-            token: JWT token to validate
-            auth_strategy: Optional authentication strategy
-
-        Returns:
-            Validation result dictionary
-
-        """
+        """Fetch token validation using HttpClient path."""
         if auth_strategy is not None:
             result = await self.http_client.authenticated_request(
                 "POST",
@@ -181,7 +163,6 @@ class AuthService:
                 auth_strategy=auth_strategy,
             )
             return result  # type: ignore[no-any-return]
-
         result = await self.http_client.authenticated_request(
             "POST", "/api/v1/auth/validate", token, {"token": token}
         )
@@ -190,20 +171,10 @@ class AuthService:
     async def _fetch_validation_from_api(
         self, token: str, auth_strategy: Optional[AuthStrategy] = None
     ) -> Dict[str, Any]:
-        """Fetch token validation from API (ApiClient or HttpClient).
-
-        Args:
-            token: JWT token to validate
-            auth_strategy: Optional authentication strategy
-
-        Returns:
-            Validation result dictionary
-
-        """
-        if self.api_client:
-            return await self._fetch_validation_from_api_client(token, auth_strategy)
-        else:
-            return await self._fetch_validation_from_http_client(token, auth_strategy)
+        """Fetch token validation from API."""
+        return await fetch_validation_result(
+            self.api_client, self.http_client, token, auth_strategy
+        )
 
     async def _cache_validation_result(self, token: str, result: Dict[str, Any]) -> None:
         """Cache successful validation results.
@@ -351,47 +322,21 @@ class AuthService:
         """
         await cache_user_info(self.cache, token, user_info, self.user_ttl)
 
-    async def _fetch_user_info(
-        self, token: str, auth_strategy: Optional[AuthStrategy]
-    ) -> Optional[UserInfo]:
-        if self.api_client:
-            response = await self.api_client.auth.get_user(token, auth_strategy=auth_strategy)
-            return response.data.user
-
-        user_data = await self.http_client.authenticated_request(
-            "GET", "/api/v1/auth/user", token, auth_strategy=auth_strategy
-        )
-        return UserInfo(**user_data)
-
     async def get_user_info(
         self, token: str, auth_strategy: Optional[AuthStrategy] = None
     ) -> Optional[UserInfo]:
-        """Get user information from GET /api/v1/auth/user endpoint.
-
-        Results are cached using userId from token with configurable TTL (default 5 min).
-
-        Args:
-            token: JWT token (or API_KEY for testing)
-            auth_strategy: Optional authentication strategy
-
-        Returns:
-            UserInfo if token is valid, None otherwise (including API_KEY auth)
-
-        """
+        """Get user information from GET /api/v1/auth/user endpoint."""
         if self._is_api_key_auth(token):
             return None
-
         try:
             cached_user = await self._check_user_info_cache(token)
             if cached_user:
                 return cached_user
-
-            user_info = await self._fetch_user_info(token, auth_strategy)
-
-            # Cache the result
+            user_info = await fetch_user_info(
+                self.api_client, self.http_client, token, auth_strategy
+            )
             if user_info:
                 await self._cache_user_info(token, user_info)
-
             return user_info
         except Exception as error:
             self._log_error("Failed to get user info", error)
@@ -435,14 +380,7 @@ class AuthService:
 
         """
         try:
-            if self.api_client:
-                await self.api_client.auth.logout(token)
-                result: Dict[str, Any] = {"data": None}
-            else:
-                result = await self.http_client.authenticated_request(
-                    "POST", "/api/v1/auth/logout", token, {"token": token}
-                )
-
+            result = await logout_user(self.api_client, self.http_client, token)
             await self._clear_logout_caches(token)
             return result
         except Exception as error:
@@ -467,79 +405,56 @@ class AuthService:
             MisoClientError: If request fails
 
         """
-        cache_key = get_token_exchange_cache_key(delegated_token)
-        if self.cache:
-            cached = await self.cache.get(cache_key)
-            if cached and isinstance(cached, dict):
-                logger.debug("Token exchange cache hit")
-                return TokenExchangeResponse(**cached)
-
-        if self.api_client:
-            result = await self.api_client.auth.exchange_token(delegated_token)
-        else:
-            response = await self.http_client.authenticated_request(
-                "POST",
-                "/api/v1/auth/token/exchange",
-                delegated_token,
-                data=None,
-                auto_refresh=False,
-            )
-            if (
-                isinstance(response, dict)
-                and "data" in response
-                and isinstance(response["data"], dict)
-            ):
-                response = response["data"]
-            result = TokenExchangeResponse(**response)
-
-        if self.cache and result.accessToken:
-            ttl = get_cache_ttl_from_token(result.accessToken, self.validation_ttl)
-            try:
-                await self.cache.set(cache_key, result.model_dump(), ttl)
-                logger.debug("Token exchange cached with TTL %ds", ttl)
-            except Exception as error:
-                logger.warning("Failed to cache token exchange result", exc_info=error)
-
-        return result
+        return await exchange_delegated_token(
+            self.api_client,
+            self.http_client,
+            self.cache,
+            self.validation_ttl,
+            delegated_token,
+        )
 
     async def validate_client_token(
         self, token: str, *, send_as_header: bool = False
     ) -> ValidateClientTokenResponse:
-        """Validate application token (x-client-token) with caching.
-
-        Checks cache first; on miss calls controller and caches successful result.
-        No SDK client token is sent; only the token to validate is sent.
-
-        Args:
-            token: Application token to validate
-            send_as_header: If True, send token in x-client-token header;
-                otherwise in body
-
-        Returns:
-            ValidateClientTokenResponse with validation result
-
-        Raises:
-            MisoClientError: If request fails (400 token missing, 401 invalid/expired)
-            ValueError: If api_client is not set
-
-        """
+        """Validate application token (x-client-token) with caching."""
         cache_key = get_client_token_validation_cache_key(token)
-        if self.cache:
-            cached_result = await check_cache_for_token(self.cache, cache_key)
-            if cached_result:
-                return ValidateClientTokenResponse(**cached_result)
+        cached = await self._get_cached_client_token_validation(cache_key)
+        if cached is not None:
+            return cached
+        result = await self._fetch_client_token_validation(token, send_as_header)
+        await self._cache_client_token_validation(cache_key, result)
+        return result
 
+    async def _get_cached_client_token_validation(
+        self, cache_key: str
+    ) -> Optional[ValidateClientTokenResponse]:
+        """Return cached client-token validation response if present."""
+        if not self.cache:
+            return None
+        cached_result = await check_cache_for_token(self.cache, cache_key)
+        if not cached_result:
+            return None
+        return ValidateClientTokenResponse(**cached_result)
+
+    async def _fetch_client_token_validation(
+        self, token: str, send_as_header: bool
+    ) -> ValidateClientTokenResponse:
+        """Fetch client-token validation response from ApiClient."""
         if not self.api_client:
             raise ValueError("ApiClient is required for validate_client_token")
-
-        result = await self.api_client.auth.validate_client_token(
+        return await self.api_client.auth.validate_client_token(
             token, send_as_header=send_as_header
         )
-        if self.cache and result.data.authenticated:
-            result_dict = result.model_dump()
-            ttl = self.validation_ttl
-            await cache_validation_result(self.cache, cache_key, result_dict, ttl)
-        return result
+
+    async def _cache_client_token_validation(
+        self, cache_key: str, result: ValidateClientTokenResponse
+    ) -> None:
+        """Cache successful client-token validation response."""
+        if not self.cache or not result.data.authenticated:
+            return
+        await cache_validation_result(
+            self.cache, cache_key, result.model_dump(), self.validation_ttl
+        )
 
     async def refresh_user_token(self, refresh_token: str) -> Optional[Dict[str, Any]]:
         """Refresh user access token using refresh token.
@@ -552,23 +467,7 @@ class AuthService:
 
         """
         try:
-            if self.api_client:
-                response = await self.api_client.auth.refresh_token(refresh_token)
-                return {
-                    "data": {
-                        "token": response.data.accessToken,
-                        "accessToken": response.data.accessToken,
-                        "refreshToken": response.data.refreshToken,
-                        "expiresIn": response.data.expiresIn,
-                    },
-                }
-
-            return cast(
-                Optional[Dict[str, Any]],
-                await self.http_client.request(
-                    "POST", "/api/v1/auth/refresh", {"refreshToken": refresh_token}
-                ),
-            )
+            return await refresh_user_access_token(self.api_client, self.http_client, refresh_token)
         except Exception as error:
             self._log_error("Failed to refresh user token", error)
             return None

@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Literal, Optional
 from ..models.config import AuthStrategy, LogEntry
 from ..utils.http_client import HttpClient
 from .logs_stats_api import LogsStatsApi
+from .logs_stats_delegation_mixin import LogsStatsDelegationMixin
 from .response_utils import normalize_api_response
 from .types.logs_types import (
     BatchLogRequest,
@@ -20,17 +21,12 @@ from .types.logs_types import (
     ListAuditLogsResponse,
     ListGeneralLogsResponse,
     ListJobLogsResponse,
-    LogExportResponse,
     LogRequest,
     LogResponse,
-    LogStatsApplicationsResponse,
-    LogStatsErrorsResponse,
-    LogStatsSummaryResponse,
-    LogStatsUsersResponse,
 )
 
 
-class LogsApi:
+class LogsApi(LogsStatsDelegationMixin):
     """Logs API client for logging endpoints."""
 
     # Endpoint constants
@@ -132,7 +128,11 @@ class LogsApi:
         sort: Optional[str] = None,
         level: Optional[Literal["error", "warn", "info", "debug"]] = None,
         environment: Optional[Literal["dev", "tst", "pro", "miso"]] = None,
-        application: Optional[str] = None,
+        application_id: Optional[str] = None,
+        client_id: Optional[str] = None,
+        source_id: Optional[str] = None,
+        external_system_id: Optional[str] = None,
+        record_id: Optional[str] = None,
         user_id: Optional[str] = None,
         correlation_id: Optional[str] = None,
         start_date: Optional[str] = None,
@@ -149,7 +149,11 @@ class LogsApi:
             sort: Sort field with optional direction prefix (e.g., '-timestamp')
             level: Filter by log level
             environment: Filter by environment
-            application: Filter by application name
+            application_id: Filter by application ID
+            client_id: Filter by client credential/pipeline ID
+            source_id: Filter by source ID
+            external_system_id: Filter by external system ID
+            record_id: Filter by record ID
             user_id: Filter by user ID
             correlation_id: Filter by correlation ID
             start_date: Filter from date (ISO 8601)
@@ -170,7 +174,11 @@ class LogsApi:
             sort=sort,
             level=level,
             environment=environment,
-            application=application,
+            application_id=application_id,
+            client_id=client_id,
+            source_id=source_id,
+            external_system_id=external_system_id,
+            record_id=record_id,
             user_id=user_id,
             correlation_id=correlation_id,
             start_date=start_date,
@@ -194,7 +202,11 @@ class LogsApi:
         page_size: int = 10,
         sort: Optional[str] = None,
         environment: Optional[Literal["dev", "tst", "pro", "miso"]] = None,
-        application: Optional[str] = None,
+        application_id: Optional[str] = None,
+        client_id: Optional[str] = None,
+        source_id: Optional[str] = None,
+        external_system_id: Optional[str] = None,
+        record_id: Optional[str] = None,
         user_id: Optional[str] = None,
         correlation_id: Optional[str] = None,
         start_date: Optional[str] = None,
@@ -212,7 +224,11 @@ class LogsApi:
             page_size: Number of items per page (default 10, max 100)
             sort: Sort field with optional direction prefix (e.g., '-timestamp')
             environment: Filter by environment
-            application: Filter by application name
+            application_id: Filter by application ID
+            client_id: Filter by client credential/pipeline ID
+            source_id: Filter by source ID
+            external_system_id: Filter by external system ID
+            record_id: Filter by record ID
             user_id: Filter by user ID
             correlation_id: Filter by correlation ID
             start_date: Filter from date (ISO 8601)
@@ -234,7 +250,11 @@ class LogsApi:
             page_size=page_size,
             sort=sort,
             environment=environment,
-            application=application,
+            application_id=application_id,
+            client_id=client_id,
+            source_id=source_id,
+            external_system_id=external_system_id,
+            record_id=record_id,
             user_id=user_id,
             correlation_id=correlation_id,
             start_date=start_date,
@@ -352,100 +372,6 @@ class LogsApi:
         return GetJobLogResponse(**response)
 
     # =========================================================================
-    # Log Statistics Endpoints (delegated to LogsStatsApi)
-    # =========================================================================
-
-    async def get_stats_summary(
-        self,
-        token: str,
-        environment: Optional[Literal["dev", "tst", "pro", "miso"]] = None,
-        application: Optional[str] = None,
-        user_id: Optional[str] = None,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-        auth_strategy: Optional[AuthStrategy] = None,
-    ) -> LogStatsSummaryResponse:
-        """Get log statistics summary. See LogsStatsApi.get_stats_summary for details."""
-        return await self._stats.get_stats_summary(
-            token, environment, application, user_id, start_date, end_date, auth_strategy
-        )
-
-    async def get_stats_errors(
-        self,
-        token: str,
-        environment: Optional[Literal["dev", "tst", "pro", "miso"]] = None,
-        application: Optional[str] = None,
-        user_id: Optional[str] = None,
-        limit: int = 10,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-        auth_strategy: Optional[AuthStrategy] = None,
-    ) -> LogStatsErrorsResponse:
-        """Get error statistics. See LogsStatsApi.get_stats_errors for details."""
-        return await self._stats.get_stats_errors(
-            token, environment, application, user_id, limit, start_date, end_date, auth_strategy
-        )
-
-    async def get_stats_users(
-        self,
-        token: str,
-        environment: Optional[Literal["dev", "tst", "pro", "miso"]] = None,
-        application: Optional[str] = None,
-        limit: int = 10,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-        auth_strategy: Optional[AuthStrategy] = None,
-    ) -> LogStatsUsersResponse:
-        """Get user activity statistics. See LogsStatsApi.get_stats_users for details."""
-        return await self._stats.get_stats_users(
-            token, environment, application, limit, start_date, end_date, auth_strategy
-        )
-
-    async def get_stats_applications(
-        self,
-        token: str,
-        environment: Optional[Literal["dev", "tst", "pro", "miso"]] = None,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-        auth_strategy: Optional[AuthStrategy] = None,
-    ) -> LogStatsApplicationsResponse:
-        """Get application statistics. See LogsStatsApi.get_stats_applications for details."""
-        return await self._stats.get_stats_applications(
-            token, environment, start_date, end_date, auth_strategy
-        )
-
-    # =========================================================================
-    # Log Export Endpoint (delegated to LogsStatsApi)
-    # =========================================================================
-
-    async def export_logs(
-        self,
-        token: str,
-        log_type: Literal["general", "audit", "jobs"],
-        format: Literal["csv", "json"],
-        environment: Optional[Literal["dev", "tst", "pro", "miso"]] = None,
-        application: Optional[str] = None,
-        user_id: Optional[str] = None,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-        limit: int = 1000,
-        auth_strategy: Optional[AuthStrategy] = None,
-    ) -> LogExportResponse:
-        """Export logs. See LogsStatsApi.export_logs for details."""
-        return await self._stats.export_logs(
-            token,
-            log_type,
-            format,
-            environment,
-            application,
-            user_id,
-            start_date,
-            end_date,
-            limit,
-            auth_strategy,
-        )
-
-    # =========================================================================
     # Helper Methods
     # =========================================================================
 
@@ -456,7 +382,11 @@ class LogsApi:
         sort: Optional[str] = None,
         level: Optional[str] = None,
         environment: Optional[str] = None,
-        application: Optional[str] = None,
+        application_id: Optional[str] = None,
+        client_id: Optional[str] = None,
+        source_id: Optional[str] = None,
+        external_system_id: Optional[str] = None,
+        record_id: Optional[str] = None,
         user_id: Optional[str] = None,
         correlation_id: Optional[str] = None,
         start_date: Optional[str] = None,
@@ -474,8 +404,16 @@ class LogsApi:
             params["level"] = level
         if environment:
             params["environment"] = environment
-        if application:
-            params["application"] = application
+        if application_id:
+            params["applicationId"] = application_id
+        if client_id:
+            params["clientId"] = client_id
+        if source_id:
+            params["sourceId"] = source_id
+        if external_system_id:
+            params["externalSystemId"] = external_system_id
+        if record_id:
+            params["recordId"] = record_id
         if user_id:
             params["userId"] = user_id
         if correlation_id:

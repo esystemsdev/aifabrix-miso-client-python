@@ -105,19 +105,32 @@ def estimate_object_size(obj: Any) -> int:
         return 10  # Estimate for primitives
 
     if isinstance(obj, list):
-        if len(obj) == 0:
-            return 10
-        # Sample first few items for estimation
-        sample_size = min(3, len(obj))
-        estimated_item_size = sum(estimate_object_size(item) for item in obj[:sample_size])
-        avg_item_size = estimated_item_size / sample_size if sample_size > 0 else 100
-        return int(len(obj) * avg_item_size)
+        return _estimate_list_size(obj)
 
     # Object: estimate based on property count and values
     size = 0
     for key, value in obj.items():
         size += len(str(key).encode("utf-8")) + estimate_object_size(value)
     return size
+
+
+def _estimate_list_size(items: list[Any]) -> int:
+    """Estimate list size by sampling first items and extrapolating."""
+    if len(items) == 0:
+        return 10
+    sample_size = min(3, len(items))
+    estimated_item_size = sum(estimate_object_size(item) for item in items[:sample_size])
+    avg_item_size = estimated_item_size / sample_size if sample_size > 0 else 100
+    return int(len(items) * avg_item_size)
+
+
+def _truncate_string_body(body: str, max_size: int) -> tuple[str, bool]:
+    """Truncate string body to maximum byte length."""
+    body_bytes = body.encode("utf-8")
+    if len(body_bytes) <= max_size:
+        return body, False
+    truncated = body_bytes[:max_size].decode("utf-8", errors="ignore") + "..."
+    return truncated, True
 
 
 def truncate_response_body(body: Any, max_size: int = 10000) -> tuple[Any, bool]:
@@ -134,20 +147,11 @@ def truncate_response_body(body: Any, max_size: int = 10000) -> tuple[Any, bool]
     if body is None:
         return body, False
 
-    # For strings, truncate directly
     if isinstance(body, str):
-        body_bytes = body.encode("utf-8")
-        if len(body_bytes) <= max_size:
-            return body, False
-        truncated = body_bytes[:max_size].decode("utf-8", errors="ignore") + "..."
-        return truncated, True
-
-    # For objects/arrays, estimate size first
+        return _truncate_string_body(body, max_size)
     estimated_size = estimate_object_size(body)
     if estimated_size <= max_size:
         return body, False
-
-    # If estimated size is too large, return placeholder
     return {
         "_message": "Response body too large, truncated for performance",
         "_estimatedSize": estimated_size,
@@ -171,32 +175,31 @@ def mask_response_data(
     if response is None:
         return None
 
-    max_size = max_size or 10000
-    max_masking_size = max_masking_size or 50000
-
+    resolved_max_size = max_size or 10000
+    resolved_max_masking_size = max_masking_size or 50000
     try:
-        # Check if we should skip masking due to size
         estimated_size = estimate_object_size(response)
-        if estimated_size > max_masking_size:
+        if estimated_size > resolved_max_masking_size:
             return str({" _message": "Response body too large, masking skipped"})
-
-        # Truncate if needed
-        truncated_body, was_truncated = truncate_response_body(response, max_size)
-
-        # Mask sensitive data
-        try:
-            if isinstance(truncated_body, dict):
-                masked_dict = DataMasker.mask_sensitive_data(truncated_body)
-                result = str(masked_dict)
-                if was_truncated and len(result) > 1000:
-                    result = result[:1000] + "..."
-                return result
-            elif isinstance(truncated_body, str):
-                # Already truncated string
-                return truncated_body
-            else:
-                return str(truncated_body)
-        except Exception:
-            return str(truncated_body) if was_truncated else str(response)
+        truncated_body, was_truncated = truncate_response_body(response, resolved_max_size)
+        return _stringify_masked_response(truncated_body, response, was_truncated)
     except Exception:
         return None
+
+
+def _stringify_masked_response(
+    truncated_body: Any, original_response: Any, was_truncated: bool
+) -> str:
+    """Mask and stringify response body with safe fallback behavior."""
+    try:
+        if isinstance(truncated_body, dict):
+            masked_dict = DataMasker.mask_sensitive_data(truncated_body)
+            result = str(masked_dict)
+            if was_truncated and len(result) > 1000:
+                return result[:1000] + "..."
+            return result
+        if isinstance(truncated_body, str):
+            return truncated_body
+        return str(truncated_body)
+    except Exception:
+        return str(truncated_body) if was_truncated else str(original_response)

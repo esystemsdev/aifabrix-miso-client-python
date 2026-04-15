@@ -5,6 +5,67 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.9.0] - 2026-03-23
+
+### Added
+
+- **Stats/export delegation mixin** - Added `logs_stats_delegation_mixin.py` and moved stats/export wrapper methods out of `LogsApi` to keep API modules within code-size guidelines while preserving behavior.
+- **Consumer migration guide for applicationId-only stats/export inputs** - Added `.temp/logs-wave-4/python-sdk-applicationid-only-migration.md` with before/after migration examples.
+
+### Changed
+
+- **Logs stats/export input contract (breaking)** - Removed legacy `application` input for `get_stats_summary`, `get_stats_errors`, `get_stats_users`, and `export_logs`; these now accept `application_id` only (serialized as `applicationId`).
+- **Logs API wrapper alignment** - Synced `LogsApi` passthrough signatures with `LogsStatsApi` input-only `application_id` contract.
+- **Wave 4 migration documentation** - Updated wave4 consumer/status notes to reflect `application_id`-only query inputs for list/stats/export surfaces.
+
+### Fixed
+
+- **Stats/export filter regression coverage** - Updated unit tests to assert `application_id -> applicationId` propagation and explicit absence of legacy `application` query key.
+- **Code size compliance for touched API module** - Reduced `miso_client/api/logs_api.py` below 500 lines by extracting delegation wrappers.
+
+### Technical
+
+- **Validation baseline** - Verified release readiness with `make validate` and follow-up `make format && make lint && make type-check && make test` loops.
+
+## [4.8.1] - 2026-02-27
+
+### Changed
+
+- **Logs list filter contract parity** - Extended `LogsApi.list_general_logs()` and `LogsApi.list_audit_logs()` with optional `client_id` filtering and serialized pass-through as `clientId` query parameter.
+
+### Fixed
+
+- **Wave 4 filter propagation gap** - Closed parity gap where `clientId` existed in log models but was not available in logs list filtering surfaces.
+
+### Technical
+
+- **Regression coverage expansion** - Added/updated unit tests in `test_logs_api.py` to assert `clientId` pass-through for general and audit list endpoints, plus `_build_list_params` coverage.
+- **Release validation baseline** - Verified release readiness with `make validate` (ruff, black, isort, pytest).
+
+## [4.8.0] - 2026-03-13
+
+### Added
+
+- **Logs/audit consumer migration guidance** - Added explicit migration documentation for SDK consumers covering `*Key -> *Id` contract updates, filter migration, and logger indexed-context updates.
+- **Client traceability alignment** - Expanded `clientId` and Id-based traceability support across logs/audit types and logger context pathways.
+
+### Changed
+
+- **Logs/audit contract migration (breaking)** - Replaced legacy indexed fields `sourceKey`, `externalSystemKey`, and `recordKey` with `sourceId`, `externalSystemId`, and `recordId` on Python SDK logs/audit surfaces.
+- **Logs/audit list filter contract** - Standardized list filters on Id-based fields (`applicationId`, `sourceId`, `externalSystemId`, `recordId`) and removed name-based `application` filtering from list methods.
+- **API and wrapper pass-through consistency** - Updated `LogsApi` and delegated stats/list pathways to preserve and forward the new Id-based filter parameters without parameter loss.
+- **Codebase maintainability** - Refactored core services and utilities into smaller helper-driven units to satisfy method/file size constraints and keep behavior stable.
+
+### Fixed
+
+- **Filter and wrapper regressions** - Resolved edge cases where updated logs/audit filter parameters could be dropped or inconsistently propagated across wrappers.
+- **Type and validation stability** - Addressed strict typing and runtime edge cases uncovered during refactoring and migration validation.
+
+### Technical
+
+- **Plan execution baseline** - Completed plan-driven implementation and validation for logs/audit Key-to-Id migration and code-quality refactoring tracks.
+- **Release validation** - Verified release readiness with `make validate` (ruff, black, isort, pytest) before version bump.
+
 ## [4.7.3] - 2026-03-07
 
 ### Added

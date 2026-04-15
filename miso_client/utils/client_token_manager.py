@@ -15,6 +15,15 @@ from ..models.config import ClientTokenResponse, MisoClientConfig
 from .controller_url_resolver import resolve_controller_url
 from .jwt_tools import decode_token
 
+CORRELATION_HEADERS = [
+    "x-correlation-id",
+    "x-request-id",
+    "correlation-id",
+    "correlationId",
+    "x-correlationid",
+    "request-id",
+]
+
 
 class ClientTokenManager:
     """Manages client token lifecycle including fetching, caching, and expiration.
@@ -35,31 +44,11 @@ class ClientTokenManager:
         self.token_refresh_lock = asyncio.Lock()
 
     def extract_correlation_id(self, response: Optional[httpx.Response] = None) -> Optional[str]:
-        """Extract correlation ID from response headers.
-
-        Checks common correlation ID header names.
-
-        Args:
-            response: HTTP response object (optional)
-
-        Returns:
-            Correlation ID string if found, None otherwise
-
-        """
+        """Extract correlation ID from response headers."""
         if not response:
             return None
 
-        # Check common correlation ID header names (case-insensitive)
-        correlation_headers = [
-            "x-correlation-id",
-            "x-request-id",
-            "correlation-id",
-            "correlationId",
-            "x-correlationid",
-            "request-id",
-        ]
-
-        for header_name in correlation_headers:
+        for header_name in CORRELATION_HEADERS:
             correlation_id = response.headers.get(header_name) or response.headers.get(
                 header_name.lower()
             )
@@ -67,6 +56,134 @@ class ClientTokenManager:
                 return str(correlation_id)
 
         return None
+
+    def _is_token_valid(self, now: Optional[datetime] = None) -> bool:
+        """Return True when cached client token is still valid."""
+        current_time = now or datetime.now()
+        return bool(
+            self.client_token and self.token_expires_at and self.token_expires_at > current_time
+        )
+
+    def _build_auth_error_message(
+        self, base: str, client_id: str, correlation_id: Optional[str]
+    ) -> str:
+        """Build consistent auth error message with optional context."""
+        error_msg = base
+        if client_id:
+            error_msg += f" (clientId: {client_id})"
+        if correlation_id:
+            error_msg += f" (correlationId: {correlation_id})"
+        return error_msg
+
+    def _create_temp_client(self, client_id: str) -> httpx.AsyncClient:
+        """Create temporary client for token endpoint without interceptor recursion."""
+        resolved_url = resolve_controller_url(self.config)
+        return httpx.AsyncClient(
+            base_url=resolved_url,
+            timeout=30.0,
+            headers={
+                "Content-Type": "application/json",
+                "x-client-id": client_id,
+                "x-client-secret": self.config.client_secret,
+            },
+        )
+
+    async def _request_token_response(self, client_id: str) -> httpx.Response:
+        """Request raw token response from controller."""
+        token_uri = self.config.clientTokenUri or "/api/v1/auth/token"
+        temp_client = self._create_temp_client(client_id)
+        try:
+            return await temp_client.post(token_uri)
+        finally:
+            await temp_client.aclose()
+
+    def _normalize_token_response_data(self, payload: object) -> dict:
+        """Normalize token response payload with nested-data support."""
+        if not isinstance(payload, dict):
+            return {}
+        data = dict(payload)
+        if "data" in data and isinstance(data["data"], dict):
+            nested_data = dict(data["data"])
+            if "success" in data:
+                nested_data["success"] = data["success"]
+            return nested_data
+        return data
+
+    def _ensure_token_defaults(self, data: dict) -> dict:
+        """Ensure response has success and expiresIn defaults when token is present."""
+        result = dict(data)
+        if "token" not in result:
+            return result
+        if "success" not in result:
+            result["success"] = True
+        if "expiresIn" not in result and "expiresAt" in result:
+            result["expiresIn"] = self._expires_in_from_expires_at(result.get("expiresAt"))
+        return result
+
+    @staticmethod
+    def _expires_in_from_expires_at(expires_at_raw: object) -> int:
+        """Convert expiresAt ISO string to expiresIn seconds."""
+        try:
+            if not isinstance(expires_at_raw, str):
+                return 1800
+            expires_at = datetime.fromisoformat(expires_at_raw.replace("Z", "+00:00"))
+            now = datetime.now(expires_at.tzinfo) if expires_at.tzinfo else datetime.now()
+            return max(0, int((expires_at - now).total_seconds()))
+        except Exception:
+            return 1800
+
+    def _expires_in_from_token_claims(self, token: str) -> int:
+        """Calculate expiresIn from JWT exp claim, or default."""
+        try:
+            decoded = decode_token(token)
+            if decoded and "exp" in decoded and isinstance(decoded["exp"], (int, float)):
+                token_exp = datetime.fromtimestamp(decoded["exp"])
+                now = datetime.now()
+                return max(0, int((token_exp - now).total_seconds()))
+        except Exception:
+            pass
+        return 1800
+
+    def _resolve_expires_in(self, token_response: ClientTokenResponse) -> int:
+        """Resolve token lifetime in seconds."""
+        expires_in = token_response.expiresIn
+        if expires_in and expires_in > 0:
+            return expires_in
+        return self._expires_in_from_token_claims(token_response.token)
+
+    def _store_token_with_expiration(self, token_response: ClientTokenResponse) -> None:
+        """Store token and computed expiration with safety buffer."""
+        self.client_token = token_response.token
+        expires_in = max(0, self._resolve_expires_in(token_response) - 30)
+        self.token_expires_at = datetime.now() + timedelta(seconds=expires_in)
+
+    def _validate_http_status(
+        self, response: httpx.Response, client_id: str, correlation_id: Optional[str]
+    ) -> None:
+        """Validate token endpoint HTTP status."""
+        if response.status_code in [200, 201]:
+            return
+        error_msg = self._build_auth_error_message(
+            f"Failed to get client token: HTTP {response.status_code}",
+            client_id,
+            correlation_id,
+        )
+        raise AuthenticationError(
+            error_msg,
+            status_code=response.status_code,
+            auth_method="client-credentials",
+        )
+
+    def _validate_token_response(
+        self, token_response: ClientTokenResponse, client_id: str, correlation_id: Optional[str]
+    ) -> None:
+        """Validate semantic token response contents."""
+        if token_response.success and token_response.token:
+            return
+        error_msg = self._build_auth_error_message(
+            "Failed to get client token: Invalid response", client_id, correlation_id
+        )
+        raise AuthenticationError(error_msg, auth_method="client-credentials")
 
     async def get_client_token(self) -> str:
         """Get client token, fetching if needed.
@@ -83,154 +200,44 @@ class ClientTokenManager:
 
         """
         now = datetime.now()
-
-        # If token exists and not yet expired, return it (same auth as other calls)
-        if self.client_token and self.token_expires_at and self.token_expires_at > now:
+        if self._is_token_valid(now):
             assert self.client_token is not None
             return self.client_token
 
-        # Acquire lock to prevent concurrent token fetches
         async with self.token_refresh_lock:
-            # Double-check after acquiring lock
-            if self.client_token and self.token_expires_at and self.token_expires_at > now:
+            if self._is_token_valid(now):
                 assert self.client_token is not None
                 return self.client_token
 
-            # Fetch new token
             await self.fetch_client_token()
             assert self.client_token is not None
             return self.client_token
 
     async def fetch_client_token(self) -> None:
-        """Fetch client token from controller.
-
-        Raises:
-            AuthenticationError: If token fetch fails
-
-        """
+        """Fetch and cache client token from controller."""
         client_id = self.config.client_id
         response: Optional[httpx.Response] = None
         correlation_id: Optional[str] = None
 
         try:
-            # Use resolved URL for temporary client
-            resolved_url = resolve_controller_url(self.config)
-            # This is the ONLY place where x-client-id and x-client-secret are sent.
-            # All other controller APIs require x-client-token only; the SDK must never
-            # send client id/secret to any path other than the client token endpoint.
-            # Use a temporary client to avoid interceptor recursion.
-            temp_client = httpx.AsyncClient(
-                base_url=resolved_url,
-                timeout=30.0,
-                headers={
-                    "Content-Type": "application/json",
-                    "x-client-id": client_id,
-                    "x-client-secret": self.config.client_secret,
-                },
-            )
-
-            # Use configurable client token URI or default
-            token_uri = self.config.clientTokenUri or "/api/v1/auth/token"
-            response = await temp_client.post(token_uri)
-            await temp_client.aclose()
-
-            # Extract correlation ID from response
+            response = await self._request_token_response(client_id)
             correlation_id = self.extract_correlation_id(response)
-
-            # OpenAPI spec returns 201 (Created) on success, accept both 200 and 201
-            if response.status_code not in [200, 201]:
-                error_msg = f"Failed to get client token: HTTP {response.status_code}"
-                if client_id:
-                    error_msg += f" (clientId: {client_id})"
-                if correlation_id:
-                    error_msg += f" (correlationId: {correlation_id})"
-                raise AuthenticationError(
-                    error_msg,
-                    status_code=response.status_code,
-                    auth_method="client-credentials",
-                )
-
-            data = response.json()
-
-            # Handle nested response structure (data field)
-            # If response has {'success': True, 'data': {...}}, extract data and preserve success
-            if isinstance(data, dict) and "data" in data and isinstance(data["data"], dict):
-                nested_data = data["data"]
-                # Merge success from top level if present
-                if "success" in data:
-                    nested_data["success"] = data["success"]
-                data = nested_data
-
-            # Handle controller response format that may not include all fields
-            # Controller may return {'token': '...', 'expiresAt': '...'} without success/expiresIn
-            if "token" in data:
-                # Default success to True if token is present
-                if "success" not in data:
-                    data["success"] = True
-                # Calculate expiresIn from expiresAt if missing
-                if "expiresIn" not in data and "expiresAt" in data:
-                    try:
-                        expires_at = datetime.fromisoformat(
-                            data["expiresAt"].replace("Z", "+00:00")
-                        )
-                        now = (
-                            datetime.now(expires_at.tzinfo) if expires_at.tzinfo else datetime.now()
-                        )
-                        expires_in = max(0, int((expires_at - now).total_seconds()))
-                        data["expiresIn"] = expires_in
-                    except Exception:
-                        # If parsing fails, default to 1800 seconds (30 minutes)
-                        data["expiresIn"] = 1800
-
-            token_response = ClientTokenResponse(**data)
-
-            if not token_response.success or not token_response.token:
-                error_msg = "Failed to get client token: Invalid response"
-                if client_id:
-                    error_msg += f" (clientId: {client_id})"
-                if correlation_id:
-                    error_msg += f" (correlationId: {correlation_id})"
-                raise AuthenticationError(error_msg, auth_method="client-credentials")
-
-            self.client_token = token_response.token
-
-            # Calculate expiration: use expiresIn if available, else decode JWT exp claim
-            expires_in = token_response.expiresIn
-            if not expires_in or expires_in <= 0:
-                # Try to extract expiration from JWT token
-                try:
-                    decoded = decode_token(token_response.token)
-                    if decoded and "exp" in decoded and isinstance(decoded["exp"], (int, float)):
-                        # Calculate expires_in from JWT exp claim
-                        token_exp = datetime.fromtimestamp(decoded["exp"])
-                        now = datetime.now()
-                        expires_in = max(0, int((token_exp - now).total_seconds()))
-                    else:
-                        # No expiration found, use default (30 minutes)
-                        expires_in = 1800
-                except Exception:
-                    # JWT decode failed, use default (30 minutes)
-                    expires_in = 1800
-
-            # Set expiration with 30 second buffer before actual expiration
-            expires_in = max(0, expires_in - 30)
-            self.token_expires_at = datetime.now() + timedelta(seconds=expires_in)
-
-        except httpx.HTTPError as e:
-            error_msg = f"Failed to get client token: {str(e)}"
-            if client_id:
-                error_msg += f" (clientId: {client_id})"
-            if correlation_id:
-                error_msg += f" (correlationId: {correlation_id})"
+            self._validate_http_status(response, client_id, correlation_id)
+            data = self._normalize_token_response_data(response.json())
+            token_response = ClientTokenResponse(**self._ensure_token_defaults(data))
+            self._validate_token_response(token_response, client_id, correlation_id)
+            self._store_token_with_expiration(token_response)
+        except httpx.HTTPError as error:
+            error_msg = self._build_auth_error_message(
+                f"Failed to get client token: {str(error)}", client_id, correlation_id
+            )
             raise ConnectionError(error_msg)
-        except Exception as e:
-            if isinstance(e, (AuthenticationError, ConnectionError)):
+        except Exception as error:
+            if isinstance(error, (AuthenticationError, ConnectionError)):
                 raise
-            error_msg = f"Failed to get client token: {str(e)}"
-            if client_id:
-                error_msg += f" (clientId: {client_id})"
-            if correlation_id:
-                error_msg += f" (correlationId: {correlation_id})"
+            error_msg = self._build_auth_error_message(
+                f"Failed to get client token: {str(error)}", client_id, correlation_id
+            )
             raise AuthenticationError(error_msg, auth_method="client-credentials")
 
     def clear_token(self) -> None:

@@ -214,6 +214,9 @@ class LogEntry(BaseModel):
     level: LogLevel = Field(..., description="Log level")
     environment: str = Field(..., description="Environment name (extracted by backend)")
     application: str = Field(..., description="Application identifier (clientId)")
+    clientId: Optional[str] = Field(
+        default=None, description="Pipeline/client credential identifier"
+    )
     applicationId: Optional["ForeignKeyReference"] = Field(
         default=None, description="Application reference (foreign key object)"
     )
@@ -231,13 +234,13 @@ class LogEntry(BaseModel):
     hostname: Optional[str] = Field(default=None, description="Hostname")
 
     # Indexed context fields (top-level for fast queries)
-    sourceKey: Optional[str] = Field(default=None, description="ExternalDataSource.key")
+    sourceId: Optional[str] = Field(default=None, description="ExternalDataSource.id")
     sourceDisplayName: Optional[str] = Field(default=None, description="Human-readable source name")
-    externalSystemKey: Optional[str] = Field(default=None, description="ExternalSystem.key")
+    externalSystemId: Optional[str] = Field(default=None, description="ExternalSystem.id")
     externalSystemDisplayName: Optional[str] = Field(
         default=None, description="Human-readable system name"
     )
-    recordKey: Optional[str] = Field(default=None, description="ExternalRecord.key")
+    recordId: Optional[str] = Field(default=None, description="ExternalRecord.id")
     recordDisplayName: Optional[str] = Field(
         default=None, description="Human-readable record identifier"
     )
@@ -309,13 +312,13 @@ class ClientLoggingOptions(BaseModel):
     )
 
     # Indexed context
-    sourceKey: Optional[str] = Field(default=None, description="ExternalDataSource.key")
+    sourceId: Optional[str] = Field(default=None, description="ExternalDataSource.id")
     sourceDisplayName: Optional[str] = Field(default=None, description="Human-readable source name")
-    externalSystemKey: Optional[str] = Field(default=None, description="ExternalSystem.key")
+    externalSystemId: Optional[str] = Field(default=None, description="ExternalSystem.id")
     externalSystemDisplayName: Optional[str] = Field(
         default=None, description="Human-readable system name"
     )
-    recordKey: Optional[str] = Field(default=None, description="ExternalRecord.key")
+    recordId: Optional[str] = Field(default=None, description="ExternalRecord.id")
     recordDisplayName: Optional[str] = Field(
         default=None, description="Human-readable record identifier"
     )

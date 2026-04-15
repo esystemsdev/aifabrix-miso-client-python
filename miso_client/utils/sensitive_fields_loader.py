@@ -13,6 +13,26 @@ from typing import Any, Dict, List, Optional
 _DEFAULT_CONFIG_PATH = Path(__file__).parent / "sensitive_fields_config.json"
 
 
+def _resolve_config_file_path(config_path: Optional[str]) -> Path:
+    """Resolve sensitive fields config path by priority rules."""
+    if config_path:
+        return Path(config_path)
+    env_path = os.environ.get("MISO_SENSITIVE_FIELDS_CONFIG")
+    if env_path:
+        return Path(env_path)
+    return _DEFAULT_CONFIG_PATH
+
+
+def _load_json_config(file_path: Path) -> Dict[str, Any]:
+    """Load JSON config file and return dict payload when valid."""
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            config = json.load(f)
+        return config if isinstance(config, dict) else {}
+    except (FileNotFoundError, json.JSONDecodeError, IOError, OSError):
+        return {}
+
+
 def load_sensitive_fields_config(
     config_path: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -35,25 +55,7 @@ def load_sensitive_fields_config(
         >>> fields = config.get('fields', {})
 
     """
-    # Priority: parameter > environment variable > default
-    if config_path:
-        file_path = Path(config_path)
-    elif os.environ.get("MISO_SENSITIVE_FIELDS_CONFIG"):
-        file_path = Path(os.environ["MISO_SENSITIVE_FIELDS_CONFIG"])
-    else:
-        file_path = _DEFAULT_CONFIG_PATH
-
-    try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            config = json.load(f)
-            # Validate structure
-            if isinstance(config, dict):
-                return config
-            return {}
-    except (FileNotFoundError, json.JSONDecodeError, IOError, OSError):
-        # File not found, invalid JSON, or permission error
-        # Return empty dict - fallback to hardcoded defaults
-        return {}
+    return _load_json_config(_resolve_config_file_path(config_path))
 
 
 def get_sensitive_fields_array(
@@ -77,21 +79,24 @@ def get_sensitive_fields_array(
     config = load_sensitive_fields_config(config_path)
     fields_dict = config.get("fields", {})
 
-    # Flatten all categories into single list
     all_fields: List[str] = []
     if isinstance(fields_dict, dict):
         for category_fields in fields_dict.values():
             if isinstance(category_fields, list):
                 all_fields.extend(category_fields)
+    return _unique_fields_preserving_order(all_fields)
 
-    # Remove duplicates while preserving order
+
+def _unique_fields_preserving_order(fields: List[str]) -> List[str]:
+    """Remove case-insensitive duplicates while preserving original order."""
     seen = set()
-    unique_fields = []
-    for field in all_fields:
-        if field.lower() not in seen:
-            seen.add(field.lower())
-            unique_fields.append(field)
-
+    unique_fields: List[str] = []
+    for field in fields:
+        key = field.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        unique_fields.append(field)
     return unique_fields
 
 

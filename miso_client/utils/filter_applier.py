@@ -9,144 +9,76 @@ from typing import Any, Dict, List
 from ..models.filter import FilterOption
 
 
+def _numeric_compare(item_value: Any, filter_value: Any, op: str) -> bool:
+    """Compare numeric values for gt/lt/gte/lte operators."""
+    if not isinstance(item_value, (int, float)) or not isinstance(filter_value, (int, float)):
+        return False
+    if op == "gt":
+        return item_value > filter_value
+    if op == "lt":
+        return item_value < filter_value
+    if op == "gte":
+        return item_value >= filter_value
+    return item_value <= filter_value
+
+
+def _contains_match(item_value: Any, filter_value: Any) -> bool:
+    """Evaluate contains semantics for strings and arrays."""
+    if isinstance(filter_value, str):
+        return (isinstance(item_value, str) and filter_value in item_value) or (
+            isinstance(item_value, list) and filter_value in item_value
+        )
+    return isinstance(item_value, list) and filter_value in item_value
+
+
+def _like_match(item_value: Any, filter_value: Any) -> bool:
+    """Evaluate like/ilike semantics for in-memory filtering."""
+    return (
+        isinstance(filter_value, str)
+        and isinstance(item_value, str)
+        and (filter_value.lower() in item_value.lower())
+    )
+
+
+def _matches_filter(item: Dict[str, Any], filter_option: FilterOption) -> bool:
+    """Evaluate one item against one filter option."""
+    field = filter_option.field
+    op = filter_option.op
+    value = filter_option.value
+    has_field = field in item
+    item_value = item.get(field)
+
+    if op == "eq":
+        return has_field and item_value == value
+    if op == "neq":
+        return (not has_field) or item_value != value
+    if op == "in":
+        return has_field and (
+            item_value in value if isinstance(value, list) else item_value == value
+        )
+    if op == "nin":
+        return (not has_field) or (
+            item_value not in value if isinstance(value, list) else item_value != value
+        )
+    if op in {"gt", "lt", "gte", "lte"}:
+        return has_field and _numeric_compare(item_value, value, op)
+    if op == "contains":
+        return has_field and _contains_match(item_value, value)
+    if op in {"like", "ilike"}:
+        return has_field and _like_match(item_value, value)
+    if op == "isNull":
+        return (not has_field) or item_value is None
+    if op == "isNotNull":
+        return has_field and item_value is not None
+    return True
+
+
 def apply_filters(items: List[Dict[str, Any]], filters: List[FilterOption]) -> List[Dict[str, Any]]:
-    """Apply filters to array locally (for testing/mocks).
-
-    Args:
-        items: Array of dictionaries to filter
-        filters: List of FilterOption objects to apply
-
-    Returns:
-        Filtered array of items
-
-    Examples:
-        >>> items = [{'status': 'active', 'region': 'eu'}, {'status': 'inactive', 'region': 'us'}]
-        >>> filters = [FilterOption(field='status', op='eq', value='active')]
-        >>> apply_filters(items, filters)
-        [{'status': 'active', 'region': 'eu'}]
-
-    """
+    """Apply filters to array locally (for testing/mocks)."""
     if not filters:
         return items
 
     filtered_items = items.copy()
-
     for filter_option in filters:
-        field = filter_option.field
-        op = filter_option.op
-        value = filter_option.value
-
-        # Apply filter based on operator
-        if op == "eq":
-            filtered_items = [
-                item for item in filtered_items if field in item and item[field] == value
-            ]
-        elif op == "neq":
-            filtered_items = [
-                item for item in filtered_items if field not in item or item[field] != value
-            ]
-        elif op == "in":
-            if isinstance(value, list):
-                filtered_items = [
-                    item for item in filtered_items if field in item and item[field] in value
-                ]
-            else:
-                filtered_items = [
-                    item for item in filtered_items if field in item and item[field] == value
-                ]
-        elif op == "nin":
-            if isinstance(value, list):
-                filtered_items = [
-                    item for item in filtered_items if field not in item or item[field] not in value
-                ]
-            else:
-                filtered_items = [
-                    item for item in filtered_items if field not in item or item[field] != value
-                ]
-        elif op == "gt":
-            filtered_items = [
-                item
-                for item in filtered_items
-                if field in item
-                and isinstance(item[field], (int, float))
-                and isinstance(value, (int, float))
-                and item[field] > value
-            ]
-        elif op == "lt":
-            filtered_items = [
-                item
-                for item in filtered_items
-                if field in item
-                and isinstance(item[field], (int, float))
-                and isinstance(value, (int, float))
-                and item[field] < value
-            ]
-        elif op == "gte":
-            filtered_items = [
-                item
-                for item in filtered_items
-                if field in item
-                and isinstance(item[field], (int, float))
-                and isinstance(value, (int, float))
-                and item[field] >= value
-            ]
-        elif op == "lte":
-            filtered_items = [
-                item
-                for item in filtered_items
-                if field in item
-                and isinstance(item[field], (int, float))
-                and isinstance(value, (int, float))
-                and item[field] <= value
-            ]
-        elif op == "contains":
-            if isinstance(value, str):
-                # For strings, check both string fields (substring) and list fields
-                filtered_items = [
-                    item
-                    for item in filtered_items
-                    if field in item
-                    and (
-                        (isinstance(item[field], str) and value in item[field])
-                        or (isinstance(item[field], list) and value in item[field])
-                    )
-                ]
-            else:
-                # For non-string values, check if value is in list/array field
-                filtered_items = [
-                    item
-                    for item in filtered_items
-                    if field in item and isinstance(item[field], list) and value in item[field]
-                ]
-        elif op == "like":
-            if isinstance(value, str):
-                # Simple like matching (contains)
-                filtered_items = [
-                    item
-                    for item in filtered_items
-                    if field in item
-                    and isinstance(item[field], str)
-                    and value.lower() in item[field].lower()
-                ]
-        elif op == "ilike":
-            if isinstance(value, str):
-                # Case-insensitive like matching (same as like for in-memory filtering)
-                filtered_items = [
-                    item
-                    for item in filtered_items
-                    if field in item
-                    and isinstance(item[field], str)
-                    and value.lower() in item[field].lower()
-                ]
-        elif op == "isNull":
-            # Field is missing or value is None
-            filtered_items = [
-                item for item in filtered_items if field not in item or item[field] is None
-            ]
-        elif op == "isNotNull":
-            # Field exists and value is not None
-            filtered_items = [
-                item for item in filtered_items if field in item and item[field] is not None
-            ]
-
+        filtered_items = [item for item in filtered_items if _matches_filter(item, filter_option)]
     return filtered_items

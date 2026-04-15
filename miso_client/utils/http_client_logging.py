@@ -18,37 +18,18 @@ from .http_log_masker import (
 
 
 def should_skip_logging(url: str, config: Optional[Any] = None) -> bool:
-    """Check if logging should be skipped for this URL.
-
-    Skips logging for /api/logs and /api/auth/token to prevent infinite loops.
-    Also checks audit config skipEndpoints.
-
-    Args:
-        url: Request URL
-        config: Optional MisoClientConfig to check audit.skipEndpoints
-
-    Returns:
-        True if logging should be skipped, False otherwise
-
-    """
-    # Check if audit is explicitly disabled
+    """Check whether request logging should be skipped."""
     if config and config.audit and config.audit.enabled is False:
         return True
 
-    # If no config or no audit config, default to enabled (don't skip)
-    # Only skip if explicitly disabled
-
-    # Check skip endpoints from config
     if config and config.audit and config.audit.skipEndpoints:
         for endpoint in config.audit.skipEndpoints:
             if endpoint in url:
                 return True
 
-    # Default skip endpoints (always skip these regardless of config)
     if url == "/api/v1/logs" or url.startswith("/api/v1/logs"):
         return True
 
-    # Check configurable client token URI or default
     client_token_uri = "/api/v1/auth/token"
     if config and config.clientTokenUri:
         client_token_uri = config.clientTokenUri
@@ -61,17 +42,7 @@ def should_skip_logging(url: str, config: Optional[Any] = None) -> bool:
 def calculate_request_metrics(
     start_time: float, response: Optional[Any] = None, error: Optional[Exception] = None
 ) -> tuple[int, Optional[int]]:
-    """Calculate request duration and status code.
-
-    Args:
-        start_time: Request start time from time.perf_counter()
-        response: Response data (if successful)
-        error: Exception (if request failed)
-
-    Returns:
-        Tuple of (duration_ms, status_code)
-
-    """
+    """Calculate duration and response status for request logging."""
     duration_ms = int((time.perf_counter() - start_time) * 1000)
 
     status_code: Optional[int] = None
@@ -80,7 +51,7 @@ def calculate_request_metrics(
         if isinstance(response_status, int):
             status_code = response_status
         else:
-            status_code = 200  # Default when response payload has no status metadata
+            status_code = 200
     elif error is not None:
         response_obj = getattr(error, "response", None)
         response_status = getattr(response_obj, "status_code", None)
@@ -89,7 +60,7 @@ def calculate_request_metrics(
         elif hasattr(error, "status_code"):
             status_code = error.status_code
         else:
-            status_code = 500  # Default for errors
+            status_code = 500
 
     return duration_ms, status_code
 
@@ -138,22 +109,12 @@ def _prepare_audit_context(
     audit_config: Optional[Dict[str, Any]] = None,
     correlation_id: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
-    """Prepare audit context for logging.
-
-    Returns:
-        Audit context dictionary or None if logging should be skipped
-
-    """
+    """Prepare audit context for logging."""
     duration_ms, status_code = calculate_request_metrics(start_time, response, error)
-
-    audit_config = audit_config or {}
-    audit_level = audit_config.get("level", "detailed")
-
-    request_size: Optional[int] = None
-    response_size: Optional[int] = None
-    if audit_level in ("detailed", "full"):
-        request_size, response_size = calculate_request_sizes(request_data, response)
-
+    audit_level = (audit_config or {}).get("level", "detailed")
+    request_size, response_size = _resolve_request_response_sizes(
+        audit_level, request_data, response
+    )
     error_message = mask_error_message(error) if error is not None else None
     return build_audit_context(
         method=method,
@@ -166,6 +127,120 @@ def _prepare_audit_context(
         error_message=error_message,
         correlation_id=correlation_id,
     )
+
+
+def _resolve_request_response_sizes(
+    audit_level: str, request_data: Optional[Dict[str, Any]], response: Optional[Any]
+) -> tuple[Optional[int], Optional[int]]:
+    """Resolve request/response sizes for configured audit level."""
+    if audit_level in ("detailed", "full"):
+        return calculate_request_sizes(request_data, response)
+    return None, None
+
+
+def _extract_correlation_id(
+    error: Optional[Exception], correlation_id: Optional[str]
+) -> Optional[str]:
+    """Resolve correlation ID from explicit argument or exception metadata."""
+    if correlation_id is not None or error is None:
+        return correlation_id
+    from ..utils.error_utils import extract_correlation_id_from_error
+
+    return extract_correlation_id_from_error(error)
+
+
+def _extract_audit_config(config: Optional[Any]) -> tuple[Optional[Any], str]:
+    """Extract audit config object and effective audit level."""
+    if config and config.audit:
+        audit_config = config.audit
+        return audit_config, audit_config.level or "detailed"
+    return None, "detailed"
+
+
+def _to_dict_audit_config(audit_config: Optional[Any]) -> Dict[str, Any]:
+    """Normalize audit config object into dictionary."""
+    if audit_config is None:
+        return {}
+    if hasattr(audit_config, "model_dump"):
+        result = audit_config.model_dump()
+        return result if isinstance(result, dict) else {}
+    if hasattr(audit_config, "dict"):
+        result = audit_config.dict()  # type: ignore[attr-defined]
+        return result if isinstance(result, dict) else {}
+    return {}
+
+
+def _build_minimal_audit_context(
+    method: str,
+    url: str,
+    response: Optional[Any],
+    error: Optional[Exception],
+    start_time: float,
+    user_id: Optional[str],
+    correlation_id: Optional[str],
+) -> Dict[str, Any]:
+    """Build minimal-level audit context."""
+    duration_ms, status_code = calculate_request_metrics(start_time, response, error)
+    context: Dict[str, Any] = {
+        "method": method,
+        "url": url,
+        "statusCode": status_code,
+        "duration": duration_ms,
+    }
+    if user_id:
+        context["userId"] = user_id
+    if error:
+        context["error"] = str(error)
+    if correlation_id:
+        context["correlationId"] = correlation_id
+    return context
+
+
+async def _log_minimal_audit(
+    logger: Any,
+    method: str,
+    url: str,
+    response: Optional[Any],
+    error: Optional[Exception],
+    start_time: float,
+    user_id: Optional[str],
+    correlation_id: Optional[str],
+) -> None:
+    """Log minimal-level audit event."""
+    context = _build_minimal_audit_context(
+        method, url, response, error, start_time, user_id, correlation_id
+    )
+    await logger.audit(f"http.request.{method.upper()}", url, context)
+
+
+async def _log_standard_audit(
+    logger: Any,
+    method: str,
+    url: str,
+    response: Optional[Any],
+    error: Optional[Exception],
+    start_time: float,
+    request_data: Optional[Dict[str, Any]],
+    user_id: Optional[str],
+    log_level: str,
+    audit_config: Optional[Any],
+    correlation_id: Optional[str],
+) -> None:
+    """Log non-minimal audit event."""
+    context = _prepare_audit_context(
+        method,
+        url,
+        response,
+        error,
+        start_time,
+        request_data,
+        user_id,
+        log_level,
+        _to_dict_audit_config(audit_config),
+        correlation_id=correlation_id,
+    )
+    if context is not None:
+        await logger.audit(f"http.request.{method.upper()}", url, context)
 
 
 async def log_http_request_audit(
@@ -181,70 +256,10 @@ async def log_http_request_audit(
     config: Optional[Any] = None,
     correlation_id: Optional[str] = None,
 ) -> None:
-    """Log HTTP request audit event with ISO 27001 compliant data masking.
-
-    Supports configurable audit levels: minimal, standard, detailed, full.
-
-    Args:
-        logger: LoggerService instance
-        method: HTTP method
-        url: Request URL
-        response: Response data (if successful)
-        error: Exception (if request failed)
-        start_time: Request start time
-        request_data: Request body data
-        user_id: User ID if available
-        log_level: Log level configuration
-        config: Optional MisoClientConfig for audit configuration
-
-    """
+    """Log HTTP request audit event with ISO 27001 masking."""
     try:
-        # Check if logging should be skipped
-        if should_skip_logging(url, config):
-            return
-
-        # Extract correlation ID from error if not provided by caller
-        resolved_correlation_id = correlation_id
-        if resolved_correlation_id is None and error:
-            from ..utils.error_utils import extract_correlation_id_from_error
-
-            resolved_correlation_id = extract_correlation_id_from_error(error)
-
-        if config and config.audit:
-            audit_config = config.audit
-            audit_level = audit_config.level or "detailed"
-        else:
-            audit_config = None
-            audit_level = "detailed"
-
-        # Minimal audit level - just metadata, no masking
-        if audit_level == "minimal":
-            duration_ms, status_code = calculate_request_metrics(start_time, response, error)
-            audit_context = {
-                "method": method,
-                "url": url,
-                "statusCode": status_code,
-                "duration": duration_ms,
-            }
-            if user_id:
-                audit_context["userId"] = user_id
-            if error:
-                audit_context["error"] = str(error)
-            if resolved_correlation_id:
-                audit_context["correlationId"] = resolved_correlation_id
-            action = f"http.request.{method.upper()}"
-            await logger.audit(action, url, audit_context)
-            return
-
-        # Standard, detailed, or full audit levels
-        # Convert AuditConfig to dict for _prepare_audit_context
-        audit_config_dict: Dict[str, Any] = {}
-        if audit_config:
-            if hasattr(audit_config, "model_dump"):
-                audit_config_dict = audit_config.model_dump()
-            elif hasattr(audit_config, "dict"):
-                audit_config_dict = audit_config.dict()  # type: ignore[attr-defined]
-        prepared_context = _prepare_audit_context(
+        await _log_http_request_audit_impl(
+            logger,
             method,
             url,
             response,
@@ -253,19 +268,75 @@ async def log_http_request_audit(
             request_data,
             user_id,
             log_level,
-            audit_config_dict,
-            correlation_id=resolved_correlation_id,
+            config,
+            correlation_id,
         )
-        if prepared_context is None:
-            return
-
-        audit_context = prepared_context
-        action = f"http.request.{method.upper()}"
-        await logger.audit(action, url, audit_context)
-
     except Exception:
-        # Silently swallow all logging errors - never break HTTP requests
         pass
+
+
+async def _log_http_request_audit_impl(
+    logger: Any,
+    method: str,
+    url: str,
+    response: Optional[Any],
+    error: Optional[Exception],
+    start_time: float,
+    request_data: Optional[Dict[str, Any]],
+    user_id: Optional[str],
+    log_level: str,
+    config: Optional[Any],
+    correlation_id: Optional[str],
+) -> None:
+    if should_skip_logging(url, config):
+        return
+    resolved_correlation_id = _extract_correlation_id(error, correlation_id)
+    audit_config, audit_level = _extract_audit_config(config)
+    context: Dict[str, Any] = {
+        "method": method,
+        "url": url,
+        "response": response,
+        "error": error,
+        "start_time": start_time,
+        "request_data": request_data,
+        "user_id": user_id,
+        "log_level": log_level,
+        "audit_config": audit_config,
+        "correlation_id": resolved_correlation_id,
+    }
+    await _log_by_audit_level(logger, audit_level, context)
+
+
+async def _log_by_audit_level(logger: Any, audit_level: str, context: Dict[str, Any]) -> None:
+    """Dispatch to minimal or standard audit logging by configured level."""
+    method = str(context["method"])
+    url = str(context["url"])
+    response = context["response"]
+    error = context["error"]
+    start_time = float(context["start_time"])
+    request_data = context["request_data"]
+    user_id = context["user_id"]
+    log_level = str(context["log_level"])
+    audit_config = context["audit_config"]
+    correlation_id = context["correlation_id"]
+    if audit_level == "minimal":
+        await _log_minimal_audit(
+            logger, method, url, response, error, start_time, user_id, correlation_id
+        )
+        return
+    await _log_standard_audit(
+        logger,
+        method,
+        url,
+        response,
+        error,
+        start_time,
+        request_data,
+        user_id,
+        log_level,
+        audit_config,
+        correlation_id,
+    )
 
 
 def _prepare_debug_context(
@@ -281,16 +352,7 @@ def _prepare_debug_context(
     max_response_size: Optional[int] = None,
     correlation_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Prepare debug context for logging.
-
-    Returns:
-        Debug context dictionary
-
-    """
-    masked_headers, masked_body = mask_request_data(request_headers, request_data)
-    masked_response = mask_response_data(response, max_size=max_response_size)
-    query_params = extract_and_mask_query_params(url)
-
+    """Prepare debug context for logging."""
     return build_debug_context(
         method=method,
         url=url,
@@ -298,12 +360,21 @@ def _prepare_debug_context(
         duration_ms=duration_ms,
         base_url=base_url,
         user_id=user_id,
-        masked_headers=masked_headers,
-        masked_body=masked_body,
-        masked_response=masked_response,
-        query_params=query_params,
+        masked_headers=mask_request_data(request_headers, request_data)[0],
+        masked_body=mask_request_data(request_headers, request_data)[1],
+        masked_response=mask_response_data(response, max_size=max_response_size),
+        query_params=extract_and_mask_query_params(url),
         correlation_id=correlation_id,
     )
+
+
+def _resolve_max_response_size(config: Optional[Any]) -> Optional[int]:
+    """Extract max response size from audit configuration."""
+    if config and config.audit and hasattr(config.audit, "maxResponseSize"):
+        max_size = config.audit.maxResponseSize
+        if isinstance(max_size, int):
+            return max_size
+    return None
 
 
 async def log_http_request_debug(
@@ -320,30 +391,10 @@ async def log_http_request_debug(
     config: Optional[Any] = None,
     correlation_id: Optional[str] = None,
 ) -> None:
-    """Log detailed debug information for HTTP request.
-
-    All sensitive data is masked before logging.
-
-    Args:
-        logger: LoggerService instance
-        method: HTTP method
-        url: Request URL
-        response: Response data
-        duration_ms: Request duration in milliseconds
-        status_code: HTTP status code
-        user_id: User ID if available
-        request_data: Request body data
-        request_headers: Request headers
-        base_url: Base URL from config
-
-    """
+    """Log detailed debug information for HTTP request."""
     try:
-        # Get maxResponseSize from audit config if available
-        max_response_size = None
-        if config and config.audit and hasattr(config.audit, "maxResponseSize"):
-            max_response_size = config.audit.maxResponseSize
-
-        debug_context = _prepare_debug_context(
+        await _log_http_request_debug_impl(
+            logger,
             method,
             url,
             response,
@@ -353,12 +404,42 @@ async def log_http_request_debug(
             request_data,
             request_headers,
             base_url,
-            max_response_size=max_response_size,
-            correlation_id=correlation_id,
+            config,
+            correlation_id,
         )
-        message = f"HTTP {method} {url} - Status: {status_code}, Duration: {duration_ms}ms"
-        await logger.debug(message, debug_context)
-
     except Exception:
-        # Silently swallow all logging errors - never break HTTP requests
         pass
+
+
+async def _log_http_request_debug_impl(
+    logger: Any,
+    method: str,
+    url: str,
+    response: Optional[Any],
+    duration_ms: int,
+    status_code: Optional[int],
+    user_id: Optional[str],
+    request_data: Optional[Dict[str, Any]],
+    request_headers: Optional[Dict[str, Any]],
+    base_url: str,
+    config: Optional[Any],
+    correlation_id: Optional[str],
+) -> None:
+    """Internal debug logging implementation."""
+    debug_context = _prepare_debug_context(
+        method,
+        url,
+        response,
+        duration_ms,
+        status_code,
+        user_id,
+        request_data,
+        request_headers,
+        base_url,
+        max_response_size=_resolve_max_response_size(config),
+        correlation_id=correlation_id,
+    )
+    await logger.debug(
+        f"HTTP {method} {url} - Status: {status_code}, Duration: {duration_ms}ms",
+        debug_context,
+    )

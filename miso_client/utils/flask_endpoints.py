@@ -17,152 +17,119 @@ from ..models.config import (
 from ..utils.environment_token import get_environment_token
 
 
-def create_flask_client_token_endpoint(
-    miso_client: Any, options: Optional[ClientTokenEndpointOptions] = None
-) -> Callable[[], Any]:
-    """Create Flask route handler for client-token endpoint.
-
-    Automatically enriches response with DataClient configuration including
-    controllerPublicUrl for frontend client initialization.
-
-    Args:
-        miso_client: MisoClient instance (must be initialized)
-        options: Optional configuration for endpoint
-
-    Returns:
-        Flask route handler function
-
-    Example:
-        >>> from flask import Flask
-        >>> from miso_client import MisoClient, create_flask_client_token_endpoint, load_config
-        >>>
-        >>> app = Flask(__name__)
-        >>> client = MisoClient(load_config())
-        >>> await client.initialize()
-        >>>
-        >>> app.post('/api/v1/auth/client-token')(create_flask_client_token_endpoint(client))
-
-    """
-    opts = ClientTokenEndpointOptions(
+def _build_options(options: Optional[ClientTokenEndpointOptions]) -> ClientTokenEndpointOptions:
+    """Build endpoint options with defaults."""
+    return ClientTokenEndpointOptions(
         clientTokenUri=options.clientTokenUri if options else "/api/v1/auth/client-token",
         expiresIn=options.expiresIn if options else 1800,
         includeConfig=options.includeConfig if options else True,
     )
 
+
+def _error_response(message: str, status_code: int, error: str) -> tuple[dict[str, Any], int]:
+    """Return normalized endpoint error response."""
+    return ({"error": error, "message": message}, status_code)
+
+
+def _import_flask_request() -> Optional[Any]:
+    """Import Flask request object if Flask is available."""
+    try:
+        from flask import request
+    except ImportError:
+        return None
+    return request
+
+
+def _get_token_sync(miso_client: Any, headers: Any) -> str:
+    """Resolve async token retrieval in sync Flask handler context."""
+    try:
+        _ = asyncio.get_running_loop()
+        import concurrent.futures
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(asyncio.run, get_environment_token(miso_client, headers))
+            return str(future.result())
+    except RuntimeError:
+        return str(asyncio.run(get_environment_token(miso_client, headers)))
+
+
+def _build_data_client_config(
+    request: Any, config: MisoClientConfig, opts: ClientTokenEndpointOptions
+) -> Optional[DataClientConfigResponse]:
+    """Build DataClient configuration section for response."""
+    base_url = f"{request.scheme}://{request.host or 'localhost'}"
+    controller_url = config.controllerPublicUrl or config.controller_url
+    if not controller_url:
+        return None
+    return DataClientConfigResponse(
+        baseUrl=base_url,
+        controllerUrl=controller_url,
+        controllerPublicUrl=config.controllerPublicUrl,
+        clientId=config.client_id,
+        clientTokenUri=opts.clientTokenUri or "/api/v1/auth/client-token",
+    )
+
+
+def _authentication_error_response(error: AuthenticationError) -> tuple[dict[str, Any], int]:
+    """Map authentication errors to endpoint response."""
+    error_message = str(error)
+    if "Origin validation failed" in error_message:
+        return _error_response(error_message, 403, "Forbidden")
+    return _error_response(error_message, 500, "Internal Server Error")
+
+
+def _append_config_or_error(
+    response: ClientTokenEndpointResponse,
+    miso_client: Any,
+    request: Any,
+    opts: ClientTokenEndpointOptions,
+) -> Optional[tuple[dict[str, Any], int]]:
+    """Append response config or return error response when config is invalid."""
+    if not opts.includeConfig:
+        return None
+    config: MisoClientConfig = miso_client.config
+    built_config = _build_data_client_config(request, config, opts)
+    if built_config is None:
+        return _error_response("Controller URL not configured", 500, "Internal Server Error")
+    response.config = built_config
+    return None
+
+
+def create_flask_client_token_endpoint(
+    miso_client: Any, options: Optional[ClientTokenEndpointOptions] = None
+) -> Callable[[], Any]:
+    opts = _build_options(options)
+    return _build_flask_handler(miso_client, opts)
+
+
+def _build_flask_handler(miso_client: Any, opts: ClientTokenEndpointOptions) -> Callable[[], Any]:
+    """Build Flask endpoint handler with validated options."""
+
     def handler() -> tuple[dict[str, Any], int]:
-        """Flask route handler for client token endpoint.
-
-        Returns:
-            Tuple of (response_dict, status_code)
-
-        """
+        """Flask route handler for client token endpoint."""
         try:
-            # Check if misoClient is initialized
             if not miso_client.is_initialized():
-                return (
-                    {
-                        "error": "Service Unavailable",
-                        "message": "MisoClient is not initialized",
-                    },
-                    503,
-                )
+                return _error_response("MisoClient is not initialized", 503, "Service Unavailable")
 
-            # Get Flask request object
-            try:
-                from flask import request
-            except ImportError:
-                return (
-                    {
-                        "error": "Internal Server Error",
-                        "message": "Flask is not installed",
-                    },
-                    500,
-                )
+            request = _import_flask_request()
+            if request is None:
+                return _error_response("Flask is not installed", 500, "Internal Server Error")
 
-            # Get token with origin validation (raises AuthenticationError if validation fails)
-            # Run async function in sync context
-            # Handle both sync and async Flask contexts
-            try:
-                # Try to get existing event loop
-                _ = asyncio.get_running_loop()
-                # If we get here, we're in an async context (Flask 2.0+ async handler)
-                # In this case, we need to await, but Flask async handlers handle this
-                # For now, create a new event loop in a thread
-                import concurrent.futures
-
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(
-                        asyncio.run, get_environment_token(miso_client, request.headers)
-                    )
-                    token = future.result()
-            except RuntimeError:
-                # No running loop, safe to use asyncio.run()
-                token = asyncio.run(get_environment_token(miso_client, request.headers))
-
-            # Build response
+            token = _get_token_sync(miso_client, request.headers)
             response: ClientTokenEndpointResponse = ClientTokenEndpointResponse(
                 token=token, expiresIn=opts.expiresIn or 1800
             )
-
-            # Include config if requested
-            if opts.includeConfig:
-                config: MisoClientConfig = miso_client.config
-
-                # Derive baseUrl from request
-                base_url = f"{request.scheme}://{request.host or 'localhost'}"
-
-                # Get controller URL (prefer controllerPublicUrl, fallback to controller_url)
-                controller_url = config.controllerPublicUrl or config.controller_url
-
-                if not controller_url:
-                    return (
-                        {
-                            "error": "Internal Server Error",
-                            "message": "Controller URL not configured",
-                        },
-                        500,
-                    )
-
-                response.config = DataClientConfigResponse(
-                    baseUrl=base_url,
-                    controllerUrl=controller_url,
-                    controllerPublicUrl=config.controllerPublicUrl,
-                    clientId=config.client_id,
-                    clientTokenUri=opts.clientTokenUri or "/api/v1/auth/client-token",
-                )
+            config_error = _append_config_or_error(response, miso_client, request, opts)
+            if config_error:
+                return config_error
 
             return response.model_dump(exclude_none=True), 200
 
         except AuthenticationError as error:
-            # Origin validation failed (403)
-            error_message = str(error)
-            if "Origin validation failed" in error_message:
-                return (
-                    {
-                        "error": "Forbidden",
-                        "message": error_message,
-                    },
-                    403,
-                )
-
-            # Other authentication errors (500)
-            return (
-                {
-                    "error": "Internal Server Error",
-                    "message": error_message,
-                },
-                500,
-            )
+            return _authentication_error_response(error)
 
         except Exception as error:
-            # Other errors (500)
             error_message = str(error) if error else "Unknown error"
-            return (
-                {
-                    "error": "Internal Server Error",
-                    "message": error_message,
-                },
-                500,
-            )
+            return _error_response(error_message, 500, "Internal Server Error")
 
     return handler
