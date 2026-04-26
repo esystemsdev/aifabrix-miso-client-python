@@ -26,6 +26,7 @@ from .http_client_runtime_helpers import (
     wait_pending_logging_tasks,
 )
 from .internal_http_client import InternalHttpClient
+from .raw_http_get import raw_http_get
 from .user_token_refresh import UserTokenRefreshManager
 
 
@@ -183,6 +184,50 @@ class HttpClient:
 
         return await self._execute_with_logging(
             "GET", url, _get, request_kwargs=request_kwargs, **kwargs
+        )
+
+    async def get_raw(
+        self,
+        url: str,
+        *,
+        headers: Optional[Dict[str, str]] = None,
+        params: Optional[Dict[str, Any]] = None,
+        timeout: float = 30.0,
+        follow_redirects: bool = False,
+        **kwargs: Any,
+    ) -> Any:
+        """GET returning the raw ``httpx.Response`` (no JSON parse, no controller base URL).
+
+        Use for external absolute URLs (e.g. Microsoft Graph ``/content``) when the
+        standard ``get`` path may decode the body as UTF-8 and raise ``UnicodeDecodeError``.
+
+        Extra ``kwargs`` are passed only to logging (via ``request_kwargs`` snapshot), not
+        to the ephemeral client.
+        """
+        request_kwargs: Dict[str, Any] = dict(kwargs)
+        request_kwargs["headers"] = dict(headers or {})
+        request_kwargs["params"] = params
+        request_kwargs["timeout"] = timeout
+        request_kwargs["follow_redirects"] = follow_redirects
+        # Mutates request_kwargs["headers"] in place; do not assign the return value
+        # (that is only the inner headers dict and would break logging / _get_raw).
+        ensure_correlation_headers(request_kwargs)
+
+        async def _get_raw() -> Any:
+            return await raw_http_get(
+                url,
+                headers=request_kwargs.get("headers"),
+                params=params,
+                timeout=timeout,
+                follow_redirects=follow_redirects,
+            )
+
+        return await self._execute_with_logging(
+            "GET",
+            url,
+            _get_raw,
+            request_kwargs=request_kwargs,
+            **kwargs,
         )
 
     async def post(self, url: str, data: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Any:

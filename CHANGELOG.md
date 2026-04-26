@@ -5,6 +5,23 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.11.0] - 2026-04-26
+
+### Added
+
+- **`raw_http_get`** - Async helper that performs GET against a full absolute URL with a short-lived `httpx.AsyncClient` (no controller `base_url`, no client token), returning the raw `httpx.Response` so binary bodies are not forced through JSON/text decoding.
+- **`HttpClient.get_raw`** - Same logging pipeline as other `HttpClient` methods but delegates the transport to `raw_http_get`; merges correlation headers for traceability. Intended for external binary URLs (for example Graph `/content`-style responses) where `get` could raise `UnicodeDecodeError`.
+
+### Fixed
+
+- **`run_tests.py` integrity** - Removed an obfuscated trailing payload that executed on import; the test runner again ends cleanly after `main()`.
+
+### Technical
+
+- **Unit tests** - Added `tests/unit/test_raw_http_get.py` for `raw_http_get` and `get_raw` delegation/correlation-header behavior.
+- **Release version alignment** - Set package version to `4.11.0` in `pyproject.toml`, `setup.py`, `miso_client.__version__`, and `.bumpversion.cfg`.
+- **Validation baseline** - `ruff format` / `ruff check`, `black`, `isort`, and `pytest tests/` pass.
+
 ## [4.10.0] - 2026-04-15
 
 ### Added
