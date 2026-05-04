@@ -8,7 +8,7 @@ This command ensures that:
 
 1. Plans are validated against relevant rules before execution
 2. Plan authors understand which rules apply to their plan
-3. Plans include proper DoD requirements (lint → format → test)
+3. Plans include proper DoD requirements (format → lint → type-check → test)
 4. Plans reference relevant rule files for guidance
 5. Plans are production-ready before implementation begins
 6. Documentation is updated as needed during the validation process
@@ -30,6 +30,15 @@ This command ensures that:
 
 - `/validate-plan` - Validates current chat plan or prompts for plan selection
 - `/validate-plan .cursor/plans/8-language-specific-env-variables.plan.md` - Validates a specific plan
+
+## Silent Command Preference
+
+When this command updates plan DoD/validation command blocks, use silent Make targets first:
+
+- Primary wrapper: `make validate-silent`
+- Step-level: `make format-silent`, `make lint-silent`, `make type-check-silent`, `make test-silent`
+- Logs: `.temp/validation/` (primary diagnostics source)
+- Fallback only if needed: `make validate`, `make format`, `make lint`, `make type-check`, `make test`
 
 ## Execution Steps
 
@@ -149,10 +158,11 @@ This command ensures that:
 **Validation Checks**:
 
 1. **DoD Requirements** (from Code Size Guidelines and Testing Conventions sections):
-   - ✅ Lint step documented (`ruff check` and `mypy` - must run and pass with zero errors)
-   - ✅ Format step documented (`black` and `isort` - code must be formatted)
-   - ✅ Test step documented (`pytest` - all tests must pass, ≥80% coverage for new code)
-   - ✅ Validation order specified (LINT → FORMAT → TEST)
+   - ✅ Format step documented (`make format-silent`; backup: `make format`)
+   - ✅ Lint step documented (`make lint-silent`; backup: `make lint`)
+   - ✅ Type-check step documented (`make type-check-silent`; backup: `make type-check`)
+   - ✅ Test step documented (`make test-silent`; backup: `make test`, all tests must pass, ≥80% coverage for new code)
+   - ✅ Validation order specified (FORMAT → LINT → TYPE CHECK → TEST)
    - ✅ Zero warnings/errors requirement mentioned
    - ✅ Mandatory sequence documented (never skip steps)
    - ✅ Test coverage ≥80% requirement mentioned (for new code)
@@ -184,10 +194,11 @@ This command ensures that:
    - Add "Key Requirements" subsection with bullet points from each section
 
 2. **Add or update `## Definition of Done` section**:
-   - Lint requirement: `ruff check` and `mypy` (must run and pass with zero errors/warnings)
-   - Format requirement: `black` and `isort` (code must be formatted)
-   - Test requirement: `pytest` (must run AFTER lint/format, all tests must pass, ≥80% coverage for new code)
-   - Validation order: LINT → FORMAT → TEST (mandatory sequence, never skip steps)
+   - Format requirement: `make format-silent` (must run first; backup: `make format`)
+   - Lint requirement: `make lint-silent` (must run after format; backup: `make lint`)
+   - Type-check requirement: `make type-check-silent` (must run after lint; backup: `make type-check`)
+   - Test requirement: `make test-silent` (must run after type-check; backup: `make test`, all tests must pass, ≥80% coverage for new code)
+   - Validation order: FORMAT → LINT → TYPE CHECK → TEST (mandatory sequence, never skip steps)
    - File size limits: Files ≤500 lines, methods ≤20-30 lines
    - Type hints: All functions must have type hints
    - Docstrings: All public methods must have Google-style docstrings
@@ -305,18 +316,19 @@ This command ensures that:
 
 Every plan must include these requirements in the Definition of Done section:
 
-1. **Lint Step**: `ruff check` and `mypy` (must run and pass with zero errors/warnings)
-2. **Format Step**: `black` and `isort` (code must be formatted)
-3. **Test Step**: `pytest` (must run AFTER lint/format, all tests must pass, ≥80% coverage for new code)
-4. **Validation Order**: LINT → FORMAT → TEST (mandatory sequence, never skip steps)
-5. **File Size Limits**: Files ≤500 lines, methods ≤20-30 lines
-6. **Type Hints**: All functions must have type hints
-7. **Docstrings**: All public methods must have Google-style docstrings
-8. **Code Quality**: Code quality validation passes
-9. **Security**: No hardcoded secrets, ISO 27001 compliance, data masking
-10. **Rule References**: Links to applicable sections from `.cursor/rules/project-rules.mdc`
-11. **Documentation**: Update documentation as needed (README, API docs, guides, usage examples)
-12. **All Tasks Completed**: All plan tasks marked as complete
+1. **Format Step**: `make format-silent` (must run first; backup: `make format`)
+2. **Lint Step**: `make lint-silent` (must run after format with zero errors/warnings; backup: `make lint`)
+3. **Type-check Step**: `make type-check-silent` (must run after lint; backup: `make type-check`)
+4. **Test Step**: `make test-silent` (must run after type-check, all tests must pass, ≥80% coverage for new code; backup: `make test`)
+5. **Validation Order**: FORMAT → LINT → TYPE CHECK → TEST (mandatory sequence, never skip steps)
+6. **File Size Limits**: Files ≤500 lines, methods ≤20-30 lines
+7. **Type Hints**: All functions must have type hints
+8. **Docstrings**: All public methods must have Google-style docstrings
+9. **Code Quality**: Code quality validation passes
+10. **Security**: No hardcoded secrets, ISO 27001 compliance, data masking
+11. **Rule References**: Links to applicable sections from `.cursor/rules/project-rules.mdc`
+12. **Documentation**: Update documentation as needed (README, API docs, guides, usage examples)
+13. **All Tasks Completed**: All plan tasks marked as complete
 
 ## Example Plan Updates
 
@@ -381,25 +393,26 @@ This plan must comply with the following rules from [Project Rules](.cursor/rule
 
 Before marking this plan as complete, ensure:
 
-1. **Lint**: Run `ruff check` and `mypy` (must pass with zero errors/warnings)
-2. **Format**: Run `black` and `isort` (code must be formatted)
-3. **Test**: Run `pytest` AFTER lint/format (all tests must pass, ≥80% coverage for new code)
-4. **Validation Order**: LINT → FORMAT → TEST (mandatory sequence, never skip steps)
-5. **File Size Limits**: Files ≤500 lines, methods ≤20-30 lines
-6. **Type Hints**: All functions have type hints
-7. **Docstrings**: All public methods have Google-style docstrings
-8. **Code Quality**: All rule requirements met
-9. **Security**: No hardcoded secrets, ISO 27001 compliance, data masking
-10. **Documentation**: Update documentation as needed (README, API docs, guides, usage examples)
-11. All tasks completed
-12. Service method follows all standards from Architecture Patterns section
-13. Tests have proper coverage (≥80%) and use pytest-asyncio for async tests
+1. **Format**: Run `make format-silent` FIRST (must pass; backup: `make format`)
+2. **Lint**: Run `make lint-silent` AFTER format (must pass with zero errors/warnings; backup: `make lint`)
+3. **Type-check**: Run `make type-check-silent` AFTER lint (must pass; backup: `make type-check`)
+4. **Test**: Run `make test-silent` AFTER type-check (all tests must pass, ≥80% coverage for new code; backup: `make test`)
+5. **Validation Order**: FORMAT → LINT → TYPE CHECK → TEST (mandatory sequence, never skip steps)
+6. **File Size Limits**: Files ≤500 lines, methods ≤20-30 lines
+7. **Type Hints**: All functions have type hints
+8. **Docstrings**: All public methods have Google-style docstrings
+9. **Code Quality**: All rule requirements met
+10. **Security**: No hardcoded secrets, ISO 27001 compliance, data masking
+11. **Documentation**: Update documentation as needed (README, API docs, guides, usage examples)
+12. All tasks completed
+13. Service method follows all standards from Architecture Patterns section
+14. Tests have proper coverage (≥80%) and use pytest-asyncio for async tests
 
 ## Tasks
 
 - [ ] Create login method
 - [ ] Add tests
-- [ ] Run lint → format → test validation
+- [ ] Run format → lint → type-check → test validation
 ```
 
 ## Success Criteria
@@ -417,7 +430,7 @@ Before marking this plan as complete, ensure:
 - **Plan Preservation**: Preserve existing plan content when updating sections
 - **Mandatory Sections**: Code Size Guidelines, Security Guidelines, and Testing Conventions are mandatory for ALL plans
 - **Rule Links**: Use anchor links for rule file sections (`.cursor/rules/project-rules.mdc#section-name`)
-- **DoD Order**: Always document validation order as LINT → FORMAT → TEST
+- **DoD Order**: Always document validation order as FORMAT → LINT → TYPE CHECK → TEST
 - **Status**: Report status accurately based on compliance level
 - **Documentation Updates**: Review plan scope and update relevant documentation files (README.md, docs/, API documentation) as needed during validation
 - **Project-Specific**: This is a Python SDK project (library), adapt scope detection accordingly (services, models, HTTP client, Redis, etc.)

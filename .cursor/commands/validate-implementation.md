@@ -10,7 +10,7 @@ The command:
 2. Validates that all tasks are completed
 3. Verifies that all mentioned files exist and are implemented
 4. Checks that tests exist for new/modified code
-5. Runs code quality validation (format → lint → test)
+5. Runs code quality validation (format → lint → type-check → test)
 6. Validates against cursor rules
 7. Attaches validation results to the plan file itself (adds/updates `## Validation` section)
 
@@ -22,6 +22,13 @@ Run this command in chat with `/validate-implementation [plan-file-path]`
 
 - `/validate-implementation` - Validates the most recently modified plan file
 - `/validate-implementation .cursor/plans/68-data-client-browser-wrapper.plan.md` - Validates a specific plan
+
+### Silent Execution Commands
+
+- Primary wrapper: `make validate-silent`
+- Step-level commands: `make format-silent`, `make lint-silent`, `make type-check-silent`, `make test-silent`
+- Logs: `.temp/validation/` (primary diagnostics source)
+- Backup non-silent commands (use only if needed): `make validate`, `make format`, `make lint`, `make type-check`, `make test`
 
 ## What It Does
 
@@ -82,23 +89,23 @@ Run this command in chat with `/validate-implementation [plan-file-path]`
 **Runs Validation Steps (MANDATORY ORDER)**:
 
 1. **STEP 1 - FORMAT**:
-   - Run `make format` or `black miso_client/ tests/` and `isort miso_client/ tests/` FIRST
+   - Run `make format-silent` FIRST (primary; backup command: `make format`)
    - Verify exit code 0
    - Report any formatting issues
 
 2. **STEP 2 - LINT**:
-   - Run `make lint` or `ruff check miso_client/ tests/` AFTER format
+   - Run `make lint-silent` AFTER format (primary; backup command: `make lint`)
    - Verify exit code 0
    - Report all linting errors/warnings
    - **CRITICAL**: Zero warnings/errors required
 
 3. **STEP 3 - TYPE CHECK**:
-   - Run `make type-check` or `mypy miso_client/ --ignore-missing-imports` AFTER lint
+   - Run `make type-check-silent` AFTER lint (primary; backup command: `make type-check`)
    - Verify exit code 0 or acceptable warnings
    - Report type checking issues
 
 4. **STEP 4 - TEST**:
-   - Run `make test` or `pytest tests/ -v` AFTER type-check
+   - Run `make test-silent` AFTER type-check (primary; backup command: `make test`)
    - Verify all tests pass
    - Report test failures
    - Check test execution time (should be fast with proper mocking)
@@ -303,10 +310,8 @@ The validation results will be added to this plan file as a `## Validation` sect
 - Test files: `test_*.py` pattern
 
 ### Code Quality Tools
-- Formatting: `black` and `isort`
-- Linting: `ruff`
-- Type checking: `mypy`
-- Testing: `pytest`
+- Primary wrappers: `make validate-silent`, `make format-silent`, `make lint-silent`, `make type-check-silent`, `make test-silent`
+- Fallback tools: `black` + `isort`, `ruff`, `mypy`, `pytest`
 
 ### Mocking Patterns
 - HttpClient: `mocker.Mock(spec=HttpClient)`

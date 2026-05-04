@@ -2,39 +2,47 @@
 
 When the `/validate-tests` command is used, the agent must automatically fix all errors and ensure all validation steps pass. The agent must work autonomously without asking the user for input or showing intermediate progress.
 
+## Silent Execution Commands
+
+- Primary wrapper: `make validate-silent`
+- Step-level commands: `make format-silent`, `make lint-silent`, `make type-check-silent`, `make test-silent`
+- Logs: `.temp/validation/` (primary diagnostics source)
+- Backup non-silent commands (use only if needed): `make validate`, `make format`, `make lint`, `make type-check`, `make test`
+
 **Execution Process:**
 
 1. **Format Step**:
-   - Run `make format` (or `black miso_client/ tests/` and `isort miso_client/ tests/`) to automatically fix formatting issues
+   - Run `make format-silent` FIRST (primary; backup command: `make format`)
    - If format fails or produces errors, automatically fix the issues in the codebase
-   - Re-run format until it passes (exit code 0)
+   - Re-run `make format-silent` until it passes (exit code 0)
    - Do not proceed until format step is green
 
 2. **Lint Check Step**:
-   - Run `make lint` (or `ruff check miso_client/ tests/`) to check for remaining linting errors
+   - Run `make lint-silent` AFTER format (primary; backup command: `make lint`)
    - If linting fails, automatically fix all linting errors in the codebase
-   - Re-run lint until it passes (exit code 0)
+   - Re-run `make lint-silent` until it passes (exit code 0)
    - Do not proceed until lint step is green
 
 3. **Type Check Step** (Optional but Recommended):
-   - Run `make type-check` (or `mypy miso_client/ --ignore-missing-imports`) to check for type errors
+   - Run `make type-check-silent` AFTER lint (primary; backup command: `make type-check`)
    - If type checking fails, automatically fix type errors where possible
-   - Re-run type-check until it passes or has acceptable warnings (exit code 0)
+   - Re-run `make type-check-silent` until it passes or has acceptable warnings (exit code 0)
    - Do not proceed until type-check step is green or acceptable
 
 4. **Test Step**:
-   - Run `make test` (or `pytest tests/ -v`) to run all tests
+   - Run `make test-silent` AFTER type-check (primary; backup command: `make test`)
    - If tests fail, automatically fix all test failures
-   - Re-run tests until all tests pass (exit code 0)
+   - Re-run `make test-silent` until all tests pass (exit code 0)
    - Do not proceed until test step is green
    - **All tests MUST be mocked** - no real database connections, external API calls, or I/O operations
   - **Each individual test execution time MUST be reasonable** - this requirement applies per test case (not to aggregate suite/group runtime). If any single test takes too long, optimize by ensuring all external dependencies are properly mocked (httpx, redis, etc.)
 
 5. **Final Verification Step**:
-   - Run `make format` again to ensure no formatting changes were introduced
-   - Run `make lint` again to ensure no linting issues were introduced
-   - If format or lint made any changes, run `make test` again to verify tests still pass
-   - Continue this loop until format and lint make no changes AND tests pass
+   - Run `make format-silent` again to ensure no formatting changes were introduced
+   - Run `make lint-silent` again to ensure no linting issues were introduced
+   - Run `make type-check-silent` again to ensure no type regressions were introduced
+   - If format or lint made any changes, run `make test-silent` again to verify tests still pass
+   - Continue this loop until format/lint make no changes, type-check passes, and tests pass
    - This ensures the codebase is in a stable, validated state
 
 **Critical Requirements:**
@@ -46,13 +54,14 @@ When the `/validate-tests` command is used, the agent must automatically fix all
 - **Test Performance**: All tests must be mocked, and each individual test must complete in reasonable time (no real network calls, all dependencies mocked). Evaluate performance per test case, not by combined group/suite duration.
 - **Final Verification**: Format and lint must be run again after tests pass, and if changes are made, tests must be re-run
 - **Complete Success**: The command is only complete when ALL steps pass AND final verification shows no changes:
-  - ✅ Format passes (initial)
-  - ✅ Lint passes (initial)
-  - ✅ Type-check passes (initial, optional)
-  - ✅ Tests pass (initial, all mocked, each individual test has reasonable execution time)
-  - ✅ Format passes (final, no changes)
-  - ✅ Lint passes (final, no changes)
-  - ✅ Tests pass (final, if format/lint made changes)
+  - ✅ `make format-silent` passes (initial)
+  - ✅ `make lint-silent` passes (initial)
+  - ✅ `make type-check-silent` passes (initial, optional)
+  - ✅ `make test-silent` passes (initial, all mocked, each individual test has reasonable execution time)
+  - ✅ `make format-silent` passes (final, no changes)
+  - ✅ `make lint-silent` passes (final, no changes)
+  - ✅ `make type-check-silent` passes (final, no regressions)
+  - ✅ `make test-silent` passes (final, if format/lint made changes)
 
 **Work is only done when all validation checks are green and working, final verification shows no changes, and all tests pass with proper mocking.**
 
