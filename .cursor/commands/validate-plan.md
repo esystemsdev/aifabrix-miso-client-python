@@ -12,6 +12,9 @@ This command ensures that:
 4. Plans reference relevant rule files for guidance
 5. Plans are production-ready before implementation begins
 6. Documentation is updated as needed during the validation process
+7. Validation guidance prefers quiet execution with full diagnostics captured in `.temp/validation/`
+8. Plan task checkboxes and frontmatter `todos` remain synchronized after updates
+9. Validation report metadata (especially date) is generated dynamically each run
 
 ## Usage
 
@@ -39,6 +42,15 @@ When this command updates plan DoD/validation command blocks, use silent Make ta
 - Step-level: `make format-silent`, `make lint-silent`, `make type-check-silent`, `make test-silent`
 - Logs: `.temp/validation/` (primary diagnostics source)
 - Fallback only if needed: `make validate`, `make format`, `make lint`, `make type-check`, `make test`
+
+### Output Noise Control (MANDATORY)
+
+To keep validation token-efficient while preserving quality gates:
+
+- Prefer `*-silent` commands in plan DoD and validation sections.
+- Keep detailed diagnostics in `.temp/validation/` logs.
+- In generated report text, provide concise summaries by default.
+- Include detailed command output only for failing steps.
 
 ## Execution Steps
 
@@ -182,6 +194,18 @@ When this command updates plan DoD/validation command blocks, use silent Make ta
 - Missing requirements checklist
 - Recommendations for plan improvement
 
+### Step 4.5: Synchronize Task States (MANDATORY)
+
+When plan sections are added or updated, keep task state representations consistent:
+
+1. Markdown checkboxes (`- [ ]` / `- [x]`)
+   - Do not mark task completion unless supported by plan content.
+2. Frontmatter `todos`
+   - Normalize status values to `pending|in_progress|completed|cancelled`.
+   - Align statuses with markdown task states and current validation outcome.
+3. Conflict resolution
+   - Resolve contradictions immediately; do not leave stale `in_progress` items.
+
 ### Step 5: Update Plan with Rule References
 
 **Plan Updates**:
@@ -244,13 +268,19 @@ When this command updates plan DoD/validation command blocks, use silent Make ta
 - Append the validation report directly to the plan file at the end
 - Do not create separate validation documents
 - Place the report after all existing plan content
+- If `## Plan Validation Report` already exists, replace it instead of appending a duplicate
+
+**Date Generation Instructions**:
+
+- Generate date dynamically on each run (never hardcode).
+- Date format: `YYYY-MM-DD (today is YYYY-MM-DD)`.
 
 **Report Structure**:
 
 ```markdown
 ## Plan Validation Report
 
-**Date**: [YYYY-MM-DD]
+**Date**: [Generated dynamically: YYYY-MM-DD (today is YYYY-MM-DD)]
 **Plan**: [plan-file-path]
 **Status**: ✅ VALIDATED / ⚠️ NEEDS UPDATES / ❌ INCOMPLETE
 
@@ -329,6 +359,7 @@ Every plan must include these requirements in the Definition of Done section:
 11. **Rule References**: Links to applicable sections from `.cursor/rules/project-rules.mdc`
 12. **Documentation**: Update documentation as needed (README, API docs, guides, usage examples)
 13. **All Tasks Completed**: All plan tasks marked as complete
+14. **Task State Sync**: Markdown checkboxes and frontmatter `todos` are consistent
 
 ## Example Plan Updates
 
@@ -435,3 +466,4 @@ Before marking this plan as complete, ensure:
 - **Documentation Updates**: Review plan scope and update relevant documentation files (README.md, docs/, API documentation) as needed during validation
 - **Project-Specific**: This is a Python SDK project (library), adapt scope detection accordingly (services, models, HTTP client, Redis, etc.)
 - **Report Attachment**: Validation reports are always appended to the plan file itself - never create separate validation documents
+- **Task State Consistency**: Keep markdown checkboxes and frontmatter `todos` synchronized after updates

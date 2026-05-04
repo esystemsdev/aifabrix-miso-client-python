@@ -148,6 +148,22 @@ from .utils.sort import build_sort_string, parse_sort_params
 from .utils.token_utils import extract_client_token_info
 from .utils.unified_logger_factory import clear_logger_context, get_logger, set_logger_context
 from .utils.url_validator import validate_url
+from .utils.user_token_refresh import (
+    UserTokenRefreshManager,
+    clear_stored_access_token,
+    clear_stored_refresh_token,
+    clear_stored_session_tokens,
+    get_effective_user_token_refresh_buffer,
+    get_jwt_expires_at,
+    get_stored_refresh_token,
+    get_user_token_expires_at,
+    get_user_token_refresh_due_at,
+    is_user_token_expired,
+    is_user_token_refresh_due,
+    normalize_expires_at,
+    store_access_token,
+    store_refresh_token,
+)
 
 __version__ = "4.11.0"
 __author__ = "AI Fabrix Team"
@@ -263,6 +279,20 @@ __all__ = [
     "get_environment_token",
     "validate_origin",
     "extract_client_token_info",
+    "UserTokenRefreshManager",
+    "normalize_expires_at",
+    "get_jwt_expires_at",
+    "get_effective_user_token_refresh_buffer",
+    "get_user_token_refresh_due_at",
+    "is_user_token_refresh_due",
+    "is_user_token_expired",
+    "store_access_token",
+    "store_refresh_token",
+    "clear_stored_access_token",
+    "clear_stored_refresh_token",
+    "clear_stored_session_tokens",
+    "get_stored_refresh_token",
+    "get_user_token_expires_at",
     "validate_url",
     "resolve_controller_url",
     "is_browser",

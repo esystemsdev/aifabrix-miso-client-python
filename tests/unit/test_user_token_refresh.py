@@ -5,12 +5,27 @@ This module contains comprehensive tests for automatic user token refresh functi
 """
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from miso_client.utils.user_token_refresh import UserTokenRefreshManager
+from miso_client.utils.user_token_refresh import (
+    UserTokenRefreshManager,
+    clear_stored_access_token,
+    clear_stored_refresh_token,
+    clear_stored_session_tokens,
+    get_effective_user_token_refresh_buffer,
+    get_jwt_expires_at,
+    get_stored_refresh_token,
+    get_user_token_expires_at,
+    get_user_token_refresh_due_at,
+    is_user_token_expired,
+    is_user_token_refresh_due,
+    normalize_expires_at,
+    store_access_token,
+    store_refresh_token,
+)
 
 
 class TestUserTokenRefreshManager:
@@ -347,3 +362,211 @@ class TestUserTokenRefreshManager:
             new_token = await refresh_manager._refresh_token("token-without-user-id")
 
             assert new_token is None
+
+
+class TestUserTokenLifecycleContracts:
+    """Contract-level tests for extracted user token lifecycle helpers."""
+
+    def test_normalize_expires_at_supports_seconds_milliseconds_and_iso(self):
+        """Normalizes all expected expiration formats."""
+        now = datetime.now(timezone.utc)
+        seconds_value = int(now.timestamp())
+        milliseconds_value = seconds_value * 1000
+        iso_value = now.isoformat()
+
+        parsed_seconds = normalize_expires_at(seconds_value)
+        parsed_milliseconds = normalize_expires_at(milliseconds_value)
+        parsed_iso = normalize_expires_at(iso_value)
+
+        assert parsed_seconds is not None
+        assert parsed_milliseconds is not None
+        assert parsed_iso is not None
+        assert parsed_seconds.tzinfo is not None
+        assert parsed_milliseconds.tzinfo is not None
+        assert parsed_iso.tzinfo is not None
+
+    def test_normalize_expires_at_invalid_values_return_none(self):
+        """Returns None for invalid expiration inputs."""
+        assert normalize_expires_at(None) is None
+        assert normalize_expires_at("") is None
+        assert normalize_expires_at("not-a-date") is None
+        assert normalize_expires_at(-10) is None
+
+    def test_get_jwt_expires_at_reads_exp_claim(self):
+        """Extracts expiration from JWT claim aliases."""
+        future = int((datetime.now(timezone.utc) + timedelta(minutes=5)).timestamp())
+        with patch("miso_client.utils.user_token_refresh.decode_token") as mock_decode:
+            mock_decode.return_value = {"exp": future}
+            expires_at = get_jwt_expires_at("token")
+            assert expires_at is not None
+            assert expires_at.tzinfo is not None
+
+    def test_get_jwt_expires_at_returns_none_for_invalid_claims(self):
+        """Returns None when token decode or expiration claims are invalid."""
+        with patch("miso_client.utils.user_token_refresh.decode_token") as mock_decode:
+            mock_decode.return_value = None
+            assert get_jwt_expires_at("token") is None
+
+        with patch("miso_client.utils.user_token_refresh.decode_token") as mock_decode:
+            mock_decode.return_value = {"exp": "not-a-timestamp"}
+            assert get_jwt_expires_at("token") is None
+
+    def test_get_effective_user_token_refresh_buffer_is_adaptive(self):
+        """Uses lifetime-aware buffer and never falls below default."""
+        issued = datetime.now(timezone.utc)
+        short_expiry = issued + timedelta(minutes=2)
+        long_expiry = issued + timedelta(hours=4)
+
+        short_buffer = get_effective_user_token_refresh_buffer(short_expiry, issued_at=issued)
+        long_buffer = get_effective_user_token_refresh_buffer(long_expiry, issued_at=issued)
+
+        assert short_buffer >= 60
+        assert long_buffer >= short_buffer
+
+    def test_get_effective_user_token_refresh_buffer_falls_back_for_invalid_inputs(self):
+        """Falls back to normalized default for invalid expiration/lifetime values."""
+        assert get_effective_user_token_refresh_buffer("invalid", default_buffer_seconds=45) == 45
+        assert (
+            get_effective_user_token_refresh_buffer(
+                datetime.now(timezone.utc) - timedelta(minutes=1),
+                issued_at=datetime.now(timezone.utc),
+                default_buffer_seconds=-10,
+            )
+            == 0
+        )
+
+    def test_refresh_due_and_expired_state_transitions(self):
+        """Tracks due and expired state for given timestamps."""
+        now = datetime.now(timezone.utc)
+        expires_at = now + timedelta(minutes=10)
+        due_at = get_user_token_refresh_due_at(expires_at, issued_at=now, refresh_buffer_seconds=60)
+
+        assert due_at is not None
+        assert is_user_token_refresh_due(
+            expires_at,
+            issued_at=now,
+            now=due_at + timedelta(seconds=1),
+            refresh_buffer_seconds=60,
+        )
+        assert not is_user_token_expired(expires_at, now=now)
+        assert is_user_token_expired(expires_at, now=expires_at + timedelta(seconds=1))
+
+    def test_refresh_due_and_expired_helpers_return_safe_defaults_for_invalid_inputs(self):
+        """Returns safe defaults for invalid due/expired inputs."""
+        assert get_user_token_refresh_due_at("invalid") is None
+        assert is_user_token_refresh_due("invalid") is False
+        assert is_user_token_expired("invalid") is False
+
+    def test_storage_lifecycle_and_compatibility_keys(self):
+        """Stores and clears session tokens through compatibility aliases."""
+        storage = {}
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+
+        store_access_token(storage, "access-1", expires_at=expires_at)
+        store_refresh_token(storage, "refresh-1")
+
+        assert storage["miso_token"] == "access-1"
+        assert storage["token"] == "access-1"
+        assert storage["accessToken"] == "access-1"
+        assert storage["authToken"] == "access-1"
+        assert storage["miso:user-refresh-token"] == "refresh-1"
+        assert storage["refreshToken"] == "refresh-1"
+        assert get_stored_refresh_token(storage) == "refresh-1"
+        assert get_user_token_expires_at(storage) is not None
+
+        clear_stored_access_token(storage)
+        assert "miso_token" not in storage
+        assert "token" not in storage
+        assert "accessToken" not in storage
+        assert "authToken" not in storage
+
+        clear_stored_refresh_token(storage)
+        assert "miso:user-refresh-token" not in storage
+        assert "refreshToken" not in storage
+
+    def test_store_access_token_preserves_expiry_when_value_unchanged(self):
+        """Keeps existing expiration metadata if token value is unchanged."""
+        storage = {}
+        first_expires_at = datetime.now(timezone.utc) + timedelta(minutes=30)
+        store_access_token(storage, "access-1", expires_at=first_expires_at)
+
+        second_expires_at = get_user_token_expires_at(storage)
+        assert second_expires_at is not None
+
+        store_access_token(storage, "access-1")
+        preserved_expires_at = get_user_token_expires_at(storage)
+
+        assert preserved_expires_at is not None
+        assert int(preserved_expires_at.timestamp()) == int(second_expires_at.timestamp())
+
+    def test_store_access_token_clears_old_expiry_when_token_changes_without_expiry(self):
+        """Clears stale expiry metadata when token changes and no expiry is provided."""
+        storage = {}
+        store_access_token(
+            storage, "access-1", expires_at=datetime.now(timezone.utc) + timedelta(minutes=10)
+        )
+        assert get_user_token_expires_at(storage) is not None
+
+        store_access_token(storage, "access-2")
+        assert get_user_token_expires_at(storage) is None
+
+    def test_store_refresh_token_overwrites_existing_aliases(self):
+        """Overwrites all refresh token aliases with latest value."""
+        storage = {}
+        store_refresh_token(storage, "refresh-1")
+        store_refresh_token(storage, "refresh-2")
+
+        assert storage["miso:user-refresh-token"] == "refresh-2"
+        assert storage["refreshToken"] == "refresh-2"
+        assert get_stored_refresh_token(storage) == "refresh-2"
+
+    def test_clear_stored_session_tokens_clears_both_token_types(self):
+        """Clears both access and refresh data together."""
+        storage = {}
+        store_access_token(storage, "access-1")
+        store_refresh_token(storage, "refresh-1")
+
+        clear_stored_session_tokens(storage)
+
+        assert get_stored_refresh_token(storage) is None
+        assert get_user_token_expires_at(storage) is None
+
+    def test_clear_helpers_are_idempotent_with_missing_keys(self):
+        """Handles repeated clear operations safely on empty storage."""
+        storage = {}
+
+        clear_stored_access_token(storage)
+        clear_stored_refresh_token(storage)
+        clear_stored_session_tokens(storage)
+
+        clear_stored_access_token(storage)
+        clear_stored_refresh_token(storage)
+        clear_stored_session_tokens(storage)
+
+        assert storage == {}
+
+    def test_get_stored_refresh_token_returns_none_for_blank_or_missing_values(self):
+        """Returns None when refresh aliases are missing or blank."""
+        storage = {"miso:user-refresh-token": "   ", "refreshToken": ""}
+        assert get_stored_refresh_token(storage) is None
+
+        storage.clear()
+        assert get_stored_refresh_token(storage) is None
+
+    def test_get_user_token_expires_at_uses_jwt_fallback_when_metadata_missing(self):
+        """Falls back to JWT claims if explicit expiration metadata is absent."""
+        future = int((datetime.now(timezone.utc) + timedelta(minutes=20)).timestamp())
+        storage = {"miso_token": "access-token"}
+
+        with patch("miso_client.utils.user_token_refresh.decode_token") as mock_decode:
+            mock_decode.return_value = {"exp": future}
+            expires_at = get_user_token_expires_at(storage)
+            assert expires_at is not None
+
+    def test_get_user_token_expires_at_returns_none_for_invalid_storage_and_jwt(self):
+        """Returns None when neither metadata nor JWT claims provide valid expiration."""
+        storage = {"miso_token": "access-token", "expiresAt": "invalid"}
+
+        with patch("miso_client.utils.user_token_refresh.decode_token") as mock_decode:
+            mock_decode.return_value = {"exp": "invalid"}
+            assert get_user_token_expires_at(storage) is None

@@ -1,37 +1,302 @@
-"""User token refresh manager for automatic token refresh."""
+"""User token refresh manager and token lifecycle helper contracts."""
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, Optional
+from datetime import datetime, timedelta, timezone
+from typing import Any, Awaitable, Callable, Dict, MutableMapping, Optional, Sequence
 
 from .jwt_tools import decode_token, extract_user_id
 
 logger = logging.getLogger(__name__)
 
+ACCESS_TOKEN_KEYS: Sequence[str] = ("miso_token", "token", "accessToken", "authToken")
+REFRESH_TOKEN_KEYS: Sequence[str] = ("miso:user-refresh-token", "refreshToken")
+ACCESS_TOKEN_EXPIRES_AT_KEYS: Sequence[str] = (
+    "miso_token_expires_at",
+    "tokenExpiresAt",
+    "accessTokenExpiresAt",
+    "expiresAt",
+)
+JWT_EXPIRATION_CLAIMS: Sequence[str] = ("exp", "expiresAt", "expires_at")
+JWT_ISSUED_AT_CLAIMS: Sequence[str] = ("iat", "issuedAt", "issued_at")
+DEFAULT_USER_TOKEN_REFRESH_BUFFER_SECONDS = 60
+MIN_USER_TOKEN_REFRESH_BUFFER_SECONDS = 15
+MAX_USER_TOKEN_REFRESH_BUFFER_SECONDS = 300
+
+
+def _normalize_str(value: Any) -> Optional[str]:
+    """Return stripped string value or None for empty/non-string input."""
+    if not isinstance(value, str):
+        return None
+    stripped = value.strip()
+    return stripped if stripped else None
+
+
+def _normalize_positive_int(value: int) -> int:
+    """Normalize possibly negative integer into non-negative integer."""
+    return value if value >= 0 else 0
+
+
+def _parse_timestamp_number(value: float) -> Optional[datetime]:
+    """Parse epoch seconds or epoch milliseconds into UTC datetime."""
+    if value <= 0:
+        return None
+    if value > 1_000_000_000_000:
+        value = value / 1000.0
+    return datetime.fromtimestamp(value, tz=timezone.utc)
+
+
+def normalize_expires_at(value: Any) -> Optional[datetime]:
+    """Normalize expiration value to UTC datetime.
+
+    Supports:
+    - datetime
+    - epoch seconds
+    - epoch milliseconds
+    - numeric strings
+    - ISO datetime strings
+    """
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+
+    if isinstance(value, (int, float)):
+        return _parse_timestamp_number(float(value))
+
+    normalized_str = _normalize_str(value)
+    if normalized_str is None:
+        return None
+
+    try:
+        return _parse_timestamp_number(float(normalized_str))
+    except ValueError:
+        pass
+
+    normalized_iso = normalized_str
+    if normalized_iso.endswith("Z"):
+        normalized_iso = f"{normalized_iso[:-1]}+00:00"
+
+    try:
+        parsed = datetime.fromisoformat(normalized_iso)
+    except ValueError:
+        return None
+
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _extract_claim_datetime(decoded: Dict[str, Any], claims: Sequence[str]) -> Optional[datetime]:
+    """Extract first parseable datetime value from claim aliases."""
+    for claim in claims:
+        parsed = normalize_expires_at(decoded.get(claim))
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def get_jwt_expires_at(token: str) -> Optional[datetime]:
+    """Extract normalized expiration datetime from JWT token claims."""
+    decoded = decode_token(token)
+    if not decoded:
+        return None
+    return _extract_claim_datetime(decoded, JWT_EXPIRATION_CLAIMS)
+
+
+def _get_jwt_issued_at(decoded: Dict[str, Any]) -> Optional[datetime]:
+    """Extract normalized issued-at datetime from JWT claims."""
+    return _extract_claim_datetime(decoded, JWT_ISSUED_AT_CLAIMS)
+
+
+def get_effective_user_token_refresh_buffer(
+    expires_at: Any,
+    issued_at: Any = None,
+    *,
+    default_buffer_seconds: int = DEFAULT_USER_TOKEN_REFRESH_BUFFER_SECONDS,
+) -> int:
+    """Calculate adaptive refresh buffer using token lifetime when available."""
+    normalized_default = _normalize_positive_int(default_buffer_seconds)
+    normalized_expires_at = normalize_expires_at(expires_at)
+    if normalized_expires_at is None:
+        return normalized_default
+
+    normalized_issued_at = normalize_expires_at(issued_at) or datetime.now(timezone.utc)
+    lifetime_seconds = int((normalized_expires_at - normalized_issued_at).total_seconds())
+    if lifetime_seconds <= 0:
+        return normalized_default
+
+    adaptive_buffer = int(lifetime_seconds * 0.1)
+    bounded_buffer = max(
+        MIN_USER_TOKEN_REFRESH_BUFFER_SECONDS,
+        min(adaptive_buffer, MAX_USER_TOKEN_REFRESH_BUFFER_SECONDS),
+    )
+    return max(normalized_default, bounded_buffer)
+
+
+def get_user_token_refresh_due_at(
+    expires_at: Any,
+    *,
+    issued_at: Any = None,
+    refresh_buffer_seconds: int = DEFAULT_USER_TOKEN_REFRESH_BUFFER_SECONDS,
+) -> Optional[datetime]:
+    """Calculate the datetime when user token should be proactively refreshed."""
+    normalized_expires_at = normalize_expires_at(expires_at)
+    if normalized_expires_at is None:
+        return None
+    effective_buffer = get_effective_user_token_refresh_buffer(
+        normalized_expires_at,
+        issued_at,
+        default_buffer_seconds=refresh_buffer_seconds,
+    )
+    return normalized_expires_at - timedelta(seconds=effective_buffer)
+
+
+def is_user_token_refresh_due(
+    expires_at: Any,
+    *,
+    issued_at: Any = None,
+    now: Optional[datetime] = None,
+    refresh_buffer_seconds: int = DEFAULT_USER_TOKEN_REFRESH_BUFFER_SECONDS,
+) -> bool:
+    """Return True when token should be refreshed according to due-at strategy."""
+    due_at = get_user_token_refresh_due_at(
+        expires_at,
+        issued_at=issued_at,
+        refresh_buffer_seconds=refresh_buffer_seconds,
+    )
+    if due_at is None:
+        return False
+    comparison_now = now or datetime.now(timezone.utc)
+    if comparison_now.tzinfo is None:
+        comparison_now = comparison_now.replace(tzinfo=timezone.utc)
+    return comparison_now >= due_at
+
+
+def is_user_token_expired(expires_at: Any, *, now: Optional[datetime] = None) -> bool:
+    """Return True when token is already expired."""
+    normalized_expires_at = normalize_expires_at(expires_at)
+    if normalized_expires_at is None:
+        return False
+    comparison_now = now or datetime.now(timezone.utc)
+    if comparison_now.tzinfo is None:
+        comparison_now = comparison_now.replace(tzinfo=timezone.utc)
+    return comparison_now >= normalized_expires_at
+
+
+def _set_for_keys(storage: MutableMapping[str, Any], keys: Sequence[str], value: Any) -> None:
+    """Set same value for all alias keys."""
+    for key in keys:
+        storage[key] = value
+
+
+def _pop_for_keys(storage: MutableMapping[str, Any], keys: Sequence[str]) -> None:
+    """Delete all alias keys from storage if present."""
+    for key in keys:
+        storage.pop(key, None)
+
+
+def _get_first_string(storage: MutableMapping[str, Any], keys: Sequence[str]) -> Optional[str]:
+    """Read first non-empty string value by alias priority."""
+    for key in keys:
+        value = _normalize_str(storage.get(key))
+        if value is not None:
+            return value
+    return None
+
+
+def _get_stored_access_token(storage: MutableMapping[str, Any]) -> Optional[str]:
+    """Read stored access token from compatibility keys."""
+    return _get_first_string(storage, ACCESS_TOKEN_KEYS)
+
+
+def store_access_token(
+    storage: MutableMapping[str, Any], token: str, expires_at: Any = None
+) -> MutableMapping[str, Any]:
+    """Store access token and expiration metadata with compatibility aliases.
+
+    If token value is unchanged and no stronger expiration signal is provided,
+    existing expiration metadata is preserved.
+    """
+    existing_token = _get_stored_access_token(storage)
+    existing_expires_at = get_user_token_expires_at(storage)
+    provided_expires_at = normalize_expires_at(expires_at)
+    resolved_expires_at = provided_expires_at
+    if resolved_expires_at is None and existing_token == token:
+        resolved_expires_at = existing_expires_at
+
+    _set_for_keys(storage, ACCESS_TOKEN_KEYS, token)
+    if resolved_expires_at is not None:
+        serialized = resolved_expires_at.isoformat()
+        _set_for_keys(storage, ACCESS_TOKEN_EXPIRES_AT_KEYS, serialized)
+    elif existing_token != token:
+        _pop_for_keys(storage, ACCESS_TOKEN_EXPIRES_AT_KEYS)
+
+    return storage
+
+
+def store_refresh_token(
+    storage: MutableMapping[str, Any], refresh_token: str
+) -> MutableMapping[str, Any]:
+    """Store refresh token in all compatibility aliases."""
+    _set_for_keys(storage, REFRESH_TOKEN_KEYS, refresh_token)
+    return storage
+
+
+def clear_stored_access_token(storage: MutableMapping[str, Any]) -> MutableMapping[str, Any]:
+    """Clear all access-token aliases and expiration metadata."""
+    _pop_for_keys(storage, ACCESS_TOKEN_KEYS)
+    _pop_for_keys(storage, ACCESS_TOKEN_EXPIRES_AT_KEYS)
+    return storage
+
+
+def clear_stored_refresh_token(storage: MutableMapping[str, Any]) -> MutableMapping[str, Any]:
+    """Clear all refresh-token aliases."""
+    _pop_for_keys(storage, REFRESH_TOKEN_KEYS)
+    return storage
+
+
+def clear_stored_session_tokens(storage: MutableMapping[str, Any]) -> MutableMapping[str, Any]:
+    """Clear both access and refresh token aliases."""
+    clear_stored_access_token(storage)
+    clear_stored_refresh_token(storage)
+    return storage
+
+
+def get_stored_refresh_token(storage: MutableMapping[str, Any]) -> Optional[str]:
+    """Read refresh token from compatibility aliases."""
+    return _get_first_string(storage, REFRESH_TOKEN_KEYS)
+
+
+def get_user_token_expires_at(storage: MutableMapping[str, Any]) -> Optional[datetime]:
+    """Read access-token expiration from explicit metadata or JWT claims."""
+    for key in ACCESS_TOKEN_EXPIRES_AT_KEYS:
+        parsed = normalize_expires_at(storage.get(key))
+        if parsed is not None:
+            return parsed
+
+    access_token = _get_stored_access_token(storage)
+    if access_token is None:
+        return None
+    return get_jwt_expires_at(access_token)
+
 
 class UserTokenRefreshManager:
-    """Manages user token refresh with proactive refresh and 401 retry.
-
-    Similar to client token refresh but for user Bearer tokens.
-    """
+    """Manages user token refresh with proactive refresh and 401 retry."""
 
     def __init__(self) -> None:
         """Initialize user token refresh manager."""
-        # Store refresh callbacks per user: {user_id: callback}
-        self._refresh_callbacks: Dict[str, Callable[[str], Any]] = {}
-        # Store refresh tokens per user: {user_id: refresh_token}
+        self._refresh_callbacks: Dict[str, Callable[[str], Awaitable[Any]]] = {}
         self._refresh_tokens: Dict[str, str] = {}
-        # Track token expiration: {token: expiration_datetime}
         self._token_expirations: Dict[str, datetime] = {}
-        # Locks per user to prevent concurrent refreshes: {user_id: Lock}
         self._refresh_locks: Dict[str, asyncio.Lock] = {}
-        # Cache refreshed tokens: {old_token: new_token}
         self._refreshed_tokens: Dict[str, str] = {}
-        # AuthService instance for refresh endpoint calls
         self._auth_service: Optional[Any] = None
+        self._token_storage_by_user: Dict[str, Dict[str, Any]] = {}
 
-    def register_refresh_callback(self, user_id: str, callback: Callable[[str], Any]) -> None:
+    def register_refresh_callback(
+        self, user_id: str, callback: Callable[[str], Awaitable[Any]]
+    ) -> None:
         """Register refresh callback for a user.
 
         Args:
@@ -50,6 +315,7 @@ class UserTokenRefreshManager:
 
         """
         self._refresh_tokens[user_id] = refresh_token
+        self.store_refresh_token(user_id, refresh_token)
 
     def set_auth_service(self, auth_service: Any) -> None:
         """Set AuthService instance for refresh endpoint calls.
@@ -64,6 +330,40 @@ class UserTokenRefreshManager:
         """Extract user ID from token."""
         return extract_user_id(token)
 
+    def _get_user_token_store(self, user_id: str) -> Dict[str, Any]:
+        """Return mutable per-user token store."""
+        if user_id not in self._token_storage_by_user:
+            self._token_storage_by_user[user_id] = {}
+        return self._token_storage_by_user[user_id]
+
+    def store_access_token(self, user_id: str, token: str, expires_at: Any = None) -> None:
+        """Store access token in compatibility storage for user."""
+        store_access_token(self._get_user_token_store(user_id), token, expires_at)
+
+    def store_refresh_token(self, user_id: str, refresh_token: str) -> None:
+        """Store refresh token in compatibility storage for user."""
+        store_refresh_token(self._get_user_token_store(user_id), refresh_token)
+
+    def get_stored_refresh_token(self, user_id: str) -> Optional[str]:
+        """Read stored refresh token for user."""
+        return get_stored_refresh_token(self._get_user_token_store(user_id))
+
+    def get_user_token_expires_at(self, user_id: str) -> Optional[datetime]:
+        """Read stored access-token expiration for user."""
+        return get_user_token_expires_at(self._get_user_token_store(user_id))
+
+    def clear_stored_access_token(self, user_id: str) -> None:
+        """Clear stored access-token aliases for user."""
+        clear_stored_access_token(self._get_user_token_store(user_id))
+
+    def clear_stored_refresh_token(self, user_id: str) -> None:
+        """Clear stored refresh-token aliases for user."""
+        clear_stored_refresh_token(self._get_user_token_store(user_id))
+
+    def clear_stored_session_tokens(self, user_id: str) -> None:
+        """Clear stored access/refresh token aliases for user."""
+        clear_stored_session_tokens(self._get_user_token_store(user_id))
+
     def _is_token_expired(self, token: str, buffer_seconds: int = 60) -> bool:
         """Check if token is expired or will expire soon.
 
@@ -76,7 +376,9 @@ class UserTokenRefreshManager:
 
         """
         if token in self._token_expirations:
-            return self._is_expired_by_time(self._token_expirations[token], buffer_seconds)
+            return is_user_token_refresh_due(
+                self._token_expirations[token], refresh_buffer_seconds=buffer_seconds
+            )
         decoded = decode_token(token)
         if not decoded:
             return True
@@ -84,18 +386,20 @@ class UserTokenRefreshManager:
         if token_exp is None:
             return False
         self._token_expirations[token] = token_exp
-        return self._is_expired_by_time(token_exp, buffer_seconds)
+        token_issued_at = _get_jwt_issued_at(decoded)
+        return is_user_token_refresh_due(
+            token_exp,
+            issued_at=token_issued_at,
+            refresh_buffer_seconds=buffer_seconds,
+        )
 
     def _is_expired_by_time(self, expires_at: datetime, buffer_seconds: int) -> bool:
         """Check if expiration timestamp is within configured buffer window."""
-        return datetime.now() + timedelta(seconds=buffer_seconds) >= expires_at
+        return is_user_token_refresh_due(expires_at, refresh_buffer_seconds=buffer_seconds)
 
     def _extract_expiration(self, decoded: Dict[str, Any]) -> Optional[datetime]:
         """Extract expiration datetime from decoded JWT payload."""
-        exp = decoded.get("exp")
-        if not isinstance(exp, (int, float)):
-            return None
-        return datetime.fromtimestamp(exp)
+        return _extract_claim_datetime(decoded, JWT_EXPIRATION_CLAIMS)
 
     def _get_tokens_for_user(self, token_map: Dict[str, Any], user_id: str) -> list[str]:
         """Return map keys whose token belongs to given user."""
@@ -113,6 +417,7 @@ class UserTokenRefreshManager:
         self._refresh_callbacks.pop(user_id, None)
         self._refresh_tokens.pop(user_id, None)
         self._refresh_locks.pop(user_id, None)
+        self._token_storage_by_user.pop(user_id, None)
 
     def clear_user_tokens(self, user_id: str) -> None:
         """Clear all tokens and refresh data for a user."""
@@ -126,6 +431,8 @@ class UserTokenRefreshManager:
             user_id = self._get_user_id(token)
             refreshed = await self._refresh_token(token, user_id)
             if refreshed:
+                if user_id:
+                    self.store_access_token(user_id, refreshed)
                 return refreshed
         return token
 
@@ -174,6 +481,7 @@ class UserTokenRefreshManager:
         refresh_token = refresh_response.get("refreshToken")
         if refresh_token:
             self._refresh_tokens[user_id] = str(refresh_token)
+            self.store_refresh_token(user_id, str(refresh_token))
 
     async def _refresh_with_refresh_token(
         self, user_id: str, token: str, refresh_token: Optional[str]
@@ -184,9 +492,9 @@ class UserTokenRefreshManager:
         refresh_response = await self._auth_service.refresh_user_token(refresh_token)
         if not refresh_response or not refresh_response.get("token"):
             return None
-        refreshed = self._cache_refreshed_token(
-            token, self._token_to_str(refresh_response["token"])
-        )
+        refreshed_token = self._token_to_str(refresh_response["token"])
+        refreshed = self._cache_refreshed_token(token, refreshed_token)
+        self.store_access_token(user_id, refreshed_token, refresh_response.get("expiresAt"))
         self._update_refresh_token(user_id, refresh_response)
         return refreshed
 

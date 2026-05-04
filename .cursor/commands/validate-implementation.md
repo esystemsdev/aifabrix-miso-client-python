@@ -13,6 +13,8 @@ The command:
 5. Runs code quality validation (format → lint → type-check → test)
 6. Validates against cursor rules
 7. Attaches validation results to the plan file itself (adds/updates `## Validation` section)
+8. Synchronizes markdown task checkboxes and frontmatter `todos` with validated outcomes
+9. Uses token-efficient quiet execution (`*-silent`) with logs in `.temp/validation/`
 
 ## Usage
 
@@ -84,6 +86,16 @@ Run this command in chat with `/validate-implementation [plan-file-path]`
 - Tests properly mock HttpClient, RedisService, httpx, redis, PyJWT
 - Tests complete in reasonable time (all mocked, no real network calls)
 
+### Output Noise Control (MANDATORY)
+
+To reduce token usage without changing validation behavior:
+
+- Create `.temp/validation/` before running noisy validation commands.
+- Use `*-silent` commands as primary execution path.
+- Treat `.temp/validation/` logs as the primary diagnostics source.
+- Report concise summaries in chat/report by default (pass/fail, counts, affected files).
+- Include detailed log excerpts only when a step fails.
+
 ### 4. Code Quality Validation
 
 **Runs Validation Steps (MANDATORY ORDER)**:
@@ -109,6 +121,7 @@ Run this command in chat with `/validate-implementation [plan-file-path]`
    - Verify all tests pass
    - Report test failures
    - Check test execution time (should be fast with proper mocking)
+   - If tests fail, fix failures and re-run tests until all tests pass
 
 **Validates Code Against Cursor Rules**:
 
@@ -137,6 +150,19 @@ Run this command in chat with `/validate-implementation [plan-file-path]`
 - All documentation is updated
 - All exports are properly configured in `miso_client/__init__.py`
 
+### 5.5 Task State Synchronization (MANDATORY)
+
+After validation checks complete, synchronize task states in the same plan file:
+
+1. Markdown checkboxes (`- [ ]` / `- [x]`)
+   - Mark as complete only when backed by validation evidence.
+2. Frontmatter `todos`
+   - Normalize status values to `pending|in_progress|completed|cancelled`.
+   - Align each status with actual validated outcomes.
+3. Consistency
+   - Resolve contradictions between markdown checkboxes and frontmatter `todos`.
+   - Do not leave stale `in_progress` items when validation is complete.
+
 ### 6. Report Generation
 
 **Attaches Validation Section to Plan File**:
@@ -154,6 +180,11 @@ Run this command in chat with `/validate-implementation [plan-file-path]`
   - Issues and recommendations
   - Final validation checklist
 
+**Date Generation Instructions**:
+
+- Generate date dynamically at runtime (never hardcode static values).
+- Format date as: `YYYY-MM-DD (today is YYYY-MM-DD)`.
+
 ## Output
 
 ### Validation Section Structure
@@ -161,7 +192,7 @@ Run this command in chat with `/validate-implementation [plan-file-path]`
 ```markdown
 ## Validation
 
-**Date**: [Generated date]
+**Date**: [Generated date dynamically in format: YYYY-MM-DD (today is YYYY-MM-DD)]
 **Status**: ✅ COMPLETE / ⚠️ INCOMPLETE / ❌ FAILED
 
 ### Executive Summary
@@ -237,7 +268,7 @@ Run this command in chat with `/validate-implementation [plan-file-path]`
 - If format fails: Reports error, does not proceed to lint
 - If lint fails: Reports all errors, does not proceed to type-check
 - If type-check fails: Reports all errors, does not proceed to tests
-- If tests fail: Reports all failures
+- If tests fail: Fix failures and rerun `make test-silent` until pass (or document blocker with evidence)
 - If files are missing: Reports missing files
 - If tasks are incomplete: Reports incomplete tasks
 
@@ -246,6 +277,7 @@ Run this command in chat with `/validate-implementation [plan-file-path]`
 - **Lint must pass** (zero errors/warnings) before type-checking
 - **Type-check should pass** (or have acceptable warnings) before testing
 - **Tests must pass** before marking as complete
+- **Task states must be synchronized** (markdown checkboxes + frontmatter `todos`) before final status
 - **All tasks must be completed** for full validation
 - **All files must exist** for full validation
 - **Tests must exist** for new/modified code
@@ -258,6 +290,8 @@ Run this command in chat with `/validate-implementation [plan-file-path]`
 - **File Detection**: Identifies file paths mentioned in plan (code blocks, file references, paths in text)
 - **Validation Section Update**: Adds or updates the `## Validation` section in the plan file itself with validation results
 - **Report Location**: Validation results are attached directly to the plan file (no separate report file created)
+- **Report Replacement Behavior**: Replace existing `## Validation`/`## Validation Report` section; append only if missing
+- **Quiet Execution**: Prefer `*-silent` commands and rely on `.temp/validation/` logs for detailed diagnostics
 - **Python-Specific**: Adapted for Python project structure (`miso_client/` instead of `src/`, pytest instead of jest, etc.)
 
 ## Integration with Plans
