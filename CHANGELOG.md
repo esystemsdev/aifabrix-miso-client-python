@@ -11,6 +11,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - No unreleased changes.
 
+## [4.13.0] - 2026-05-08
+
+### Added
+
+- **PATCH support in HTTP clients** - Added `patch` to both `HttpClient` and `InternalHttpClient`, and extended the shared request path to support PATCH.
+
+### Changed
+
+- **`HttpClient.get_raw` transport** - Removed `raw_http_get` and integrated its behavior directly into `HttpClient.get_raw`.
+
+### Fixed
+
+- **Non-JSON response handling** - Improved `InternalHttpClient` error handling for responses that are not JSON.
+
+### Technical
+
+- **Cleanup and regression coverage** - Removed `raw_http_get` unit/module surfaces and updated tests to cover PATCH and related HTTP-client behavior.
+
 ## [4.12.0] - 2026-05-04
 
 ### Added

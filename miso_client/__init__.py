@@ -165,7 +165,7 @@ from .utils.user_token_refresh import (
     store_refresh_token,
 )
 
-__version__ = "4.12.0"
+__version__ = "4.13.0"
 __author__ = "AI Fabrix Team"
 __license__ = "MIT"
 
