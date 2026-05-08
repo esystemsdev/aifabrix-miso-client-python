@@ -26,7 +26,6 @@ from .http_client_runtime_helpers import (
     wait_pending_logging_tasks,
 )
 from .internal_http_client import InternalHttpClient
-from .raw_http_get import raw_http_get
 from .user_token_refresh import UserTokenRefreshManager
 
 
@@ -186,48 +185,19 @@ class HttpClient:
             "GET", url, _get, request_kwargs=request_kwargs, **kwargs
         )
 
-    async def get_raw(
-        self,
-        url: str,
-        *,
-        headers: Optional[Dict[str, str]] = None,
-        params: Optional[Dict[str, Any]] = None,
-        timeout: float = 30.0,
-        follow_redirects: bool = False,
-        **kwargs: Any,
-    ) -> Any:
-        """GET returning the raw ``httpx.Response`` (no JSON parse, no controller base URL).
+    async def get_raw(self, url: str, **kwargs: Any) -> Any:
+        """GET returning raw ``httpx.Response`` (bytes body; no JSON parse).
 
-        Use for external absolute URLs (e.g. Microsoft Graph ``/content``) when the
-        standard ``get`` path may decode the body as UTF-8 and raise ``UnicodeDecodeError``.
-
-        Extra ``kwargs`` are passed only to logging (via ``request_kwargs`` snapshot), not
-        to the ephemeral client.
+        Used by dataplane CIP and binary follow-ups when the response body is not UTF-8
+        or JSON (e.g. Microsoft Graph file ``/content`` after redirect).
         """
-        request_kwargs: Dict[str, Any] = dict(kwargs)
-        request_kwargs["headers"] = dict(headers or {})
-        request_kwargs["params"] = params
-        request_kwargs["timeout"] = timeout
-        request_kwargs["follow_redirects"] = follow_redirects
-        # Mutates request_kwargs["headers"] in place; do not assign the return value
-        # (that is only the inner headers dict and would break logging / _get_raw).
-        ensure_correlation_headers(request_kwargs)
+        request_kwargs = dict(kwargs)
 
         async def _get_raw() -> Any:
-            return await raw_http_get(
-                url,
-                headers=request_kwargs.get("headers"),
-                params=params,
-                timeout=timeout,
-                follow_redirects=follow_redirects,
-            )
+            return await self._internal_client.get_raw(url, **request_kwargs)
 
         return await self._execute_with_logging(
-            "GET",
-            url,
-            _get_raw,
-            request_kwargs=request_kwargs,
-            **kwargs,
+            "GET", url, _get_raw, request_kwargs=request_kwargs, **kwargs
         )
 
     async def post(self, url: str, data: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Any:
@@ -288,24 +258,44 @@ class HttpClient:
             "DELETE", url, _delete, request_kwargs=request_kwargs, **kwargs
         )
 
+    async def patch(self, url: str, data: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Any:
+        """Make PATCH request with automatic audit and debug logging."""
+
+        request_kwargs = dict(kwargs)
+
+        async def _patch() -> Any:
+            return await self._internal_client.patch(url, data, **request_kwargs)
+
+        return await self._execute_with_logging(
+            "PATCH",
+            url,
+            _patch,
+            data,
+            request_kwargs=request_kwargs,
+            **kwargs,
+        )
+
     async def request(
         self,
-        method: Literal["GET", "POST", "PUT", "DELETE"],
+        method: Literal["GET", "POST", "PUT", "PATCH", "DELETE"],
         url: str,
         data: Optional[Dict[str, Any]] = None,
         **kwargs: Any,
     ) -> Any:
         """Generic request method with automatic audit and debug logging."""
-        method_upper = method.upper()
+        # Strip whitespace/newlines so manifest YAML/JSON (e.g. "PATCH\\n") still dispatches.
+        raw_method = getattr(method, "value", method)
+        method_upper = str(raw_method).strip().upper()
         handlers: Dict[str, Callable[[], Awaitable[Any]]] = {
             "GET": lambda: self.get(url, **kwargs),
             "POST": lambda: self.post(url, data, **kwargs),
             "PUT": lambda: self.put(url, data, **kwargs),
+            "PATCH": lambda: self.patch(url, data, **kwargs),
             "DELETE": lambda: self.delete(url, **kwargs),
         }
         handler = handlers.get(method_upper)
         if handler is None:
-            raise ValueError(f"Unsupported HTTP method: {method}")
+            raise ValueError(f"Unsupported HTTP method: {raw_method!r}")
         return await handler()
 
     def register_user_token_refresh_callback(self, user_id: str, callback: Any) -> None:

@@ -131,6 +131,16 @@ class TestParseFilterParams:
 
         assert len(filters) == 0
 
+    def test_parse_filter_like_prefix_pattern(self):
+        """LIKE prefix uses trailing % in the value (SQL LIKE 'test%')."""
+        params = {"filter": "key:like:test%"}
+        filters = parse_filter_params(params)
+
+        assert len(filters) == 1
+        assert filters[0].field == "key"
+        assert filters[0].op == "like"
+        assert filters[0].value == "test%"
+
     def test_parse_filter_url_encoded(self):
         """Test parsing URL-encoded filter values."""
         from urllib.parse import quote

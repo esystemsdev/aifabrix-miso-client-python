@@ -6,6 +6,7 @@ HttpClient class instead which adds ISO 27001 compliant audit and debug logging.
 """
 
 import asyncio
+import json
 from types import TracebackType
 from typing import Any, Awaitable, Callable, Dict, Literal, Optional, Tuple, Type, cast
 
@@ -17,6 +18,17 @@ from .auth_strategy import AuthStrategyHandler
 from .client_token_manager import ClientTokenManager
 from .controller_url_resolver import resolve_controller_url
 from .http_error_handler import detect_auth_method_from_headers, parse_error_response
+
+
+def _parse_optional_json_response(response: httpx.Response) -> Any:
+    """Return JSON object or ``{}`` when the body is empty or not JSON (e.g. DELETE 204)."""
+    raw = response.content or b""
+    if not raw.strip():
+        return {}
+    try:
+        return response.json()
+    except (ValueError, json.JSONDecodeError):
+        return {}
 
 
 class InternalHttpClient:
@@ -158,7 +170,7 @@ class InternalHttpClient:
 
     async def _dispatch_with_body(
         self,
-        method: Literal["post", "put"],
+        method: Literal["post", "put", "patch"],
         url: str,
         json_body: Optional[Any],
         content: Optional[Any],
@@ -166,7 +178,7 @@ class InternalHttpClient:
         files: Optional[Any],
         kwargs: Dict[str, Any],
     ) -> httpx.Response:
-        """Dispatch POST/PUT request with one selected body style."""
+        """Dispatch POST/PUT/PATCH request with one selected body style."""
         assert self.client is not None
         caller = cast(Callable[..., Awaitable[httpx.Response]], getattr(self.client, method))
         if json_body is not None:
@@ -194,7 +206,7 @@ class InternalHttpClient:
 
     async def _execute_body_request(
         self,
-        method: Literal["post", "put"],
+        method: Literal["post", "put", "patch"],
         url: str,
         data: Optional[Dict[str, Any]],
         kwargs: Dict[str, Any],
@@ -209,7 +221,7 @@ class InternalHttpClient:
             )
             self._clear_token_if_unauthorized(response)
             response.raise_for_status()
-            return response.json()
+            return _parse_optional_json_response(response)
         except httpx.HTTPStatusError as e:
             raise self._create_error_from_http_status(
                 e, url, self._request_headers_for_error(kwargs)
@@ -220,6 +232,10 @@ class InternalHttpClient:
     async def put(self, url: str, data: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Any:
         """Make PUT request."""
         return await self._execute_body_request("put", url, data, kwargs)
+
+    async def patch(self, url: str, data: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Any:
+        """Make PATCH request (e.g. HubSpot CRM partial updates)."""
+        return await self._execute_body_request("patch", url, data, kwargs)
 
     async def delete(self, url: str, **kwargs: Any) -> Any:
         """Make DELETE request."""
@@ -237,7 +253,30 @@ class InternalHttpClient:
             response = await caller(url, **kwargs)
             self._clear_token_if_unauthorized(response)
             response.raise_for_status()
+            if method == "delete":
+                return _parse_optional_json_response(response)
             return response.json()
+        except httpx.HTTPStatusError as e:
+            raise self._create_error_from_http_status(
+                e, url, self._request_headers_for_error(kwargs)
+            )
+        except httpx.RequestError as e:
+            raise ConnectionError(f"Request failed: {str(e)}")
+
+    async def get_raw(self, url: str, **kwargs: Any) -> httpx.Response:
+        """Make GET request and return the raw ``httpx.Response`` (no ``.json()`` parsing).
+
+        Use for binary bodies (file downloads, Graph ``/content`` after redirects) where
+        :meth:`get` would raise ``UnicodeDecodeError`` or ``json.JSONDecodeError``.
+        """
+        await self._initialize_client()
+        await self._ensure_client_token()
+        try:
+            assert self.client is not None
+            response = await self.client.get(url, **kwargs)
+            self._clear_token_if_unauthorized(response)
+            response.raise_for_status()
+            return response
         except httpx.HTTPStatusError as e:
             raise self._create_error_from_http_status(
                 e, url, self._request_headers_for_error(kwargs)
@@ -247,27 +286,29 @@ class InternalHttpClient:
 
     async def request(
         self,
-        method: Literal["GET", "POST", "PUT", "DELETE"],
+        method: Literal["GET", "POST", "PUT", "PATCH", "DELETE"],
         url: str,
         data: Optional[Dict[str, Any]] = None,
         **kwargs: Any,
     ) -> Any:
         """Generic request method."""
-        method_upper = method.upper()
+        raw_method = getattr(method, "value", method)
+        method_upper = str(raw_method).strip().upper()
         handler_map = {
             "GET": lambda: self.get(url, **kwargs),
             "POST": lambda: self.post(url, data, **kwargs),
             "PUT": lambda: self.put(url, data, **kwargs),
+            "PATCH": lambda: self.patch(url, data, **kwargs),
             "DELETE": lambda: self.delete(url, **kwargs),
         }
         handler = handler_map.get(method_upper)
         if handler is None:
-            raise ValueError(f"Unsupported HTTP method: {method}")
+            raise ValueError(f"Unsupported HTTP method: {raw_method!r}")
         return await handler()
 
     async def authenticated_request(
         self,
-        method: Literal["GET", "POST", "PUT", "DELETE"],
+        method: Literal["GET", "POST", "PUT", "PATCH", "DELETE"],
         url: str,
         token: str,
         data: Optional[Dict[str, Any]] = None,
@@ -288,7 +329,7 @@ class InternalHttpClient:
 
     async def request_with_auth_strategy(
         self,
-        method: Literal["GET", "POST", "PUT", "DELETE"],
+        method: Literal["GET", "POST", "PUT", "PATCH", "DELETE"],
         url: str,
         auth_strategy: AuthStrategy,
         data: Optional[Dict[str, Any]] = None,
@@ -306,7 +347,7 @@ class InternalHttpClient:
 
     async def _try_auth_methods(
         self,
-        method: Literal["GET", "POST", "PUT", "DELETE"],
+        method: Literal["GET", "POST", "PUT", "PATCH", "DELETE"],
         url: str,
         auth_strategy: AuthStrategy,
         client_token: Optional[str],
@@ -361,7 +402,7 @@ class InternalHttpClient:
 
     async def _request_with_single_auth_method(
         self,
-        method: Literal["GET", "POST", "PUT", "DELETE"],
+        method: Literal["GET", "POST", "PUT", "PATCH", "DELETE"],
         url: str,
         auth_strategy: AuthStrategy,
         auth_method: AuthMethod,

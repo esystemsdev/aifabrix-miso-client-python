@@ -142,6 +142,27 @@ class TestInternalHttpClient:
                 assert call_args is not None
 
     @pytest.mark.asyncio
+    async def test_get_raw_returns_response_without_calling_json(self, http_client):
+        """get_raw must return the transport response without parsing JSON."""
+        await http_client._initialize_client()
+        http_client.token_manager.client_token = "test-token"
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.content = b"\xff\x00not-utf8-json"
+        mock_response.headers = {"content-type": "application/octet-stream"}
+        mock_response.raise_for_status = MagicMock()
+        mock_response.json = MagicMock(side_effect=RuntimeError("json must not be called"))
+
+        http_client.client.get = AsyncMock(return_value=mock_response)
+
+        with patch.object(http_client, "_ensure_client_token", new_callable=AsyncMock):
+            result = await http_client.get_raw("/binary")
+
+        assert result is mock_response
+        mock_response.json.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_get_request_401_clears_token(self, http_client):
         """Test that 401 clears client token."""
         await http_client._initialize_client()
@@ -502,7 +523,29 @@ class TestInternalHttpClient:
         await http_client._initialize_client()
 
         with pytest.raises(ValueError, match="Unsupported HTTP method"):
-            await http_client.request("PATCH", "/api/resource")
+            await http_client.request("TRACE", "/api/resource")
+
+    @pytest.mark.asyncio
+    async def test_request_patch_dispatches_with_whitespace_method_string(self, http_client):
+        """Manifest/OpenAPI exports may include newline-terminated HTTP methods."""
+        await http_client._initialize_client()
+        http_client.token_manager.client_token = "test-token"
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"ok": True}
+        mock_response.headers.get.return_value = "application/json"
+        mock_response.raise_for_status = MagicMock()
+
+        http_client.client.patch = AsyncMock(return_value=mock_response)
+
+        with patch.object(http_client, "_ensure_client_token", new_callable=AsyncMock):
+            result = await http_client.request(
+                "PATCH\n", "/crm/v3/objects/companies/1", {"properties": {"name": "x"}}
+            )
+
+        assert result == {"ok": True}
+        http_client.client.patch.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_parse_error_response_non_json(self, http_client):
