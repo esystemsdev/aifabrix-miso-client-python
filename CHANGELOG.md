@@ -5,6 +5,31 @@ All notable changes to the MisoClient SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- No unreleased changes.
+
+## [4.12.0] - 2026-05-04
+
+### Added
+
+- **User token lifecycle contract helpers** - Added Dataplane-parity utilities for expiration normalization and refresh scheduling: `normalize_expires_at`, `get_jwt_expires_at`, `get_effective_user_token_refresh_buffer`, `get_user_token_refresh_due_at`, `is_user_token_refresh_due`, and `is_user_token_expired`.
+- **Compatibility-key token storage helpers** - Added token state lifecycle helpers with migration-safe alias support: `store_access_token`, `store_refresh_token`, `clear_stored_access_token`, `clear_stored_refresh_token`, `clear_stored_session_tokens`, `get_stored_refresh_token`, and `get_user_token_expires_at`.
+
+### Changed
+
+- **`UserTokenRefreshManager` internals** - Manager now uses shared lifecycle helpers for proactive refresh timing and compatibility-key token state updates, and stores per-user token state for parity behavior.
+- **Public exports and docs** - Exported lifecycle helpers from `miso_client` top-level module and documented usage in `README.md`.
+- **Validation command guidance** - Updated validation command documents to prioritize silent quality gates and synchronized plan/todo state handling.
+
+### Technical
+
+- **Unit coverage** - Extended `test_user_token_refresh.py` with contract-focused tests for normalization variants, adaptive refresh behavior, due/expired transitions, compatibility-key lifecycle semantics, and helper-level positive/negative edge coverage.
+- **Release version alignment** - Set package version to `4.12.0` in `pyproject.toml`, `setup.py`, `miso_client.__version__`, and `.bumpversion.cfg`.
+- **Validation baseline** - `make validate` passes (format, lint, type-check, test).
+
 ## [4.11.0] - 2026-04-26
 
 ### Added

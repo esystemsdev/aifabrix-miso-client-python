@@ -21,6 +21,16 @@ The command:
 
 Run this command in chat with `/validate-code`
 
+## Validation Command Preference (Silent-First)
+
+When this command creates a new implementation plan, validation command blocks in that plan
+must use silent Make targets first, with non-silent commands as fallback.
+
+- Primary wrapper: `make validate-silent`
+- Step-level commands: `make format-silent`, `make lint-silent`, `make type-check-silent`, `make test-silent`
+- Logs and diagnostics: `.temp/validation/` is the primary diagnostics source
+- Fallback only if needed: `make validate`, `make format`, `make lint`, `make type-check`, `make test`
+
 ## What It Does
 
 For each newly created unified plan, the command:
@@ -277,6 +287,7 @@ The unified plan groups findings under these categories for readability, but all
 - **Existing Plans**: Existing `*-fix-and-improve-code.plan.md` files are historical snapshots and must not be edited by this command
 - **New Plans**: A new plan is always created with sequential numbering (starting from biggest number in plan folder plus 1), and it must include all fixes that are still not completed
 - **Execution**: Do NOT ask the user for input or show what's being done unless necessary for breaking changes or other critical reasons. The command should execute improvements silently and automatically
+- **Validation Commands in Generated Plans**: Always write validation/DoD command blocks in silent-first format (silent Make targets first, non-silent fallback second)
 - Only one new plan file is created per run
 - Plans include actionable tasks with specific file locations and line numbers where applicable
 - Plans reference specific cursor rules that are violated

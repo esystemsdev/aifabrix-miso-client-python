@@ -6,7 +6,9 @@ When the `/repair-release` command is used, the agent must automatically prepare
 
 1. **Validation Step**:
    - First, run validation to ensure all tests pass, linting is clean, and the codebase is in a validated state
-   - This includes: `make validate` (or equivalent: `ruff check`, `black`, `isort`, `pytest`)
+   - Silent-first path: run `make validate-silent` and use `.temp/validation/` logs as primary diagnostics
+   - If silent execution is unavailable, fallback to `make validate`
+   - This includes format/lint/type-check/test validation gates
    - Do not proceed until all validation steps pass
 
 2. **Change Detection Step**:
@@ -60,6 +62,7 @@ When the `/repair-release` command is used, the agent must automatically prepare
 
 - **Automatic Execution**: The agent MUST automatically execute all steps without user interaction
 - **Validation First**: Always run validation first to ensure codebase is ready for release
+- **Silent-First Validation**: Prefer `make validate-silent`; use `.temp/validation/` logs for diagnostics
 - **Change Analysis**: Properly analyze git changes to determine version increment type
 - **Changelog Format**: Follow the exact format used in existing CHANGELOG.md entries
 - **Version Semantics**:
@@ -93,7 +96,7 @@ When the `/repair-release` command is used, the agent must automatically prepare
   - New type definitions or interfaces
 
 **Work is only complete when:**
-- ✅ All validation tests pass (via `make validate` or equivalent)
+- ✅ All validation tests pass (prefer `make validate-silent`; fallback: `make validate`)
 - ✅ Changes have been analyzed from git
 - ✅ Version number has been determined and incremented
 - ✅ CHANGELOG.md has been updated with new version entry
