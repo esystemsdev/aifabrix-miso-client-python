@@ -1,22 +1,14 @@
-"""User token refresh manager and token lifecycle helper contracts."""
+"""User token refresh manager and internal token lifecycle helpers."""
 
 import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any, Awaitable, Callable, Dict, MutableMapping, Optional, Sequence
+from typing import Any, Awaitable, Callable, Dict, Optional, Sequence
 
 from .jwt_tools import decode_token, extract_user_id
 
 logger = logging.getLogger(__name__)
 
-ACCESS_TOKEN_KEYS: Sequence[str] = ("miso_token", "token", "accessToken", "authToken")
-REFRESH_TOKEN_KEYS: Sequence[str] = ("miso:user-refresh-token", "refreshToken")
-ACCESS_TOKEN_EXPIRES_AT_KEYS: Sequence[str] = (
-    "miso_token_expires_at",
-    "tokenExpiresAt",
-    "accessTokenExpiresAt",
-    "expiresAt",
-)
 JWT_EXPIRATION_CLAIMS: Sequence[str] = ("exp", "expiresAt", "expires_at")
 JWT_ISSUED_AT_CLAIMS: Sequence[str] = ("iat", "issuedAt", "issued_at")
 DEFAULT_USER_TOKEN_REFRESH_BUFFER_SECONDS = 60
@@ -184,103 +176,6 @@ def is_user_token_expired(expires_at: Any, *, now: Optional[datetime] = None) ->
     return comparison_now >= normalized_expires_at
 
 
-def _set_for_keys(storage: MutableMapping[str, Any], keys: Sequence[str], value: Any) -> None:
-    """Set same value for all alias keys."""
-    for key in keys:
-        storage[key] = value
-
-
-def _pop_for_keys(storage: MutableMapping[str, Any], keys: Sequence[str]) -> None:
-    """Delete all alias keys from storage if present."""
-    for key in keys:
-        storage.pop(key, None)
-
-
-def _get_first_string(storage: MutableMapping[str, Any], keys: Sequence[str]) -> Optional[str]:
-    """Read first non-empty string value by alias priority."""
-    for key in keys:
-        value = _normalize_str(storage.get(key))
-        if value is not None:
-            return value
-    return None
-
-
-def _get_stored_access_token(storage: MutableMapping[str, Any]) -> Optional[str]:
-    """Read stored access token from compatibility keys."""
-    return _get_first_string(storage, ACCESS_TOKEN_KEYS)
-
-
-def store_access_token(
-    storage: MutableMapping[str, Any], token: str, expires_at: Any = None
-) -> MutableMapping[str, Any]:
-    """Store access token and expiration metadata with compatibility aliases.
-
-    If token value is unchanged and no stronger expiration signal is provided,
-    existing expiration metadata is preserved.
-    """
-    existing_token = _get_stored_access_token(storage)
-    existing_expires_at = get_user_token_expires_at(storage)
-    provided_expires_at = normalize_expires_at(expires_at)
-    resolved_expires_at = provided_expires_at
-    if resolved_expires_at is None and existing_token == token:
-        resolved_expires_at = existing_expires_at
-
-    _set_for_keys(storage, ACCESS_TOKEN_KEYS, token)
-    if resolved_expires_at is not None:
-        serialized = resolved_expires_at.isoformat()
-        _set_for_keys(storage, ACCESS_TOKEN_EXPIRES_AT_KEYS, serialized)
-    elif existing_token != token:
-        _pop_for_keys(storage, ACCESS_TOKEN_EXPIRES_AT_KEYS)
-
-    return storage
-
-
-def store_refresh_token(
-    storage: MutableMapping[str, Any], refresh_token: str
-) -> MutableMapping[str, Any]:
-    """Store refresh token in all compatibility aliases."""
-    _set_for_keys(storage, REFRESH_TOKEN_KEYS, refresh_token)
-    return storage
-
-
-def clear_stored_access_token(storage: MutableMapping[str, Any]) -> MutableMapping[str, Any]:
-    """Clear all access-token aliases and expiration metadata."""
-    _pop_for_keys(storage, ACCESS_TOKEN_KEYS)
-    _pop_for_keys(storage, ACCESS_TOKEN_EXPIRES_AT_KEYS)
-    return storage
-
-
-def clear_stored_refresh_token(storage: MutableMapping[str, Any]) -> MutableMapping[str, Any]:
-    """Clear all refresh-token aliases."""
-    _pop_for_keys(storage, REFRESH_TOKEN_KEYS)
-    return storage
-
-
-def clear_stored_session_tokens(storage: MutableMapping[str, Any]) -> MutableMapping[str, Any]:
-    """Clear both access and refresh token aliases."""
-    clear_stored_access_token(storage)
-    clear_stored_refresh_token(storage)
-    return storage
-
-
-def get_stored_refresh_token(storage: MutableMapping[str, Any]) -> Optional[str]:
-    """Read refresh token from compatibility aliases."""
-    return _get_first_string(storage, REFRESH_TOKEN_KEYS)
-
-
-def get_user_token_expires_at(storage: MutableMapping[str, Any]) -> Optional[datetime]:
-    """Read access-token expiration from explicit metadata or JWT claims."""
-    for key in ACCESS_TOKEN_EXPIRES_AT_KEYS:
-        parsed = normalize_expires_at(storage.get(key))
-        if parsed is not None:
-            return parsed
-
-    access_token = _get_stored_access_token(storage)
-    if access_token is None:
-        return None
-    return get_jwt_expires_at(access_token)
-
-
 class UserTokenRefreshManager:
     """Manages user token refresh with proactive refresh and 401 retry."""
 
@@ -292,7 +187,6 @@ class UserTokenRefreshManager:
         self._refresh_locks: Dict[str, asyncio.Lock] = {}
         self._refreshed_tokens: Dict[str, str] = {}
         self._auth_service: Optional[Any] = None
-        self._token_storage_by_user: Dict[str, Dict[str, Any]] = {}
 
     def register_refresh_callback(
         self, user_id: str, callback: Callable[[str], Awaitable[Any]]
@@ -315,7 +209,6 @@ class UserTokenRefreshManager:
 
         """
         self._refresh_tokens[user_id] = refresh_token
-        self.store_refresh_token(user_id, refresh_token)
 
     def set_auth_service(self, auth_service: Any) -> None:
         """Set AuthService instance for refresh endpoint calls.
@@ -329,40 +222,6 @@ class UserTokenRefreshManager:
     def _get_user_id(self, token: str) -> Optional[str]:
         """Extract user ID from token."""
         return extract_user_id(token)
-
-    def _get_user_token_store(self, user_id: str) -> Dict[str, Any]:
-        """Return mutable per-user token store."""
-        if user_id not in self._token_storage_by_user:
-            self._token_storage_by_user[user_id] = {}
-        return self._token_storage_by_user[user_id]
-
-    def store_access_token(self, user_id: str, token: str, expires_at: Any = None) -> None:
-        """Store access token in compatibility storage for user."""
-        store_access_token(self._get_user_token_store(user_id), token, expires_at)
-
-    def store_refresh_token(self, user_id: str, refresh_token: str) -> None:
-        """Store refresh token in compatibility storage for user."""
-        store_refresh_token(self._get_user_token_store(user_id), refresh_token)
-
-    def get_stored_refresh_token(self, user_id: str) -> Optional[str]:
-        """Read stored refresh token for user."""
-        return get_stored_refresh_token(self._get_user_token_store(user_id))
-
-    def get_user_token_expires_at(self, user_id: str) -> Optional[datetime]:
-        """Read stored access-token expiration for user."""
-        return get_user_token_expires_at(self._get_user_token_store(user_id))
-
-    def clear_stored_access_token(self, user_id: str) -> None:
-        """Clear stored access-token aliases for user."""
-        clear_stored_access_token(self._get_user_token_store(user_id))
-
-    def clear_stored_refresh_token(self, user_id: str) -> None:
-        """Clear stored refresh-token aliases for user."""
-        clear_stored_refresh_token(self._get_user_token_store(user_id))
-
-    def clear_stored_session_tokens(self, user_id: str) -> None:
-        """Clear stored access/refresh token aliases for user."""
-        clear_stored_session_tokens(self._get_user_token_store(user_id))
 
     def _is_token_expired(self, token: str, buffer_seconds: int = 60) -> bool:
         """Check if token is expired or will expire soon.
@@ -417,7 +276,6 @@ class UserTokenRefreshManager:
         self._refresh_callbacks.pop(user_id, None)
         self._refresh_tokens.pop(user_id, None)
         self._refresh_locks.pop(user_id, None)
-        self._token_storage_by_user.pop(user_id, None)
 
     def clear_user_tokens(self, user_id: str) -> None:
         """Clear all tokens and refresh data for a user."""
@@ -431,8 +289,6 @@ class UserTokenRefreshManager:
             user_id = self._get_user_id(token)
             refreshed = await self._refresh_token(token, user_id)
             if refreshed:
-                if user_id:
-                    self.store_access_token(user_id, refreshed)
                 return refreshed
         return token
 
@@ -481,7 +337,12 @@ class UserTokenRefreshManager:
         refresh_token = refresh_response.get("refreshToken")
         if refresh_token:
             self._refresh_tokens[user_id] = str(refresh_token)
-            self.store_refresh_token(user_id, str(refresh_token))
+
+    def _cache_token_expiration(self, token: str, expires_at: Any) -> None:
+        """Cache parsed token expiration when refresh response provides it."""
+        parsed_expires_at = normalize_expires_at(expires_at)
+        if parsed_expires_at is not None:
+            self._token_expirations[token] = parsed_expires_at
 
     async def _refresh_with_refresh_token(
         self, user_id: str, token: str, refresh_token: Optional[str]
@@ -494,7 +355,7 @@ class UserTokenRefreshManager:
             return None
         refreshed_token = self._token_to_str(refresh_response["token"])
         refreshed = self._cache_refreshed_token(token, refreshed_token)
-        self.store_access_token(user_id, refreshed_token, refresh_response.get("expiresAt"))
+        self._cache_token_expiration(refreshed_token, refresh_response.get("expiresAt"))
         self._update_refresh_token(user_id, refresh_response)
         return refreshed
 

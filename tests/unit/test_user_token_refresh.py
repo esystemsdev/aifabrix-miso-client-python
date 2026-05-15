@@ -12,19 +12,12 @@ import pytest
 
 from miso_client.utils.user_token_refresh import (
     UserTokenRefreshManager,
-    clear_stored_access_token,
-    clear_stored_refresh_token,
-    clear_stored_session_tokens,
     get_effective_user_token_refresh_buffer,
     get_jwt_expires_at,
-    get_stored_refresh_token,
-    get_user_token_expires_at,
     get_user_token_refresh_due_at,
     is_user_token_expired,
     is_user_token_refresh_due,
     normalize_expires_at,
-    store_access_token,
-    store_refresh_token,
 )
 
 
@@ -183,6 +176,33 @@ class TestUserTokenRefreshManager:
             # Verify refresh token was updated
             assert refresh_manager._refresh_tokens["user-123"] == "new-refresh-token"
             mock_auth_service.refresh_user_token.assert_called_once_with("stored-refresh-token")
+
+    @pytest.mark.asyncio
+    async def test_refresh_token_ignores_legacy_storage_alias_keys(
+        self, refresh_manager, mock_auth_service
+    ):
+        """Uses registered refresh token, not removed legacy storage aliases."""
+        refresh_manager.set_auth_service(mock_auth_service)
+        refresh_manager.register_refresh_token("user-123", "canonical-refresh-token")
+        # Simulate stale legacy storage payload shape from pre-cutover consumers.
+        refresh_manager._token_storage_by_user = {
+            "user-123": {
+                "miso_token": "legacy-access-token",
+                "token": "legacy-access-token",
+                "authToken": "legacy-access-token",
+                "refreshToken": "legacy-refresh-token",
+            }
+        }
+        mock_auth_service.refresh_user_token.return_value = {
+            "token": "new-access-token",
+            "refreshToken": "new-refresh-token",
+            "expiresAt": int((datetime.now(timezone.utc) + timedelta(minutes=30)).timestamp()),
+        }
+
+        refreshed = await refresh_manager._refresh_token("old-token", "user-123")
+
+        assert refreshed == "new-access-token"
+        mock_auth_service.refresh_user_token.assert_called_once_with("canonical-refresh-token")
 
     @pytest.mark.asyncio
     async def test_refresh_token_via_jwt_refresh_token(self, refresh_manager, mock_auth_service):
@@ -365,7 +385,7 @@ class TestUserTokenRefreshManager:
 
 
 class TestUserTokenLifecycleContracts:
-    """Contract-level tests for extracted user token lifecycle helpers."""
+    """Contract-level tests for final no-migration token lifecycle behavior."""
 
     def test_normalize_expires_at_supports_seconds_milliseconds_and_iso(self):
         """Normalizes all expected expiration formats."""
@@ -457,116 +477,14 @@ class TestUserTokenLifecycleContracts:
         assert is_user_token_refresh_due("invalid") is False
         assert is_user_token_expired("invalid") is False
 
-    def test_storage_lifecycle_and_compatibility_keys(self):
-        """Stores and clears session tokens through compatibility aliases."""
-        storage = {}
-        expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+    def test_manager_no_longer_exposes_storage_helper_api(self):
+        """Storage helper API is intentionally removed in hard-cutover contract."""
+        manager = UserTokenRefreshManager()
 
-        store_access_token(storage, "access-1", expires_at=expires_at)
-        store_refresh_token(storage, "refresh-1")
-
-        assert storage["miso_token"] == "access-1"
-        assert storage["token"] == "access-1"
-        assert storage["accessToken"] == "access-1"
-        assert storage["authToken"] == "access-1"
-        assert storage["miso:user-refresh-token"] == "refresh-1"
-        assert storage["refreshToken"] == "refresh-1"
-        assert get_stored_refresh_token(storage) == "refresh-1"
-        assert get_user_token_expires_at(storage) is not None
-
-        clear_stored_access_token(storage)
-        assert "miso_token" not in storage
-        assert "token" not in storage
-        assert "accessToken" not in storage
-        assert "authToken" not in storage
-
-        clear_stored_refresh_token(storage)
-        assert "miso:user-refresh-token" not in storage
-        assert "refreshToken" not in storage
-
-    def test_store_access_token_preserves_expiry_when_value_unchanged(self):
-        """Keeps existing expiration metadata if token value is unchanged."""
-        storage = {}
-        first_expires_at = datetime.now(timezone.utc) + timedelta(minutes=30)
-        store_access_token(storage, "access-1", expires_at=first_expires_at)
-
-        second_expires_at = get_user_token_expires_at(storage)
-        assert second_expires_at is not None
-
-        store_access_token(storage, "access-1")
-        preserved_expires_at = get_user_token_expires_at(storage)
-
-        assert preserved_expires_at is not None
-        assert int(preserved_expires_at.timestamp()) == int(second_expires_at.timestamp())
-
-    def test_store_access_token_clears_old_expiry_when_token_changes_without_expiry(self):
-        """Clears stale expiry metadata when token changes and no expiry is provided."""
-        storage = {}
-        store_access_token(
-            storage, "access-1", expires_at=datetime.now(timezone.utc) + timedelta(minutes=10)
-        )
-        assert get_user_token_expires_at(storage) is not None
-
-        store_access_token(storage, "access-2")
-        assert get_user_token_expires_at(storage) is None
-
-    def test_store_refresh_token_overwrites_existing_aliases(self):
-        """Overwrites all refresh token aliases with latest value."""
-        storage = {}
-        store_refresh_token(storage, "refresh-1")
-        store_refresh_token(storage, "refresh-2")
-
-        assert storage["miso:user-refresh-token"] == "refresh-2"
-        assert storage["refreshToken"] == "refresh-2"
-        assert get_stored_refresh_token(storage) == "refresh-2"
-
-    def test_clear_stored_session_tokens_clears_both_token_types(self):
-        """Clears both access and refresh data together."""
-        storage = {}
-        store_access_token(storage, "access-1")
-        store_refresh_token(storage, "refresh-1")
-
-        clear_stored_session_tokens(storage)
-
-        assert get_stored_refresh_token(storage) is None
-        assert get_user_token_expires_at(storage) is None
-
-    def test_clear_helpers_are_idempotent_with_missing_keys(self):
-        """Handles repeated clear operations safely on empty storage."""
-        storage = {}
-
-        clear_stored_access_token(storage)
-        clear_stored_refresh_token(storage)
-        clear_stored_session_tokens(storage)
-
-        clear_stored_access_token(storage)
-        clear_stored_refresh_token(storage)
-        clear_stored_session_tokens(storage)
-
-        assert storage == {}
-
-    def test_get_stored_refresh_token_returns_none_for_blank_or_missing_values(self):
-        """Returns None when refresh aliases are missing or blank."""
-        storage = {"miso:user-refresh-token": "   ", "refreshToken": ""}
-        assert get_stored_refresh_token(storage) is None
-
-        storage.clear()
-        assert get_stored_refresh_token(storage) is None
-
-    def test_get_user_token_expires_at_uses_jwt_fallback_when_metadata_missing(self):
-        """Falls back to JWT claims if explicit expiration metadata is absent."""
-        future = int((datetime.now(timezone.utc) + timedelta(minutes=20)).timestamp())
-        storage = {"miso_token": "access-token"}
-
-        with patch("miso_client.utils.user_token_refresh.decode_token") as mock_decode:
-            mock_decode.return_value = {"exp": future}
-            expires_at = get_user_token_expires_at(storage)
-            assert expires_at is not None
-
-    def test_get_user_token_expires_at_returns_none_for_invalid_storage_and_jwt(self):
-        """Returns None when neither metadata nor JWT claims provide valid expiration."""
-        storage = {"miso_token": "access-token", "expiresAt": "invalid"}
-
-        with patch("miso_client.utils.user_token_refresh.decode_token") as mock_decode:
-            mock_decode.return_value = {"exp": "invalid"}
-            assert get_user_token_expires_at(storage) is None
+        assert not hasattr(manager, "store_access_token")
+        assert not hasattr(manager, "store_refresh_token")
+        assert not hasattr(manager, "clear_stored_access_token")
+        assert not hasattr(manager, "clear_stored_refresh_token")
+        assert not hasattr(manager, "clear_stored_session_tokens")
+        assert not hasattr(manager, "get_stored_refresh_token")
+        assert not hasattr(manager, "get_user_token_expires_at")

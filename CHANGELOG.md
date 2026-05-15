@@ -7,9 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+### Changed
 
-- No unreleased changes.
+- **Hard cutover: removed token storage helper API (breaking)** - Removed exported helper surface for compatibility-key token storage lifecycle: `store_access_token`, `store_refresh_token`, `clear_stored_access_token`, `clear_stored_refresh_token`, `clear_stored_session_tokens`, `get_stored_refresh_token`, and `get_user_token_expires_at`.
+- **`UserTokenRefreshManager` final-only behavior** - Manager no longer maintains compatibility alias storage and relies on direct refresh-token registration plus JWT/response expiration semantics for proactive refresh decisions.
+
+### Documentation
+
+- **Migration guidance update** - README now documents the final helper contract without legacy storage aliases; consumer migration instructions are provided for projects previously using removed helper APIs.
 
 ## [4.13.1] - 2026-05-08
 

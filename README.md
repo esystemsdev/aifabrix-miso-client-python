@@ -198,7 +198,7 @@ if token:
 
 **Two-token model:** The SDK uses a **client token** (obtained once from the controller with client id/secret, sent as `x-client-token` on all API requests) and a **user token** (sent as `Authorization: Bearer <token>` for user-scoped operations). Only the client token endpoint receives client id/secret; all other APIs use the client token.
 
-**User token lifecycle contract (Dataplane parity):** The SDK exposes reusable helpers for token-expiration normalization, adaptive refresh scheduling, and compatibility-key token state handling:
+**User token lifecycle contract (hard cutover):** The SDK exposes helpers for token-expiration normalization and adaptive refresh scheduling. Legacy token storage helper API has been removed.
 
 ```python
 from miso_client import (
@@ -208,18 +208,8 @@ from miso_client import (
     get_user_token_refresh_due_at,
     is_user_token_refresh_due,
     is_user_token_expired,
-    store_access_token,
-    store_refresh_token,
-    clear_stored_session_tokens,
-    get_stored_refresh_token,
-    get_user_token_expires_at,
 )
 ```
-
-Compatibility aliases for migration parity:
-
-- access token keys: `miso_token`, `token`, `accessToken`, `authToken`
-- refresh token keys: `miso:user-refresh-token`, `refreshToken`
 
 **Token exchange (Entra/delegated tokens):** If your app has an external token (e.g. Entra ID), call `exchange_token(delegated_token)` to get a Keycloak token for use with the SDK: `result = await client.exchange_token(entra_token)` then use `result.accessToken` for `validate_token`, `get_roles`, etc.
 

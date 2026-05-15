@@ -205,6 +205,19 @@ When plan sections are added or updated, keep task state representations consist
    - Align statuses with markdown task states and current validation outcome.
 3. Conflict resolution
    - Resolve contradictions immediately; do not leave stale `in_progress` items.
+4. Coverage completeness (required)
+   - Verify frontmatter `todos` covers all major plan phases present in body:
+     - `Before Development`
+     - Core implementation work
+     - Tests (for code plans)
+     - Documentation updates (if docs are in scope)
+     - Validation gates
+     - Final closure/DoD verification
+   - Add missing phase todos with `pending` status.
+   - Ensure bidirectional mapping:
+     - every major phase in plan body maps to at least one frontmatter todo,
+     - every frontmatter todo maps back to a concrete phase in plan body.
+   - Flag redundant or duplicate todos for cleanup; merge/remove only when clearly safe.
 
 ### Step 5: Update Plan with Rule References
 
@@ -360,6 +373,7 @@ Every plan must include these requirements in the Definition of Done section:
 12. **Documentation**: Update documentation as needed (README, API docs, guides, usage examples)
 13. **All Tasks Completed**: All plan tasks marked as complete
 14. **Task State Sync**: Markdown checkboxes and frontmatter `todos` are consistent
+15. **Todo Coverage Completeness**: Frontmatter `todos` fully covers major execution phases from plan body (no missing required phase todos)
 
 ## Example Plan Updates
 
