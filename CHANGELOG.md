@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- No unreleased changes.
+
+## [4.14.0] - 2026-05-19
+
 ### Changed
 
 - **Hard cutover: removed token storage helper API (breaking)** - Removed exported helper surface for compatibility-key token storage lifecycle: `store_access_token`, `store_refresh_token`, `clear_stored_access_token`, `clear_stored_refresh_token`, `clear_stored_session_tokens`, `get_stored_refresh_token`, and `get_user_token_expires_at`.
@@ -15,6 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Documentation
 
 - **Migration guidance update** - README now documents the final helper contract without legacy storage aliases; consumer migration instructions are provided for projects previously using removed helper APIs.
+
+### Technical
+
+- **Validation baseline** - `make validate-silent` passes (format, lint, type-check, test).
+- **Release version alignment** - Set package version to `4.14.0` in `pyproject.toml`, `setup.py`, `miso_client.__version__`, and `.bumpversion.cfg`.
 
 ## [4.13.1] - 2026-05-08
 
