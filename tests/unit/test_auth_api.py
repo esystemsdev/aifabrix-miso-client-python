@@ -203,6 +203,26 @@ class TestAuthApi:
         mock_http_client.post.assert_called_once_with(auth_api.REFRESH_ENDPOINT)
 
     @pytest.mark.asyncio
+    async def test_refresh_token_without_argument_uses_session_endpoint(
+        self, auth_api, mock_http_client
+    ):
+        """Test refresh_token() without argument delegates to session refresh."""
+        mock_response = {
+            "data": {
+                "accessToken": "session-access-token",
+                "refreshToken": None,
+                "expiresIn": 1800,
+            },
+        }
+        mock_http_client.post.return_value = mock_response
+
+        result = await auth_api.refresh_token()
+
+        assert isinstance(result, RefreshTokenResponse)
+        assert result.data.accessToken == "session-access-token"
+        mock_http_client.post.assert_called_once_with(auth_api.REFRESH_ENDPOINT)
+
+    @pytest.mark.asyncio
     async def test_initiate_device_code_success(self, auth_api, mock_http_client):
         """Test successful device code initiation."""
         mock_response = {
