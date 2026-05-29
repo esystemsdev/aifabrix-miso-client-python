@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- No unreleased changes.
+
+## [4.15.0] - 2026-05-29
+
+### Added
+
 - **Session refresh API boundary** - Added `AuthApi.refresh_session_token()` for cookie/session refresh via `POST /api/v1/auth/refresh` without request-body `refreshToken`.
 
 ### Changed
@@ -16,6 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Refresh contract separation** - `AuthApi.refresh_token(refresh_token)` now routes token-based refresh through `POST /api/v1/auth/login/device/refresh`, while session refresh remains explicit and body-less.
 - **Auth refresh helpers** - `AuthService`/`auth_flow_helpers` token refresh fallback now uses `/api/v1/auth/login/device/refresh` to preserve refresh-token contract compatibility.
 - **Test and docs alignment** - Updated unit/integration tests and docs to reflect explicit separation between browser session refresh and device refresh-token flow.
+
+### Technical
+
+- **Plan 192 execution** - Implemented Python SDK scope for unified token-provider cutover and finalized release-ready contract coverage.
+- **Validation baseline** - `make validate-silent` and `make test-integration-silent` pass in the prepared local environment.
+- **Release version alignment** - Set package version to `4.15.0` in `pyproject.toml`, `setup.py`, `miso_client.__version__`, and `.bumpversion.cfg`.
 
 ## [4.14.0] - 2026-05-19
 
