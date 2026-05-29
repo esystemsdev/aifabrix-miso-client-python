@@ -11,7 +11,9 @@ The SDK is aligned with the **miso-controller** API spec:
 | Initiate device code | **POST** `/api/v1/auth/login` (body: optional `environment`, `scope`) | `AuthApi.initiate_device_code(environment=..., scope=...)` → POST `/api/v1/auth/login` |
 | Poll device code token | POST `/api/v1/auth/login/device/token` (body: `deviceCode`) | `AuthApi.poll_device_code_token(device_code)` |
 | Refresh device code token | POST `/api/v1/auth/login/device/refresh` (body: `refreshToken`) | `AuthApi.refresh_device_code_token(refresh_token)` |
-| Refresh user token | POST `/api/v1/auth/refresh` (body: `refreshToken`) | `AuthApi.refresh_token(refresh_token)` |
+| Refresh browser session token | POST `/api/v1/auth/refresh` (cookie/session; no `refreshToken` body) | `AuthApi.refresh_session_token()` |
+
+Token-based refresh in server-side SDK flows is handled through the explicit device endpoint contract (`/api/v1/auth/login/device/refresh`).
 
 Note: The spec does **not** define `/api/v1/auth/login/device` for initiation; it is **POST /api/v1/auth/login** only. Integration tests pass `environment` (env `MISO_ENVIRONMENT` or `TEST_ENVIRONMENT` or default `miso`).
 

@@ -27,7 +27,8 @@ Conftest loads `TEST_REFRESH_TOKEN` from `REFRESH_TOKEN` or `MISO_REFRESH_TOKEN`
 
 ### 2. Token refresh (`test_refresh_token`)
 
-- **SDK:** `POST /api/v1/auth/refresh` with body `{ "refreshToken": "<token>" }` (client token in header).
+- **SDK:** Uses explicit token-based contract `POST /api/v1/auth/login/device/refresh` with body `{ "refreshToken": "<token>" }`.
+- **Session boundary:** `POST /api/v1/auth/refresh` is cookie/session-oriented and does not use body `refreshToken`.
 - **Tests:** Fail if no refresh token is provided via env (see variables above). Set `REFRESH_TOKEN` or `TEST_REFRESH_TOKEN` (or file) so this test runs.
 
 ### 3. Get job log (`test_get_job_log`)

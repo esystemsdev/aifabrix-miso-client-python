@@ -399,7 +399,7 @@ class TestAuthEndpoints:
 
     @pytest.mark.asyncio
     async def test_refresh_token(self, client, config, user_token):
-        """Test POST /api/v1/auth/refresh - Refresh user access token."""
+        """Test POST /api/v1/auth/login/device/refresh - Refresh device token."""
         if should_skip(config) or not user_token:
             pytest.fail("Config or user token not available")
 
@@ -414,12 +414,11 @@ class TestAuthEndpoints:
                 )
 
             # Use API client directly to test the API layer
-            response = await client.api_client.auth.refresh_token(refresh_token)
+            response = await client.api_client.auth.refresh_device_code_token(refresh_token)
             assert response is not None
-            assert hasattr(response, "data")
-            assert hasattr(response.data, "accessToken")
-            assert isinstance(response.data.accessToken, str)
-            assert len(response.data.accessToken) > 0
+            assert hasattr(response, "accessToken")
+            assert isinstance(response.accessToken, str)
+            assert len(response.accessToken) > 0
         except Exception as e:
             # Token refresh may fail if refresh token is expired or invalid
             if "401" in str(e) or "Unauthorized" in str(e) or "invalid" in str(e).lower():

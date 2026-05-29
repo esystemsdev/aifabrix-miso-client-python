@@ -605,18 +605,16 @@ class TestAuthService:
     @pytest.mark.asyncio
     async def test_refresh_user_token_success(self, auth_service):
         """Test successful user token refresh."""
-        from miso_client.api.types.auth_types import DeviceCodeTokenResponse, RefreshTokenResponse
+        from miso_client.api.types.auth_types import DeviceCodeTokenResponse
 
-        refresh_response = RefreshTokenResponse(
-            success=True,
-            data=DeviceCodeTokenResponse(
-                accessToken="new-access-token",
-                refreshToken="new-refresh-token",
-                expiresIn=3600,
-            ),
-            timestamp="2024-01-01T00:00:00Z",
+        refresh_response = DeviceCodeTokenResponse(
+            accessToken="new-access-token",
+            refreshToken="new-refresh-token",
+            expiresIn=3600,
         )
-        auth_service.api_client.auth.refresh_token = AsyncMock(return_value=refresh_response)
+        auth_service.api_client.auth.refresh_device_code_token = AsyncMock(
+            return_value=refresh_response
+        )
 
         result = await auth_service.refresh_user_token("refresh-token-abc")
 
@@ -624,19 +622,23 @@ class TestAuthService:
         assert result["data"]["token"] == "new-access-token"
         assert result["data"]["refreshToken"] == "new-refresh-token"
         assert result["data"]["expiresIn"] == 3600
-        auth_service.api_client.auth.refresh_token.assert_called_once_with("refresh-token-abc")
+        auth_service.api_client.auth.refresh_device_code_token.assert_called_once_with(
+            "refresh-token-abc"
+        )
 
     @pytest.mark.asyncio
     async def test_refresh_user_token_failure(self, auth_service):
         """Test refresh user token failure."""
-        auth_service.api_client.auth.refresh_token = AsyncMock(
+        auth_service.api_client.auth.refresh_device_code_token = AsyncMock(
             side_effect=Exception("Refresh failed")
         )
 
         result = await auth_service.refresh_user_token("refresh-token-abc")
 
         assert result is None
-        auth_service.api_client.auth.refresh_token.assert_called_once_with("refresh-token-abc")
+        auth_service.api_client.auth.refresh_device_code_token.assert_called_once_with(
+            "refresh-token-abc"
+        )
 
     @pytest.mark.asyncio
     async def test_fetch_validation_from_api_client_no_api_client(self, auth_service):
@@ -755,7 +757,9 @@ class TestAuthService:
             assert result is not None
             assert result["data"]["token"] == "new-access-token"
             mock_request.assert_called_once_with(
-                "POST", "/api/v1/auth/refresh", {"refreshToken": "refresh-token"}
+                "POST",
+                "/api/v1/auth/login/device/refresh",
+                {"refreshToken": "refresh-token"},
             )
 
     @pytest.mark.asyncio

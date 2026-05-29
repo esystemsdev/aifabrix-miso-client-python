@@ -211,6 +211,8 @@ from miso_client import (
 )
 ```
 
+**Refresh endpoint boundary:** Token-based refresh in Python SDK flows uses `POST /api/v1/auth/login/device/refresh` with body `refreshToken` (via `AuthApi.refresh_device_code_token(...)`). Browser session refresh remains `POST /api/v1/auth/refresh` with no `refreshToken` body (via `AuthApi.refresh_session_token()`).
+
 **Token exchange (Entra/delegated tokens):** If your app has an external token (e.g. Entra ID), call `exchange_token(delegated_token)` to get a Keycloak token for use with the SDK: `result = await client.exchange_token(entra_token)` then use `result.accessToken` for `validate_token`, `get_roles`, etc.
 
 **Validate application token (client token):** To verify a controller-issued application token (e.g. `x-client-token` from your backend or dataplane), use `validate_client_token(token)`. Results are cached to avoid extra controller calls. Use for dataplane or services that need to check an app token: `result = await client.validate_client_token(app_token)` then check `result.data.authenticated` and `result.data.application`, `result.data.expiresAt`, etc.

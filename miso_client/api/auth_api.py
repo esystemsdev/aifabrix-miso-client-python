@@ -209,11 +209,32 @@ class AuthApi:
             response = await self.http_client.post(self.LOGOUT_ENDPOINT)
         return LogoutResponse(**response)
 
-    async def refresh_token(self, refresh_token: str) -> RefreshTokenResponse:
-        """Refresh user access token (POST).
+    async def refresh_session_token(self) -> RefreshTokenResponse:
+        """Refresh browser session token (POST /api/v1/auth/refresh).
+
+        This endpoint is cookie/session-oriented and does not require a
+        `refreshToken` request body.
+
+        Returns:
+            RefreshTokenResponse with refreshed token payload
+
+        Raises:
+            MisoClientError: If request fails
+        """
+        response = await self.http_client.post(self.REFRESH_ENDPOINT)
+        return RefreshTokenResponse(**response)
+
+    async def refresh_token(self, refresh_token: Optional[str] = None) -> RefreshTokenResponse:
+        """Refresh user access token with explicit contract separation.
+
+        - If `refresh_token` is provided, uses the device refresh endpoint
+          (`/api/v1/auth/login/device/refresh`) that explicitly accepts
+          request-body `refreshToken`.
+        - If `refresh_token` is omitted, uses cookie/session refresh endpoint
+          (`/api/v1/auth/refresh`) with no request body.
 
         Args:
-            refresh_token: Refresh token
+            refresh_token: Optional refresh token for device refresh flow
 
         Returns:
             RefreshTokenResponse with new tokens
@@ -222,11 +243,10 @@ class AuthApi:
             MisoClientError: If request fails
 
         """
-        request_data = RefreshTokenRequest(refreshToken=refresh_token)
-        response = await self.http_client.post(
-            self.REFRESH_ENDPOINT, data=request_data.model_dump()
-        )
-        return RefreshTokenResponse(**response)
+        if refresh_token:
+            device_response = await self.refresh_device_code_token(refresh_token)
+            return RefreshTokenResponse(data=device_response)
+        return await self.refresh_session_token()
 
     async def initiate_device_code(
         self, environment: Optional[str] = None, scope: Optional[str] = None

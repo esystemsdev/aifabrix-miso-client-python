@@ -9,7 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- No unreleased changes.
+- **Session refresh API boundary** - Added `AuthApi.refresh_session_token()` for cookie/session refresh via `POST /api/v1/auth/refresh` without request-body `refreshToken`.
+
+### Changed
+
+- **Refresh contract separation** - `AuthApi.refresh_token(refresh_token)` now routes token-based refresh through `POST /api/v1/auth/login/device/refresh`, while session refresh remains explicit and body-less.
+- **Auth refresh helpers** - `AuthService`/`auth_flow_helpers` token refresh fallback now uses `/api/v1/auth/login/device/refresh` to preserve refresh-token contract compatibility.
+- **Test and docs alignment** - Updated unit/integration tests and docs to reflect explicit separation between browser session refresh and device refresh-token flow.
 
 ## [4.14.0] - 2026-05-19
 

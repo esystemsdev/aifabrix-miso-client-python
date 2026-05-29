@@ -150,19 +150,19 @@ async def exchange_delegated_token(
 async def refresh_user_access_token(
     api_client: Optional["ApiClient"], http_client: HttpClient, refresh_token: str
 ) -> Optional[Dict[str, Any]]:
-    """Refresh user access token via ApiClient or HttpClient fallback."""
+    """Refresh user access token via explicit device-refresh contract."""
     if api_client:
-        response = await api_client.auth.refresh_token(refresh_token)
+        response = await api_client.auth.refresh_device_code_token(refresh_token)
         return {
             "data": {
-                "token": response.data.accessToken,
-                "accessToken": response.data.accessToken,
-                "refreshToken": response.data.refreshToken,
-                "expiresIn": response.data.expiresIn,
+                "token": response.accessToken,
+                "accessToken": response.accessToken,
+                "refreshToken": response.refreshToken,
+                "expiresIn": response.expiresIn,
             },
         }
 
     result = await http_client.request(
-        "POST", "/api/v1/auth/refresh", {"refreshToken": refresh_token}
+        "POST", "/api/v1/auth/login/device/refresh", {"refreshToken": refresh_token}
     )
     return result if isinstance(result, dict) else None
