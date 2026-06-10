@@ -29,6 +29,14 @@ def _normalize_positive_int(value: int) -> int:
     return value if value >= 0 else 0
 
 
+def _extract_refresh_payload(refresh_response: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract refresh payload supporting both nested and flat response shapes."""
+    data = refresh_response.get("data")
+    if isinstance(data, dict):
+        return data
+    return refresh_response
+
+
 def _parse_timestamp_number(value: float) -> Optional[datetime]:
     """Parse epoch seconds or epoch milliseconds into UTC datetime."""
     if value <= 0:
@@ -351,12 +359,26 @@ class UserTokenRefreshManager:
         if not refresh_token or not self._auth_service:
             return None
         refresh_response = await self._auth_service.refresh_user_token(refresh_token)
-        if not refresh_response or not refresh_response.get("token"):
+        if not isinstance(refresh_response, dict):
             return None
-        refreshed_token = self._token_to_str(refresh_response["token"])
+
+        refresh_payload = _extract_refresh_payload(refresh_response)
+        refreshed_token_value = refresh_payload.get("token") or refresh_payload.get("accessToken")
+        if not refreshed_token_value:
+            return None
+
+        refreshed_token = self._token_to_str(refreshed_token_value)
         refreshed = self._cache_refreshed_token(token, refreshed_token)
-        self._cache_token_expiration(refreshed_token, refresh_response.get("expiresAt"))
-        self._update_refresh_token(user_id, refresh_response)
+
+        expires_at_value = refresh_payload.get("expiresAt")
+        if expires_at_value is None:
+            expires_in_value = refresh_payload.get("expiresIn")
+            if isinstance(expires_in_value, (int, float)) and expires_in_value > 0:
+                expires_at_value = datetime.now(timezone.utc) + timedelta(
+                    seconds=int(expires_in_value)
+                )
+        self._cache_token_expiration(refreshed_token, expires_at_value)
+        self._update_refresh_token(user_id, refresh_payload)
         return refreshed
 
     async def _try_refresh_mechanisms(self, token: str, user_id: str) -> Optional[str]:

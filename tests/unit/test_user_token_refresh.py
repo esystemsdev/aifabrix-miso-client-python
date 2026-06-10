@@ -178,6 +178,30 @@ class TestUserTokenRefreshManager:
             mock_auth_service.refresh_user_token.assert_called_once_with("stored-refresh-token")
 
     @pytest.mark.asyncio
+    async def test_refresh_token_supports_nested_refresh_payload(
+        self, refresh_manager, mock_auth_service
+    ):
+        """Supports AuthService response shape with nested data payload."""
+        refresh_manager.set_auth_service(mock_auth_service)
+        refresh_manager.register_refresh_token("user-123", "stored-refresh-token")
+        mock_auth_service.refresh_user_token.return_value = {
+            "data": {
+                "token": "nested-access-token",
+                "accessToken": "nested-access-token",
+                "refreshToken": "nested-refresh-token",
+                "expiresIn": 1800,
+            }
+        }
+
+        with patch("miso_client.utils.user_token_refresh.extract_user_id") as mock_extract:
+            mock_extract.return_value = "user-123"
+            new_token = await refresh_manager._refresh_token("old-token", "user-123")
+
+            assert new_token == "nested-access-token"
+            assert refresh_manager._refresh_tokens["user-123"] == "nested-refresh-token"
+            assert "nested-access-token" in refresh_manager._token_expirations
+
+    @pytest.mark.asyncio
     async def test_refresh_token_ignores_legacy_storage_alias_keys(
         self, refresh_manager, mock_auth_service
     ):
