@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- No unreleased changes.
+
+## [4.17.1] - 2026-06-10
+
+### Added
+
 - **Strict refresh contract unit coverage** - Added tests that reject flat refresh payloads and alias-only token fields in `UserTokenRefreshManager` strict path.
 
 ### Changed
@@ -20,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Documentation
 
 - **Hard-cut strictness alignment** - Updated OpenAPI/integration guidance and consumer migration notes to remove fallback guidance and document strict no-fallback contract behavior.
+
+### Technical
+
+- **Validation baseline** - `make validate-silent` and `make test-integration-silent` pass for release preparation.
 
 ## [4.17.0] - 2026-06-10
 
