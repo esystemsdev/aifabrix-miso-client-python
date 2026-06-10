@@ -11,6 +11,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - No unreleased changes.
 
+## [4.17.0] - 2026-06-10
+
+### Added
+
+- **Session refresh delegation test** - Added unit coverage for `AuthApi.refresh_token()` without argument to assert delegation to cookie/session refresh endpoint (`/api/v1/auth/refresh`) with no request body.
+- **Nested refresh payload regression test** - Added unit coverage in `UserTokenRefreshManager` for nested `{"data": {...}}` refresh responses to prevent contract-shape regressions.
+
+### Changed
+
+- **Refresh payload compatibility in token lifecycle manager** - `UserTokenRefreshManager` now accepts both flat and nested refresh response payloads, supports `token`/`accessToken` aliases, and derives expiration from `expiresIn` when `expiresAt` is absent.
+
+### Technical
+
+- **Validation baseline** - `make validate-silent` and `make test-integration-silent` pass for the release preparation run.
+- **Release version alignment** - Set package version to `4.17.0` in `pyproject.toml`, `setup.py`, `miso_client.__version__`, and `.bumpversion.cfg`.
+
 ## [4.15.0] - 2026-05-29
 
 ### Added
