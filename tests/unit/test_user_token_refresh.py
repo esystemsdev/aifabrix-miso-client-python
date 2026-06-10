@@ -161,9 +161,11 @@ class TestUserTokenRefreshManager:
         refresh_manager.set_auth_service(mock_auth_service)
         refresh_manager.register_refresh_token("user-123", "stored-refresh-token")
         mock_auth_service.refresh_user_token.return_value = {
-            "token": "new-access-token",
-            "refreshToken": "new-refresh-token",
-            "expiresIn": 3600,
+            "data": {
+                "accessToken": "new-access-token",
+                "refreshToken": "new-refresh-token",
+                "expiresIn": 3600,
+            }
         }
 
         with patch("miso_client.utils.user_token_refresh.extract_user_id") as mock_extract:
@@ -178,17 +180,35 @@ class TestUserTokenRefreshManager:
             mock_auth_service.refresh_user_token.assert_called_once_with("stored-refresh-token")
 
     @pytest.mark.asyncio
-    async def test_refresh_token_supports_nested_refresh_payload(
+    async def test_refresh_token_rejects_flat_refresh_payload(
         self, refresh_manager, mock_auth_service
     ):
-        """Supports AuthService response shape with nested data payload."""
+        """Rejects flat refresh payload outside strict canonical shape."""
+        refresh_manager.set_auth_service(mock_auth_service)
+        refresh_manager.register_refresh_token("user-123", "stored-refresh-token")
+        mock_auth_service.refresh_user_token.return_value = {
+            "accessToken": "flat-access-token",
+            "refreshToken": "flat-refresh-token",
+            "expiresIn": 1800,
+        }
+
+        with patch("miso_client.utils.user_token_refresh.extract_user_id") as mock_extract:
+            mock_extract.return_value = "user-123"
+            new_token = await refresh_manager._refresh_token("old-token", "user-123")
+
+            assert new_token is None
+
+    @pytest.mark.asyncio
+    async def test_refresh_token_rejects_token_alias_without_access_token(
+        self, refresh_manager, mock_auth_service
+    ):
+        """Rejects alias-only token field in strict refresh manager path."""
         refresh_manager.set_auth_service(mock_auth_service)
         refresh_manager.register_refresh_token("user-123", "stored-refresh-token")
         mock_auth_service.refresh_user_token.return_value = {
             "data": {
-                "token": "nested-access-token",
-                "accessToken": "nested-access-token",
-                "refreshToken": "nested-refresh-token",
+                "token": "alias-token-only",
+                "refreshToken": "new-refresh-token",
                 "expiresIn": 1800,
             }
         }
@@ -197,9 +217,7 @@ class TestUserTokenRefreshManager:
             mock_extract.return_value = "user-123"
             new_token = await refresh_manager._refresh_token("old-token", "user-123")
 
-            assert new_token == "nested-access-token"
-            assert refresh_manager._refresh_tokens["user-123"] == "nested-refresh-token"
-            assert "nested-access-token" in refresh_manager._token_expirations
+            assert new_token is None
 
     @pytest.mark.asyncio
     async def test_refresh_token_ignores_legacy_storage_alias_keys(
@@ -218,9 +236,11 @@ class TestUserTokenRefreshManager:
             }
         }
         mock_auth_service.refresh_user_token.return_value = {
-            "token": "new-access-token",
-            "refreshToken": "new-refresh-token",
-            "expiresAt": int((datetime.now(timezone.utc) + timedelta(minutes=30)).timestamp()),
+            "data": {
+                "accessToken": "new-access-token",
+                "refreshToken": "new-refresh-token",
+                "expiresAt": int((datetime.now(timezone.utc) + timedelta(minutes=30)).timestamp()),
+            }
         }
 
         refreshed = await refresh_manager._refresh_token("old-token", "user-123")
@@ -233,9 +253,11 @@ class TestUserTokenRefreshManager:
         """Test token refresh via JWT refresh token claim."""
         refresh_manager.set_auth_service(mock_auth_service)
         mock_auth_service.refresh_user_token.return_value = {
-            "token": "new-access-token",
-            "refreshToken": "new-refresh-token",
-            "expiresIn": 3600,
+            "data": {
+                "accessToken": "new-access-token",
+                "refreshToken": "new-refresh-token",
+                "expiresIn": 3600,
+            }
         }
 
         with patch("miso_client.utils.user_token_refresh.extract_user_id") as mock_extract:

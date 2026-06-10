@@ -9,7 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- No unreleased changes.
+- **Strict refresh contract unit coverage** - Added tests that reject flat refresh payloads and alias-only token fields in `UserTokenRefreshManager` strict path.
+
+### Changed
+
+- **No-fallback refresh manager path** - `UserTokenRefreshManager` now requires canonical refresh response payload shape and canonical `accessToken` field in strict refresh execution.
+- **Explicit refresh API surface** - Removed ambiguous `AuthApi.refresh_token(...)`; SDK uses explicit `refresh_session_token()` and `refresh_device_code_token(refresh_token)` methods only.
+- **Auth refresh helper payload** - `refresh_user_access_token` now emits canonical refresh payload fields without token alias duplication.
+
+### Documentation
+
+- **Hard-cut strictness alignment** - Updated OpenAPI/integration guidance and consumer migration notes to remove fallback guidance and document strict no-fallback contract behavior.
 
 ## [4.17.0] - 2026-06-10
 

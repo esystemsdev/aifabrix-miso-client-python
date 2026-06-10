@@ -29,12 +29,14 @@ def _normalize_positive_int(value: int) -> int:
     return value if value >= 0 else 0
 
 
-def _extract_refresh_payload(refresh_response: Dict[str, Any]) -> Dict[str, Any]:
-    """Extract refresh payload supporting both nested and flat response shapes."""
+def _extract_canonical_refresh_payload(
+    refresh_response: Dict[str, Any],
+) -> Optional[Dict[str, Any]]:
+    """Extract canonical refresh payload from strict response contract."""
     data = refresh_response.get("data")
-    if isinstance(data, dict):
-        return data
-    return refresh_response
+    if not isinstance(data, dict):
+        return None
+    return data
 
 
 def _parse_timestamp_number(value: float) -> Optional[datetime]:
@@ -362,12 +364,15 @@ class UserTokenRefreshManager:
         if not isinstance(refresh_response, dict):
             return None
 
-        refresh_payload = _extract_refresh_payload(refresh_response)
-        refreshed_token_value = refresh_payload.get("token") or refresh_payload.get("accessToken")
-        if not refreshed_token_value:
+        refresh_payload = _extract_canonical_refresh_payload(refresh_response)
+        if refresh_payload is None:
             return None
 
-        refreshed_token = self._token_to_str(refreshed_token_value)
+        refreshed_token_value = _normalize_str(refresh_payload.get("accessToken"))
+        if refreshed_token_value is None:
+            return None
+
+        refreshed_token = refreshed_token_value
         refreshed = self._cache_refreshed_token(token, refreshed_token)
 
         expires_at_value = refresh_payload.get("expiresAt")

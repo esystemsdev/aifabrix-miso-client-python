@@ -164,27 +164,6 @@ class TestAuthApi:
         mock_http_client.post.assert_called_once_with(auth_api.LOGOUT_ENDPOINT)
 
     @pytest.mark.asyncio
-    async def test_refresh_token_success(self, auth_api, mock_http_client):
-        """Test token refresh with refreshToken uses device-refresh endpoint."""
-        mock_response = {
-            "data": {
-                "accessToken": "new-access-token",
-                "refreshToken": "new-refresh-token",
-                "expiresIn": 3600,
-            },
-        }
-        mock_http_client.post.return_value = mock_response
-
-        result = await auth_api.refresh_token("refresh-token")
-
-        assert isinstance(result, RefreshTokenResponse)
-        assert result.data.accessToken == "new-access-token"
-        mock_http_client.post.assert_called_once()
-        call_args = mock_http_client.post.call_args
-        assert call_args[0][0] == auth_api.DEVICE_CODE_REFRESH_ENDPOINT
-        assert call_args[1]["data"] == {"refreshToken": "refresh-token"}
-
-    @pytest.mark.asyncio
     async def test_refresh_session_token_success(self, auth_api, mock_http_client):
         """Test session refresh endpoint is called without request body."""
         mock_response = {
@@ -202,25 +181,29 @@ class TestAuthApi:
         assert result.data.accessToken == "session-access-token"
         mock_http_client.post.assert_called_once_with(auth_api.REFRESH_ENDPOINT)
 
+    def test_ambiguous_refresh_entrypoint_removed(self, auth_api):
+        """Hard-cut contract should expose explicit refresh methods only."""
+        assert not hasattr(auth_api, "refresh_token")
+
     @pytest.mark.asyncio
-    async def test_refresh_token_without_argument_uses_session_endpoint(
-        self, auth_api, mock_http_client
-    ):
-        """Test refresh_token() without argument delegates to session refresh."""
+    async def test_refresh_device_code_token_success(self, auth_api, mock_http_client):
+        """Test successful device code token refresh."""
         mock_response = {
             "data": {
-                "accessToken": "session-access-token",
-                "refreshToken": None,
-                "expiresIn": 1800,
+                "accessToken": "new-access-token",
+                "refreshToken": "new-refresh-token",
+                "expiresIn": 3600,
             },
         }
         mock_http_client.post.return_value = mock_response
 
-        result = await auth_api.refresh_token()
+        result = await auth_api.refresh_device_code_token("refresh-token")
 
-        assert isinstance(result, RefreshTokenResponse)
-        assert result.data.accessToken == "session-access-token"
-        mock_http_client.post.assert_called_once_with(auth_api.REFRESH_ENDPOINT)
+        assert isinstance(result, DeviceCodeTokenResponse)
+        assert result.accessToken == "new-access-token"
+        mock_http_client.post.assert_called_once_with(
+            auth_api.DEVICE_CODE_REFRESH_ENDPOINT, data={"refreshToken": "refresh-token"}
+        )
 
     @pytest.mark.asyncio
     async def test_initiate_device_code_success(self, auth_api, mock_http_client):
@@ -276,24 +259,6 @@ class TestAuthApi:
         assert isinstance(result, DeviceCodeTokenPollResponse)
         assert result.data is None
         assert result.error == "authorization_pending"
-
-    @pytest.mark.asyncio
-    async def test_refresh_device_code_token_success(self, auth_api, mock_http_client):
-        """Test successful device code token refresh."""
-        mock_response = {
-            "data": {
-                "accessToken": "new-access-token",
-                "refreshToken": "new-refresh-token",
-                "expiresIn": 3600,
-            },
-        }
-        mock_http_client.post.return_value = mock_response
-
-        result = await auth_api.refresh_device_code_token("refresh-token")
-
-        assert isinstance(result, DeviceCodeTokenResponse)
-        assert result.accessToken == "new-access-token"
-        mock_http_client.post.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_get_roles_with_token(self, auth_api, mock_http_client):

@@ -224,30 +224,6 @@ class AuthApi:
         response = await self.http_client.post(self.REFRESH_ENDPOINT)
         return RefreshTokenResponse(**response)
 
-    async def refresh_token(self, refresh_token: Optional[str] = None) -> RefreshTokenResponse:
-        """Refresh user access token with explicit contract separation.
-
-        - If `refresh_token` is provided, uses the device refresh endpoint
-          (`/api/v1/auth/login/device/refresh`) that explicitly accepts
-          request-body `refreshToken`.
-        - If `refresh_token` is omitted, uses cookie/session refresh endpoint
-          (`/api/v1/auth/refresh`) with no request body.
-
-        Args:
-            refresh_token: Optional refresh token for device refresh flow
-
-        Returns:
-            RefreshTokenResponse with new tokens
-
-        Raises:
-            MisoClientError: If request fails
-
-        """
-        if refresh_token:
-            device_response = await self.refresh_device_code_token(refresh_token)
-            return RefreshTokenResponse(data=device_response)
-        return await self.refresh_session_token()
-
     async def initiate_device_code(
         self, environment: Optional[str] = None, scope: Optional[str] = None
     ) -> DeviceCodeResponseWrapper:

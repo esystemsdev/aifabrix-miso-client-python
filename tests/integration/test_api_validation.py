@@ -128,10 +128,7 @@ def map_test_to_api_methods(test_name: str) -> List[Tuple[str, str]]:
         "test_validate_client_token": [("AuthApi", "validate_client_token")],
         "test_get_user_info": [("AuthApi", "get_user")],
         "test_logout": [("AuthApi", "logout")],
-        "test_refresh_token": [
-            ("AuthApi", "refresh_token"),
-            ("AuthApi", "refresh_session_token"),
-        ],
+        "test_refresh_token": [("AuthApi", "refresh_session_token")],
         "test_initiate_device_code": [("AuthApi", "initiate_device_code")],
         "test_poll_device_code_token": [("AuthApi", "poll_device_code_token")],
         "test_refresh_device_code_token": [("AuthApi", "refresh_device_code_token")],

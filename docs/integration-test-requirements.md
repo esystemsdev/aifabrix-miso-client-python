@@ -18,12 +18,10 @@ Conftest loads `TEST_REFRESH_TOKEN` from `REFRESH_TOKEN` or `MISO_REFRESH_TOKEN`
 
 ### 1. Device code flow (`test_initiate_device_code`, `test_poll_device_code_token`)
 
-- **SDK:** Tries `POST /api/v1/auth/login/device` first; on 404, tries `POST /api/v1/auth/login` with body `{ environment?, scope?, grantType: "device_code" }`.
-- **Observed:** 404 on `/api/v1/auth/login/device`; fallback to `POST /api/v1/auth/login` returns **400 Bad Request "Validation failed"**.
-- **Conclusion:** Either:
-  - **miso-controller** should implement `POST /api/v1/auth/login/device` for device code initiation (OpenAPI plan expected this path), or
-  - **miso-controller** should accept `POST /api/v1/auth/login` for device code and document the exact request body (e.g. required fields, optional `grantType`).
-- **Tests:** No skip; they fail with a clear message if the controller does not support the chosen contract.
+- **SDK:** Uses canonical OpenAPI path `POST /api/v1/auth/login` for device code initiation.
+- **Contract:** No endpoint fallback routing is used by the SDK in this flow.
+- **Controller requirement:** `POST /api/v1/auth/login` must accept the documented device-code request body for this flow.
+- **Tests:** No skip; they fail with a clear message if controller contract behavior is incompatible.
 
 ### 2. Token refresh (`test_refresh_token`)
 

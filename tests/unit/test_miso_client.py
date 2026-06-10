@@ -619,7 +619,7 @@ class TestAuthService:
         result = await auth_service.refresh_user_token("refresh-token-abc")
 
         assert result is not None
-        assert result["data"]["token"] == "new-access-token"
+        assert result["data"]["accessToken"] == "new-access-token"
         assert result["data"]["refreshToken"] == "new-refresh-token"
         assert result["data"]["expiresIn"] == 3600
         auth_service.api_client.auth.refresh_device_code_token.assert_called_once_with(
@@ -746,7 +746,7 @@ class TestAuthService:
         ) as mock_request:
             mock_request.return_value = {
                 "data": {
-                    "token": "new-access-token",
+                    "accessToken": "new-access-token",
                     "refreshToken": "new-refresh-token",
                     "expiresIn": 3600,
                 }
@@ -755,7 +755,7 @@ class TestAuthService:
             result = await auth_service.refresh_user_token("refresh-token")
 
             assert result is not None
-            assert result["data"]["token"] == "new-access-token"
+            assert result["data"]["accessToken"] == "new-access-token"
             mock_request.assert_called_once_with(
                 "POST",
                 "/api/v1/auth/login/device/refresh",

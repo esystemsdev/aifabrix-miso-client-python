@@ -155,7 +155,6 @@ async def refresh_user_access_token(
         response = await api_client.auth.refresh_device_code_token(refresh_token)
         return {
             "data": {
-                "token": response.accessToken,
                 "accessToken": response.accessToken,
                 "refreshToken": response.refreshToken,
                 "expiresIn": response.expiresIn,
