@@ -11,9 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - No unreleased additions.
 
+## [4.17.2] - 2026-06-11
+
 ### Changed
 
 - **Strict token-exchange parsing** - `TokenExchangeResponse` now requires canonical `accessToken` and rejects alias-only `token` payloads to keep strict no-fallback contract alignment.
+- **Auth API strict regression coverage** - Updated `AuthApi` token-exchange unit tests to assert rejection of alias-only token payloads.
+
+### Documentation
+
+- **OpenAPI validation strictness note** - Documented canonical token-exchange response requirement (`accessToken` only) in validation docs.
+
+### Technical
+
+- **Validation baseline** - `make validate-silent` passes (`format`, `lint`, `type-check`, `test`) as release preparation baseline.
 
 ## [4.17.1] - 2026-06-10
 
