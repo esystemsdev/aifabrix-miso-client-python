@@ -8,6 +8,7 @@ All responses now follow OpenAPI spec format: {"data": {...}} without success/ti
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic import ValidationError
 
 from miso_client.api.auth_api import AuthApi
 from miso_client.api.types.auth_types import (
@@ -367,15 +368,13 @@ class TestAuthApi:
         assert result.tokenExchanged is False
 
     @pytest.mark.asyncio
-    async def test_exchange_token_accepts_token_field(self, auth_api, mock_http_client):
-        """Test token exchange when controller returns 'token' instead of 'accessToken'."""
+    async def test_exchange_token_rejects_token_field_alias(self, auth_api, mock_http_client):
+        """Reject token exchange payload that omits canonical accessToken field."""
         mock_response = {"token": "keycloak-token-via-token-field"}
         mock_http_client.authenticated_request.return_value = mock_response
 
-        result = await auth_api.exchange_token("delegated-token")
-
-        assert isinstance(result, TokenExchangeResponse)
-        assert result.accessToken == "keycloak-token-via-token-field"
+        with pytest.raises(ValidationError):
+            await auth_api.exchange_token("delegated-token")
 
     @pytest.mark.asyncio
     async def test_exchange_token_error(self, auth_api, mock_http_client):

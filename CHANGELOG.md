@@ -9,7 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- No unreleased changes.
+- No unreleased additions.
+
+### Changed
+
+- **Strict token-exchange parsing** - `TokenExchangeResponse` now requires canonical `accessToken` and rejects alias-only `token` payloads to keep strict no-fallback contract alignment.
 
 ## [4.17.1] - 2026-06-10
 

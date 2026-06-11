@@ -17,6 +17,8 @@ Token-based refresh in server-side SDK flows is handled through the explicit dev
 
 Hard-cut rule: SDK refresh paths follow explicit endpoint contracts only (`refresh_session_token()` and `refresh_device_code_token(...)`). No ambiguous refresh entrypoint or response-shape fallback is used in strict refresh execution paths.
 
+Token exchange strictness rule: SDK expects canonical `accessToken` in token-exchange responses. Alias-only payloads (for example, `token` without `accessToken`) are rejected in strict parsing paths.
+
 Note: The spec does **not** define `/api/v1/auth/login/device` for initiation; it is **POST /api/v1/auth/login** only. Integration tests pass `environment` (env `MISO_ENVIRONMENT` or `TEST_ENVIRONMENT` or default `miso`).
 
 ## Logs export
