@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - No unreleased additions.
 
+### Changed
+
+- **Session parity clarification (Python SDK)** - Documented that browser activity-driven session-refresh listener controls are browser-only (TypeScript/frontend runtime) and non-applicable to `miso-client-python` runtime behavior.
+
+### Documentation
+
+- **Parity follow-up notes** - Updated auth/session docs to emphasize verification-first parity scope: request-driven shared contract alignment in Python SDK, with browser-only activity controls explicitly marked N/A.
+
 ## [4.17.2] - 2026-06-11
 
 ### Changed

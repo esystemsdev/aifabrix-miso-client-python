@@ -12,6 +12,8 @@ This page shows minimal backend code you can add to **any** Python app so the fr
 - **Origin validation (CORS)** – optional; reject requests whose `Origin`/`Referer` is not in an allow list.
 - **Audit logging** – request, success, failure, and origin validation failures are logged.
 
+Browser activity-listener session-refresh controls are **browser runtime concerns** and are not part of `miso-client-python` runtime behavior. This document covers request-driven server-side token endpoints and controller contract usage only.
+
 ---
 
 ## Environment variables
