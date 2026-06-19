@@ -11,13 +11,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - No unreleased additions.
 
+## [4.18.0] - 2026-06-19
+
 ### Changed
 
-- **Session parity clarification (Python SDK)** - Documented that browser activity-driven session-refresh listener controls are browser-only (TypeScript/frontend runtime) and non-applicable to `miso-client-python` runtime behavior.
+- **Session recovery parity alignment (Python SDK)** - Confirmed request-driven auth/session semantics remain aligned with shared controller contract assumptions without introducing new fallback behavior.
+- **Browser runtime boundary clarity** - Explicitly documented that activity-driven session listener controls are browser/frontend concerns and non-applicable to `miso-client-python` runtime.
 
 ### Documentation
 
-- **Parity follow-up notes** - Updated auth/session docs to emphasize verification-first parity scope: request-driven shared contract alignment in Python SDK, with browser-only activity controls explicitly marked N/A.
+- **Consumer guidance updates** - Updated `README.md`, `docs/backend-client-token.md`, and `docs/integration-test-requirements.md` with browser-only N/A guidance and parity-focused wording.
+- **Plan validation artifact** - Added validated implementation record for plan `46.0_session_recovery_parity_95339d67` under `.cursor/plans/done/`.
+
+### Technical
+
+- **Validation baseline** - `make validate-silent` passes (`format`, `lint`, `type-check`, `test`) and `make test-integration-silent` passes for release preparation.
 
 ## [4.17.2] - 2026-06-11
 

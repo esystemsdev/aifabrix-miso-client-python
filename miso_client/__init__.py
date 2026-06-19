@@ -158,7 +158,7 @@ from .utils.user_token_refresh import (
     normalize_expires_at,
 )
 
-__version__ = "4.17.2"
+__version__ = "4.18.0"
 __author__ = "AI Fabrix Team"
 __license__ = "MIT"
 
