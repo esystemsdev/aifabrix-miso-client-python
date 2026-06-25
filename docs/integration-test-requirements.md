@@ -28,6 +28,7 @@ Conftest loads `TEST_REFRESH_TOKEN` from `REFRESH_TOKEN` or `MISO_REFRESH_TOKEN`
 - **SDK:** Uses explicit token-based contract `POST /api/v1/auth/login/device/refresh` with body `{ "refreshToken": "<token>" }`.
 - **Session boundary:** `POST /api/v1/auth/refresh` is cookie/session-oriented and does not use body `refreshToken`.
 - **Browser-only controls:** Activity-driven session-refresh listener controls belong to frontend/browser runtime and are non-applicable to Python SDK runtime integration tests.
+- **Request-driven parity:** `401` handling is request-path driven (with bounded single-flight refresh behavior under concurrency); non-`401` statuses such as `403/422` do not trigger refresh loops.
 - **Tests:** Fail if no refresh token is provided via env (see variables above). Set `REFRESH_TOKEN` or `TEST_REFRESH_TOKEN` (or file) so this test runs.
 
 ### 3. Get job log (`test_get_job_log`)
