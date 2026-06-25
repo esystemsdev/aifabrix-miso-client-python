@@ -14,6 +14,12 @@ This page shows minimal backend code you can add to **any** Python app so the fr
 
 Browser activity-listener session-refresh controls are **browser runtime concerns** and are not part of `miso-client-python` runtime behavior. This document covers request-driven server-side token endpoints and controller contract usage only.
 
+Request-driven parity scope for Python SDK runtime:
+
+- `401` recovery remains request-triggered and bounded; concurrent `401` paths share single-flight refresh behavior.
+- `403/422` paths remain deterministic and do not enter restore/refresh loops.
+- Refresh API boundary remains strict: `refresh_session_token()` for cookie/session refresh and `refresh_device_code_token(refresh_token)` for device flow.
+
 ---
 
 ## Environment variables

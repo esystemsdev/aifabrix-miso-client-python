@@ -215,6 +215,12 @@ from miso_client import (
 
 **Browser-only activity controls (N/A for Python SDK runtime):** Activity-driven session refresh listener controls are part of browser DataClient behavior (TypeScript SDK / frontend runtime) and are not implemented by `miso-client-python`. Python SDK parity work focuses on shared request-driven auth/session contract semantics.
 
+**Request-driven migration and rollback (Python runtime):**
+
+- Keep session recovery request-driven: rely on `authenticated_request(...)` `401` handling and callback/refresh-token flow; do not add browser event listeners in Python runtime.
+- Keep strict refresh boundary: `refresh_session_token()` for cookie/session refresh and `refresh_device_code_token(refresh_token)` for device-token refresh.
+- Rollback path (if needed): remove user refresh callback/refresh-token registration and call APIs with `auto_refresh=False` in `authenticated_request(...)` to disable automatic retry while preserving explicit request execution.
+
 **Token exchange (Entra/delegated tokens):** If your app has an external token (e.g. Entra ID), call `exchange_token(delegated_token)` to get a Keycloak token for use with the SDK: `result = await client.exchange_token(entra_token)` then use `result.accessToken` for `validate_token`, `get_roles`, etc.
 
 **Validate application token (client token):** To verify a controller-issued application token (e.g. `x-client-token` from your backend or dataplane), use `validate_client_token(token)`. Results are cached to avoid extra controller calls. Use for dataplane or services that need to check an app token: `result = await client.validate_client_token(app_token)` then check `result.data.authenticated` and `result.data.application`, `result.data.expiresAt`, etc.

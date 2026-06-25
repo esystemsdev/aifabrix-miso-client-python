@@ -11,6 +11,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - No unreleased additions.
 
+## [4.19.0] - 2026-06-25
+
+### Added
+
+- **Request-driven 401 concurrency regression coverage** - Added unit tests for concurrent `authenticated_request(...)` `401` flows to assert single-flight refresh behavior.
+- **Deterministic 422 handling regression coverage** - Added unit tests that confirm `422` responses do not trigger refresh/retry loops in authenticated request path.
+
+### Changed
+
+- **Contract/runtime parity clarification** - Updated consumer docs to make request-driven parity scope explicit for Python runtime and keep browser listener orchestration as non-applicable.
+- **Migration/rollback guidance** - Documented Python request-driven migration and rollback expectations for refresh behavior and strict refresh API boundary.
+
+### Technical
+
+- **Validation baseline** - Runtime/docs updates prepared for aligned release line with request-driven parity evidence and validation-gate readiness.
+
 ## [4.18.0] - 2026-06-19
 
 ### Changed

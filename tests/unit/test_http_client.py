@@ -2566,6 +2566,60 @@ class TestHttpClientUserTokenRefresh:
         assert http_client._internal_client.authenticated_request.call_count == 1
 
     @pytest.mark.asyncio
+    async def test_authenticated_request_422_error_no_retry(self, http_client):
+        """Test that 422 errors do not trigger refresh retry."""
+        http_error = httpx.HTTPStatusError(
+            "Unprocessable Entity", request=MagicMock(), response=MagicMock(status_code=422)
+        )
+        http_client._internal_client.authenticated_request.side_effect = http_error
+
+        with pytest.raises(httpx.HTTPStatusError) as exc_info:
+            await http_client.authenticated_request("GET", "/api/test", "token")
+
+        assert exc_info.value.response.status_code == 422
+        assert http_client._internal_client.authenticated_request.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_authenticated_request_concurrent_401_uses_single_flight_refresh(
+        self, http_client
+    ):
+        """Concurrent 401 flows share one refresh callback execution."""
+        refresh_calls = 0
+
+        async def refresh_callback(token: str) -> str:
+            nonlocal refresh_calls
+            refresh_calls += 1
+            await asyncio.sleep(0.05)
+            return "refreshed-token"
+
+        http_client.register_user_token_refresh_callback("user-123", refresh_callback)
+        response_401 = MagicMock(status_code=401)
+
+        async def mock_authenticated_request(method, url, token, *args, **kwargs):
+            if token == "expired-token":
+                await asyncio.sleep(0.01)
+                raise httpx.HTTPStatusError(
+                    "Unauthorized", request=MagicMock(), response=response_401
+                )
+            return {"data": "success"}
+
+        http_client._internal_client.authenticated_request.side_effect = mock_authenticated_request
+
+        with patch("miso_client.utils.user_token_refresh.extract_user_id") as mock_extract:
+            mock_extract.return_value = "user-123"
+            with patch.object(http_client._user_token_refresh, "_is_token_expired") as mock_expired:
+                mock_expired.return_value = False
+                first, second = await asyncio.gather(
+                    http_client.authenticated_request("GET", "/api/test", "expired-token"),
+                    http_client.authenticated_request("GET", "/api/test", "expired-token"),
+                )
+
+        assert first == {"data": "success"}
+        assert second == {"data": "success"}
+        assert refresh_calls == 1
+        assert http_client._internal_client.authenticated_request.call_count == 4
+
+    @pytest.mark.asyncio
     async def test_authenticated_request_401_refresh_failed_raises_original_error(
         self, http_client
     ):
