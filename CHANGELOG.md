@@ -11,6 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - No unreleased additions.
 
+## [4.19.1] - 2026-06-25
+
+### Changed
+
+- **Release-line parity packaging** - Finalized the request-driven session parity release line by carrying aligned docs, tests, and versioned consumer guidance from the `v4.19.0..HEAD` delta.
+- **Consumer migration readiness** - Kept strict refresh-boundary guidance explicit for downstream adopters and retained browser-orchestration non-scope for Python runtime.
+
+### Technical
+
+- **Validation baseline** - `make validate-silent` passes (`format`, `lint`, `type-check`, `test`) for release preparation.
+- **Version synchronization** - Updated package version metadata to `4.19.1` across release version files.
+
 ## [4.19.0] - 2026-06-25
 
 ### Added
