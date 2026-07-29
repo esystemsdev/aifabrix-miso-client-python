@@ -11,6 +11,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - No unreleased additions.
 
+## [4.20.0] - 2026-07-29
+
+### Added
+
+- **Manual CodeQL workflow** - Added `codeql-manual.yml` (`workflow_dispatch`) for on-demand CodeQL scans with SARIF artifact output for branch-level security validation without default code-scanning upload coupling.
+- **Release automation command** - Added `/push-github` command for no-PR release execution flow (manual CodeQL gate, merge to `main`, release creation, and PyPI publish monitoring).
+
+### Changed
+
+- **Security and quality remediation sweep** - Applied broad security and quality hardening updates across client utilities, services, and integration/unit test surface to improve runtime safety and validation consistency.
+
+### Technical
+
+- **Validation baseline** - `make validate-silent` passes (`format`, `lint`, `type-check`, `test`) for release preparation.
+- **Version synchronization** - Updated package version metadata to `4.20.0` across release version files.
+
 ## [4.19.1] - 2026-06-25
 
 ### Changed
