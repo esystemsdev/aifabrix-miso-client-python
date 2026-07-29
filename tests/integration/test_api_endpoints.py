@@ -43,7 +43,7 @@ if env_path.exists():
 
         load_dotenv(env_path)
     except ImportError:
-        pass  # dotenv not installed, continue without it
+        load_dotenv = None  # Optional dependency in integration environments
 
 
 @pytest.fixture(scope="module")
@@ -51,8 +51,8 @@ def config():
     """Load config from .env file."""
     try:
         return load_config()
-    except ConfigurationError as e:
-        pytest.fail(f"Failed to load config from .env: {e}")
+    except ConfigurationError as error:
+        raise AssertionError(f"Failed to load config from .env: {error}") from error
 
 
 @pytest.fixture(scope="module")
@@ -65,8 +65,8 @@ def client(config):
         yield client_instance
         # Teardown: Ensure client is properly closed to prevent event loop errors
         # This runs after all tests in the module complete
-    except Exception as e:
-        pytest.fail(f"Failed to initialize MisoClient: {e}")
+    except Exception as error:
+        raise AssertionError(f"Failed to initialize MisoClient: {error}") from error
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -75,8 +75,6 @@ def cleanup_client(client, request):
 
     def finalizer():
         """Finalizer to clean up client after all module tests."""
-        import asyncio
-
         try:
             # Try to get the event loop
             try:
@@ -97,7 +95,7 @@ def cleanup_client(client, request):
                     loop.run_until_complete(client.disconnect())
         except Exception:
             # Ignore all errors during teardown
-            pass
+            return
 
     request.addfinalizer(finalizer)
     yield
@@ -156,13 +154,13 @@ async def wait_for_client_logging(client):
                 )
             except (RuntimeError, asyncio.CancelledError, asyncio.TimeoutError):
                 # Event loop closed, cancelled, or timeout - that's okay
-                pass
+                return
     except (RuntimeError, asyncio.CancelledError):
         # Event loop closed or cancelled - that's okay during teardown
-        pass
+        return
     except Exception:
         # Ignore any other errors
-        pass
+        return
 
 
 class TestAuthEndpoints:
@@ -646,7 +644,7 @@ class TestLogsEndpoints:
         except Exception as e:
             if "Event loop is closed" in str(e) or "RuntimeError" in str(e):
                 # Event loop closed during teardown - this is expected and okay
-                pass
+                return
             else:
                 pytest.fail(f"Create general log failed: {e}")
         # Note: Don't disconnect here - client fixture is module-scoped and shared across tests
@@ -715,7 +713,7 @@ class TestLogsEndpoints:
         except Exception as e:
             if "Event loop is closed" in str(e) or "RuntimeError" in str(e):
                 # Event loop closed during teardown - this is expected and okay
-                pass
+                return
             else:
                 pytest.fail(f"Create batch logs failed: {e}")
         # Note: Don't disconnect here - client fixture is module-scoped and shared across tests
@@ -732,7 +730,7 @@ class TestAuthEndpointsExtended:
             if client._internal_http_client.client is not None:
                 await client._internal_http_client.close()
         except Exception:
-            pass
+            client._internal_http_client.client = None
         client._internal_http_client.client = None
         await client._internal_http_client._initialize_client()
         await client._internal_http_client._ensure_client_token()
@@ -843,7 +841,7 @@ class TestLogsEndpointsExtended:
             if client._internal_http_client.client is not None:
                 await client._internal_http_client.close()
         except Exception:
-            pass
+            client._internal_http_client.client = None
         client._internal_http_client.client = None
         await client._internal_http_client._initialize_client()
         await client._internal_http_client._ensure_client_token()
@@ -896,7 +894,7 @@ class TestLogsEndpointsExtended:
         except Exception as e:
             if "Event loop is closed" in str(e) or "RuntimeError" in str(e):
                 # Event loop closed during teardown - this is expected and okay
-                pass
+                return
             elif "403" in str(e) or "Forbidden" in str(e):
                 pytest.fail("Insufficient permissions for audit:read")
             elif "401" in str(e) or "Unauthorized" in str(e):
@@ -948,7 +946,7 @@ class TestLogsEndpointsExtended:
         except Exception as e:
             if "Event loop is closed" in str(e) or "RuntimeError" in str(e):
                 # Event loop closed during teardown - this is expected and okay
-                pass
+                return
             elif "403" in str(e) or "Forbidden" in str(e):
                 pytest.fail("Insufficient permissions for logs:read")
             elif "401" in str(e) or "Unauthorized" in str(e):
@@ -998,7 +996,7 @@ class TestLogsEndpointsExtended:
         except Exception as e:
             if "Event loop is closed" in str(e) or "RuntimeError" in str(e):
                 # Event loop closed during teardown - this is expected and okay
-                pass
+                return
             elif "403" in str(e) or "Forbidden" in str(e):
                 pytest.fail("Insufficient permissions for logs:read")
             elif "401" in str(e) or "Unauthorized" in str(e):
@@ -1060,7 +1058,7 @@ class TestLogsEndpointsExtended:
         except Exception as e:
             if "Event loop is closed" in str(e) or "RuntimeError" in str(e):
                 # Event loop closed during teardown - this is expected and okay
-                pass
+                return
             elif "403" in str(e) or "Forbidden" in str(e):
                 pytest.fail("Insufficient permissions for jobs:read")
             elif "401" in str(e) or "Unauthorized" in str(e):
@@ -1129,7 +1127,7 @@ class TestLogsEndpointsExtended:
             err = str(e)
             if "Event loop is closed" in err or "RuntimeError" in err:
                 # Event loop closed during teardown - this is expected and okay
-                pass
+                return
             elif "HTTP 403" in err or "Forbidden" in err:
                 pytest.fail("Insufficient permissions for logs:export")
             elif "HTTP 401" in err or ("401" in err and "Unauthorized" in err):
@@ -1162,7 +1160,7 @@ class TestNegativeScenarios:
             if client._internal_http_client.client is not None:
                 await client._internal_http_client.close()
         except Exception:
-            pass
+            client._internal_http_client.client = None
         client._internal_http_client.client = None
         await client._internal_http_client._initialize_client()
         await client._internal_http_client._ensure_client_token()
@@ -1182,7 +1180,7 @@ class TestNegativeScenarios:
         except Exception:
             # Some implementations may raise exception instead of returning False
             # This is acceptable behavior for invalid tokens
-            pass
+            return
         # Note: Don't disconnect - client fixture is module-scoped
 
     @pytest.mark.asyncio
@@ -1205,7 +1203,7 @@ class TestNegativeScenarios:
             assert is_valid is False
         except Exception:
             # Exception is acceptable for invalid tokens
-            pass
+            return
         # Note: Don't disconnect - client fixture is module-scoped
 
     @pytest.mark.asyncio
@@ -1222,7 +1220,7 @@ class TestNegativeScenarios:
             assert is_valid is False
         except Exception:
             # Exception is acceptable for empty tokens
-            pass
+            return
         # Note: Don't disconnect - client fixture is module-scoped
 
     @pytest.mark.asyncio
@@ -1238,7 +1236,7 @@ class TestNegativeScenarios:
             assert roles == []
         except Exception:
             # Exception is also acceptable
-            pass
+            return
         # Note: Don't disconnect - client fixture is module-scoped
 
     @pytest.mark.asyncio
@@ -1254,7 +1252,7 @@ class TestNegativeScenarios:
             assert permissions == []
         except Exception:
             # Exception is also acceptable
-            pass
+            return
         # Note: Don't disconnect - client fixture is module-scoped
 
     @pytest.mark.asyncio
@@ -1270,5 +1268,5 @@ class TestNegativeScenarios:
             assert user_info is None
         except Exception:
             # Exception is also acceptable
-            pass
+            return
         # Note: Don't disconnect - client fixture is module-scoped

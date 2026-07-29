@@ -84,7 +84,7 @@ class MisoClient:
         try:
             await self.redis.connect()
         except Exception:
-            pass  # Redis connection failed, continue with controller fallback
+            self.redis.connected = False
         self.initialized = True
 
     async def disconnect(self) -> None:

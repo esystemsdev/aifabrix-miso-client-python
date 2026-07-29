@@ -29,13 +29,13 @@ def handle_logging_task_error(task: asyncio.Task) -> None:
         if exception:
             # Silently swallow logging errors - never break HTTP requests
             # This includes RuntimeError("Event loop is closed") during teardown
-            pass
+            return
     except (RuntimeError, asyncio.CancelledError):
         # Event loop closed or task cancelled during teardown - this is expected
-        pass
+        return
     except Exception:
         # Task might not be done yet or other error - ignore
-        pass
+        return
 
 
 async def wait_for_logging_tasks(logging_tasks: set[asyncio.Task], timeout: float = 0.5) -> None:
@@ -58,7 +58,7 @@ async def wait_for_logging_tasks(logging_tasks: set[asyncio.Task], timeout: floa
                 try:
                     task.cancel()
                 except Exception:
-                    pass
+                    continue
 
 
 def calculate_status_code(response: Optional[Any], error: Optional[Exception]) -> Optional[int]:

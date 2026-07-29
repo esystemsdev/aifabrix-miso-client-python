@@ -30,7 +30,7 @@ if _env_path.exists():
 
         load_dotenv(_env_path)
     except ImportError:
-        pass
+        load_dotenv = None
 
 from miso_client import EncryptionError, MisoClient, load_config  # noqa: E402
 

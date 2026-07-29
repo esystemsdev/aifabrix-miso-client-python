@@ -168,7 +168,7 @@ class EncryptionService:
         try:
             await self._cache.set(cache_key, result.model_dump(), ttl)
         except Exception:
-            pass
+            return
 
     async def _cache_decrypt_result(
         self, cache_key: Optional[str], plaintext: str, ttl: int
@@ -179,7 +179,7 @@ class EncryptionService:
         try:
             await self._cache.set(cache_key, plaintext, ttl)
         except Exception:
-            pass
+            return
 
     def _raise_encrypt_error(self, error: MisoClientError, parameter_name: str) -> NoReturn:
         """Raise normalized EncryptionError for encrypt failures."""

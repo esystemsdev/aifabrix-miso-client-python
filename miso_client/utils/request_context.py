@@ -11,7 +11,7 @@ class RequestHeaders(Protocol):
 
     def get(self, key: str, default: Optional[str] = None) -> Optional[str]:
         """Get header value by key."""
-        ...
+        raise NotImplementedError
 
 
 @runtime_checkable

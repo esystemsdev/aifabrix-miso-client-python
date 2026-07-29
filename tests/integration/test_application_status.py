@@ -33,7 +33,7 @@ if env_path.exists():
 
         load_dotenv(env_path)
     except ImportError:
-        pass
+        load_dotenv = None
 
 
 def get_env_key_app_key(client_id: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
@@ -51,8 +51,8 @@ def config():
     """Load config from .env file."""
     try:
         return load_config()
-    except ConfigurationError as e:
-        pytest.fail(f"Failed to load config from .env: {e}")
+    except ConfigurationError as error:
+        raise AssertionError(f"Failed to load config from .env: {error}") from error
 
 
 @pytest.fixture
@@ -61,11 +61,8 @@ def client(config):
     try:
         client_instance = MisoClient(config)
         yield client_instance
-    except Exception as e:
-        pytest.fail(f"Failed to initialize MisoClient: {e}")
-    finally:
-        # Disconnect is async; fixture teardown runs sync - tests disconnect in finally
-        pass
+    except Exception as error:
+        raise AssertionError(f"Failed to initialize MisoClient: {error}") from error
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -108,11 +105,11 @@ async def wait_for_client_logging(client):
                     client.http_client._wait_for_logging_tasks(timeout=0.5), timeout=0.6
                 )
             except (RuntimeError, asyncio.CancelledError, asyncio.TimeoutError):
-                pass
+                return
     except (RuntimeError, asyncio.CancelledError):
-        pass
+        return
     except Exception:
-        pass
+        return
 
 
 class TestApplicationStatus:

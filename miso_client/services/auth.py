@@ -355,8 +355,8 @@ class AuthService:
         """Clear token and user caches after logout."""
         try:
             self.http_client.clear_user_token(token)
-        except Exception:
-            pass  # Silently continue if cache clearing fails
+        except Exception as error:
+            logger.debug("Failed to clear user token cache on logout", exc_info=error)
 
         if self.cache:
             # Clear token validation cache

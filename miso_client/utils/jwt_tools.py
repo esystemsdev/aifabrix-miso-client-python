@@ -165,7 +165,7 @@ class JwtTokenCache:
             if decoded:
                 return decoded.get("sub") or decoded.get("userId") or decoded.get("user_id")
         except Exception:
-            pass
+            return None
 
         return None
 

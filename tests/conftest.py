@@ -10,8 +10,10 @@ import pytest
 from miso_client import MisoClient, MisoClientConfig, RedisConfig
 from miso_client.api import ApiClient
 from miso_client.services.cache import CacheService
+from miso_client.services.logger import LoggerService
 from miso_client.services.redis import RedisService
 from miso_client.utils.http_client import HttpClient
+from miso_client.utils.internal_http_client import InternalHttpClient
 
 # Set test environment variables
 os.environ["ENCRYPTION_KEY"] = "_-aheB8oQwob2XxUyN1JK2RLOs_Hpi3WSkKluxLZzmE="
@@ -51,7 +53,10 @@ def config_no_redis():
 @pytest.fixture
 def http_client(config):
     """HTTP client fixture."""
-    return HttpClient(config)
+    internal_client = InternalHttpClient(config)
+    redis = RedisService(config.redis)
+    logger = LoggerService(internal_client, redis)
+    return HttpClient(config, logger, internal_client=internal_client)
 
 
 @pytest.fixture

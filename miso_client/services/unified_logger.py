@@ -46,7 +46,7 @@ class UnifiedLogger:
             await self.logger_service.info(message, context=context, options=options)
         except Exception:
             # Error handling in logger should be silent (catch and swallow)
-            pass
+            return
 
     async def warn(self, message: str) -> None:
         """Log warning message.
@@ -60,7 +60,7 @@ class UnifiedLogger:
             await self.logger_service.warn(message, context=context, options=options)
         except Exception:
             # Error handling in logger should be silent (catch and swallow)
-            pass
+            return
 
     async def debug(self, message: str) -> None:
         """Log debug message.
@@ -74,7 +74,7 @@ class UnifiedLogger:
             await self.logger_service.debug(message, context=context, options=options)
         except Exception:
             # Error handling in logger should be silent (catch and swallow)
-            pass
+            return
 
     async def error(self, message: str, error: Optional[Exception] = None) -> None:
         """Log error message.
@@ -94,7 +94,7 @@ class UnifiedLogger:
             )
         except Exception:
             # Error handling in logger should be silent (catch and swallow)
-            pass
+            return
 
     async def audit(
         self,
@@ -124,7 +124,7 @@ class UnifiedLogger:
             )
         except Exception:
             # Error handling in logger should be silent (catch and swallow)
-            pass
+            return
 
     @staticmethod
     def _build_audit_context(

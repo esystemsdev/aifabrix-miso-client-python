@@ -11,7 +11,6 @@ if TYPE_CHECKING:
     from ..models.filter_schema import FilterError, FilterSchema
 
 from ..models.filter import FilterOption, FilterQuery, JsonFilter
-from .filter_applier import apply_filters  # noqa: F401
 from .filter_parser import parse_filter_params  # noqa: F401
 
 VALID_FILTER_OPERATORS = {
@@ -29,6 +28,13 @@ VALID_FILTER_OPERATORS = {
     "isNull",
     "isNotNull",
 }
+
+
+def apply_filters(items: List[Dict[str, Any]], filters: List[FilterOption]) -> List[Dict[str, Any]]:
+    """Apply filter options to an item collection."""
+    from .filter_applier import apply_filters as apply_filters_impl
+
+    return apply_filters_impl(items, filters)
 
 
 def _build_filter_query_part(filter_option: FilterOption) -> str:

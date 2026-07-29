@@ -30,7 +30,7 @@ if env_path.exists():
         # Override so .env wins over tests/conftest.py ENCRYPTION_KEY (controller must match .env)
         load_dotenv(env_path, override=True)
     except ImportError:
-        pass
+        load_dotenv = None
 
 
 @pytest.fixture(scope="module")
@@ -38,8 +38,8 @@ def config():
     """Load config from .env file."""
     try:
         return load_config()
-    except ConfigurationError as e:
-        pytest.fail(f"Failed to load config from .env: {e}")
+    except ConfigurationError as error:
+        raise AssertionError(f"Failed to load config from .env: {error}") from error
 
 
 @pytest.fixture
@@ -48,8 +48,8 @@ def client(config):
     try:
         client_instance = MisoClient(config)
         yield client_instance
-    except Exception as e:
-        pytest.fail(f"Failed to initialize MisoClient: {e}")
+    except Exception as error:
+        raise AssertionError(f"Failed to initialize MisoClient: {error}") from error
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -151,7 +151,7 @@ class TestEncryptionIntegration:
                 "DECRYPTION_FAILED",
                 "ACCESS_DENIED",
             )
-        except pytest.raises.Exception:
+        except EncryptionError:
             raise
         except Exception as e:
             pytest.fail(f"Decrypt nonexistent param test failed: {e}")
@@ -169,7 +169,7 @@ class TestEncryptionIntegration:
             with pytest.raises(EncryptionError) as exc_info:
                 await client.encrypt("secret", "invalid name!")
             assert exc_info.value.code == "INVALID_PARAMETER_NAME"
-        except pytest.raises.Exception:
+        except EncryptionError:
             raise
         except Exception as e:
             pytest.fail(f"Encrypt invalid parameter name test failed: {e}")
