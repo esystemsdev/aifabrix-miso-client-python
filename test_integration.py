@@ -43,10 +43,6 @@ if "--verbose" not in sys.argv and "-v" not in sys.argv:
     logging.getLogger("miso_client").setLevel(logging.WARNING)
     logging.getLogger("miso_client.services").setLevel(logging.WARNING)
     logging.getLogger("miso_client.utils").setLevel(logging.WARNING)
-    # Also suppress stderr for connection errors
-    _original_stderr = sys.stderr
-
-
 @contextmanager
 def suppress_stderr():
     """Context manager to suppress stderr output."""
@@ -165,7 +161,7 @@ class TestRunner:
             with suppress_stderr():
                 result = test_func()
                 if asyncio.iscoroutine(result):
-                    result = await result
+                    await result
         except Exception as e:
             duration = time.perf_counter() - start
             # Check if it's a connection error
@@ -271,7 +267,7 @@ class TestRunner:
         async def test_validate_token_api_key():
             if not api_key:
                 self.skip_test("validate_token with API_KEY", "API_KEY not configured")
-                return
+                return False
             result = await self.client.validate_token(api_key)
             assert result is True, "API_KEY validation should return True"
             return True
@@ -293,7 +289,7 @@ class TestRunner:
         async def test_get_user_api_key():
             if not api_key:
                 self.skip_test("get_user with API_KEY (returns None)", "API_KEY not configured")
-                return
+                return False
             user = await self.client.get_user(api_key)
             assert user is None, "API_KEY should return None for get_user"
             return True
@@ -309,7 +305,7 @@ class TestRunner:
                 self.skip_test(
                     "get_user_info with API_KEY (returns None)", "API_KEY not configured"
                 )
-                return
+                return False
             user = await self.client.get_user_info(api_key)
             assert user is None, "API_KEY should return None for get_user_info"
             return True
@@ -340,7 +336,7 @@ class TestRunner:
         async def test_logout():
             if not api_key:
                 self.skip_test("logout", "API_KEY not configured")
-                return
+                return False
             # Logout should not raise exception (even if token is invalid)
             await self.client.logout(api_key)
             return True
@@ -354,7 +350,7 @@ class TestRunner:
         async def test_is_authenticated():
             if not api_key:
                 self.skip_test("is_authenticated", "API_KEY not configured")
-                return
+                return False
             result = await self.client.is_authenticated(api_key)
             assert result is True, "API_KEY should be authenticated"
             return True
@@ -383,7 +379,7 @@ class TestRunner:
         async def test_get_roles():
             if not api_key:
                 self.skip_test("get_roles", "API_KEY not configured")
-                return
+                return False
             roles = await self.client.get_roles(api_key)
             # Should return list (may be empty)
             assert isinstance(roles, list), "Roles should be a list"
@@ -398,7 +394,7 @@ class TestRunner:
         async def test_has_role():
             if not api_key:
                 self.skip_test("has_role", "API_KEY not configured")
-                return
+                return False
             result = await self.client.has_role(api_key, "admin")
             assert isinstance(result, bool), "has_role should return bool"
             return True
@@ -412,7 +408,7 @@ class TestRunner:
         async def test_has_any_role():
             if not api_key:
                 self.skip_test("has_any_role", "API_KEY not configured")
-                return
+                return False
             result = await self.client.has_any_role(api_key, ["admin", "user"])
             assert isinstance(result, bool), "has_any_role should return bool"
             return True
@@ -426,7 +422,7 @@ class TestRunner:
         async def test_has_all_roles():
             if not api_key:
                 self.skip_test("has_all_roles", "API_KEY not configured")
-                return
+                return False
             result = await self.client.has_all_roles(api_key, ["admin", "user"])
             assert isinstance(result, bool), "has_all_roles should return bool"
             return True
@@ -440,7 +436,7 @@ class TestRunner:
         async def test_refresh_roles():
             if not api_key:
                 self.skip_test("refresh_roles", "API_KEY not configured")
-                return
+                return False
             roles = await self.client.refresh_roles(api_key)
             assert isinstance(roles, list), "refresh_roles should return list"
             return True
@@ -460,7 +456,7 @@ class TestRunner:
         async def test_get_permissions():
             if not api_key:
                 self.skip_test("get_permissions", "API_KEY not configured")
-                return
+                return False
             permissions = await self.client.get_permissions(api_key)
             assert isinstance(permissions, list), "Permissions should be a list"
             return True
@@ -474,7 +470,7 @@ class TestRunner:
         async def test_has_permission():
             if not api_key:
                 self.skip_test("has_permission", "API_KEY not configured")
-                return
+                return False
             result = await self.client.has_permission(api_key, "read:data")
             assert isinstance(result, bool), "has_permission should return bool"
             return True
@@ -488,7 +484,7 @@ class TestRunner:
         async def test_has_any_permission():
             if not api_key:
                 self.skip_test("has_any_permission", "API_KEY not configured")
-                return
+                return False
             result = await self.client.has_any_permission(api_key, ["read:data", "write:data"])
             assert isinstance(result, bool), "has_any_permission should return bool"
             return True
@@ -502,7 +498,7 @@ class TestRunner:
         async def test_has_all_permissions():
             if not api_key:
                 self.skip_test("has_all_permissions", "API_KEY not configured")
-                return
+                return False
             result = await self.client.has_all_permissions(api_key, ["read:data", "write:data"])
             assert isinstance(result, bool), "has_all_permissions should return bool"
             return True
@@ -516,7 +512,7 @@ class TestRunner:
         async def test_refresh_permissions():
             if not api_key:
                 self.skip_test("refresh_permissions", "API_KEY not configured")
-                return
+                return False
             permissions = await self.client.refresh_permissions(api_key)
             assert isinstance(permissions, list), "refresh_permissions should return list"
             return True
@@ -530,7 +526,7 @@ class TestRunner:
         async def test_clear_permissions_cache():
             if not api_key:
                 self.skip_test("clear_permissions_cache", "API_KEY not configured")
-                return
+                return False
             # Should not raise exception
             await self.client.clear_permissions_cache(api_key)
             return True
@@ -662,7 +658,7 @@ class TestRunner:
         async def test_authenticated_request():
             if not api_key:
                 self.skip_test("authenticated_request", "API_KEY not configured")
-                return
+                return False
             try:
                 await self.client.http_client.authenticated_request("GET", "/api/v1/test", api_key)
                 return True
@@ -874,8 +870,9 @@ class TestRunner:
         # Cleanup
         try:
             await self.client.disconnect()
-        except Exception:
-            pass
+        except Exception as cleanup_error:
+            if "--verbose" in sys.argv or "-v" in sys.argv:
+                print(f"    {Colors.YELLOW}Cleanup warning: {cleanup_error}{Colors.RESET}")
 
         # Print summary
         self.print_summary()

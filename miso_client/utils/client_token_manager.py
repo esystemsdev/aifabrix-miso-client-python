@@ -141,7 +141,7 @@ class ClientTokenManager:
                 now = datetime.now()
                 return max(0, int((token_exp - now).total_seconds()))
         except Exception:
-            pass
+            return 1800
         return 1800
 
     def _resolve_expires_in(self, token_response: ClientTokenResponse) -> int:

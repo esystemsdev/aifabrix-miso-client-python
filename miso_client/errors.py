@@ -68,25 +68,17 @@ class MisoClientError(Exception):
 class AuthenticationError(MisoClientError):
     """Raised when authentication fails."""
 
-    pass
-
 
 class AuthorizationError(MisoClientError):
     """Raised when authorization check fails."""
-
-    pass
 
 
 class ConnectionError(MisoClientError):
     """Raised when connection to controller or Redis fails."""
 
-    pass
-
 
 class ConfigurationError(MisoClientError):
     """Raised when configuration is invalid."""
-
-    pass
 
 
 class EncryptionError(MisoClientError):

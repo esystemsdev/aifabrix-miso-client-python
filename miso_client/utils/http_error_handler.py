@@ -106,4 +106,3 @@ def parse_error_response(response: httpx.Response, url: str) -> Optional[ErrorRe
         return ErrorResponse(**data)
     except (ValueError, TypeError, KeyError):
         return None
-    return None

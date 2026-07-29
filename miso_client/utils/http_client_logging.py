@@ -84,7 +84,7 @@ def calculate_request_sizes(
             request_str = str(request_data)
             request_size = len(request_str.encode("utf-8"))
         except Exception:
-            pass
+            request_size = None
 
     response_size: Optional[int] = None
     if response is not None:
@@ -92,7 +92,7 @@ def calculate_request_sizes(
             response_str = str(response)
             response_size = len(response_str.encode("utf-8"))
         except Exception:
-            pass
+            response_size = None
 
     return request_size, response_size
 
@@ -272,7 +272,7 @@ async def log_http_request_audit(
             correlation_id,
         )
     except Exception:
-        pass
+        return
 
 
 async def _log_http_request_audit_impl(
@@ -408,7 +408,7 @@ async def log_http_request_debug(
             correlation_id,
         )
     except Exception:
-        pass
+        return
 
 
 async def _log_http_request_debug_impl(

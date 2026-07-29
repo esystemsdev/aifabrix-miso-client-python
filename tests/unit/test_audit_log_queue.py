@@ -541,6 +541,7 @@ class TestAuditLogQueue:
 
         # Wait for flush
         await task
+        assert task.done()
 
         # Should not raise exception
         assert audit_queue.get_queue_size() == 0

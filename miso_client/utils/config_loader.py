@@ -20,7 +20,7 @@ def _load_dotenv_if_available() -> None:
 
         load_dotenv()
     except ImportError:
-        pass
+        return
 
 
 def _get_required_env(primary_key: str, secondary_key: str, error_message: str) -> str:

@@ -9,6 +9,11 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..utils.http_client import HttpClient
+    from .applications_api import ApplicationsApi
+    from .auth_api import AuthApi
+    from .logs_api import LogsApi
+    from .permissions_api import PermissionsApi
+    from .roles_api import RolesApi
 
 
 class ApiClient:

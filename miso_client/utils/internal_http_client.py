@@ -8,7 +8,7 @@ HttpClient class instead which adds ISO 27001 compliant audit and debug logging.
 import asyncio
 import json
 from types import TracebackType
-from typing import Any, Awaitable, Callable, Dict, Literal, Optional, Tuple, Type, cast
+from typing import Any, Awaitable, Callable, Dict, Literal, NoReturn, Optional, Tuple, Type, cast
 
 import httpx
 
@@ -76,10 +76,10 @@ class InternalHttpClient:
                 await self.client.aclose()
             except (RuntimeError, asyncio.CancelledError):
                 # Event loop closed or cancelled - that's okay during teardown
-                pass
+                return
             except Exception:
                 # Ignore any other errors during cleanup
-                pass
+                return
             finally:
                 self.client = None
 
@@ -422,7 +422,7 @@ class InternalHttpClient:
         if auth_method in ["client-token", "client-credentials"]:
             self.token_manager.clear_token()
 
-    def _raise_all_auth_methods_failed(self, last_error: Optional[Exception]) -> None:
+    def _raise_all_auth_methods_failed(self, last_error: Optional[Exception]) -> NoReturn:
         """Raise final strategy failure when all methods are exhausted."""
         if last_error is None:
             raise AuthenticationError("No authentication methods available")

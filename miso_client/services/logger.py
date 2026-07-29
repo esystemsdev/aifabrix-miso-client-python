@@ -10,10 +10,6 @@ import random
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
-if TYPE_CHECKING:
-    # Avoid import at runtime for frameworks not installed
-    pass
-
 from ..models.config import ClientLoggingOptions, LogEntry, LogLevel
 from ..services.application_context import ApplicationContextService
 from ..services.redis import RedisService
@@ -221,7 +217,7 @@ class LoggerService:
                     callback(log_entry)
             except Exception:
                 # Silently fail to avoid breaking application flow
-                pass
+                continue
         return True
 
     async def _queue_audit_log(self, log_entry: LogEntry) -> bool:
@@ -279,7 +275,7 @@ class LoggerService:
             # Failed to send log to controller
             self.circuit_breaker.record_failure()
             # Silently fail to avoid infinite logging loops
-            pass
+            return
 
     async def _get_app_context(self, options: Optional[ClientLoggingOptions]) -> Dict[str, Any]:
         """Get application context with option overwrites."""

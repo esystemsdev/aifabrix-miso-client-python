@@ -180,7 +180,7 @@ class CacheService:
             try:
                 deleted = await self.redis.delete(key)
             except Exception:
-                pass
+                deleted = False
 
         # Delete from memory cache
         if key in self._memory_cache:

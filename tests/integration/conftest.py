@@ -31,7 +31,7 @@ if _env_path.exists():
 
         load_dotenv(_env_path)
     except ImportError:
-        pass
+        load_dotenv = None
 
 
 def _aifabrix_config_paths():
@@ -118,7 +118,7 @@ def _decrypt_refresh_token_from_config(
             os.unlink(enc_file)
             os.unlink(key_file)
     except Exception:
-        pass
+        return None
     return None
 
 

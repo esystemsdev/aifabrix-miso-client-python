@@ -5,7 +5,8 @@ is unavailable. It handles caching of roles and permissions, and log queuing.
 """
 
 import logging
-from typing import Optional
+from inspect import isawaitable
+from typing import Awaitable, Optional, cast
 
 import redis.asyncio as redis
 
@@ -50,8 +51,8 @@ class RedisService:
 
     async def _await_maybe(self, value: object) -> None:
         """Await value when it is awaitable."""
-        if hasattr(value, "__await__"):
-            await value  # type: ignore[misc]
+        if isawaitable(value):
+            await cast(Awaitable[object], value)
 
     async def connect(self) -> None:
         """Connect to Redis.

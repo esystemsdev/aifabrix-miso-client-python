@@ -106,7 +106,7 @@ class DataMasker:
                     if isinstance(field, str):
                         merged_fields.add(cls._normalize_field_name(field))
         except Exception:
-            pass
+            json_fields = []
 
         if not merge_defaults and not merged_fields:
             merged_fields = set(cls._hardcoded_sensitive_fields)
@@ -175,7 +175,7 @@ class DataMasker:
                 if isinstance(field, str):
                     sens.add(cls._normalize_field_name(field))
         except Exception:
-            pass
+            return sens
         if not merge and not sens:
             sens = set(cls._hardcoded_sensitive_fields)
         return sens

@@ -70,12 +70,11 @@ def normalize_expires_at(value: Any) -> Optional[datetime]:
     if normalized_str is None:
         return None
 
+    normalized_iso = normalized_str
     try:
         return _parse_timestamp_number(float(normalized_str))
     except ValueError:
-        pass
-
-    normalized_iso = normalized_str
+        normalized_iso = normalized_str
     if normalized_iso.endswith("Z"):
         normalized_iso = f"{normalized_iso[:-1]}+00:00"
 

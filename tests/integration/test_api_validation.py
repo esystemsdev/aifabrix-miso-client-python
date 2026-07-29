@@ -11,6 +11,7 @@ Usage:
 
 import ast
 import re
+import sys
 from pathlib import Path
 from typing import Dict, List, Set, Tuple
 
@@ -276,6 +277,6 @@ if __name__ == "__main__":
 
     # Exit with error code if coverage is not 100%
     if coverage_percentage < 100.0:
-        exit(1)
+        sys.exit(1)
     else:
-        exit(0)
+        sys.exit(0)

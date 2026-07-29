@@ -76,7 +76,7 @@ class AuditLogQueue:
             signal.signal(signal.SIGINT, self._signal_handler)
             signal.signal(signal.SIGTERM, self._signal_handler)
         except (ValueError, OSError):
-            pass
+            return
 
     def _signal_handler(self, signum: int, frame: Optional[FrameType]) -> None:
         """Handle shutdown signals."""
@@ -111,7 +111,7 @@ class AuditLogQueue:
             await self.flush(False)
         except asyncio.CancelledError:
             # Timer was cancelled, ignore
-            pass
+            return
         finally:
             self.flush_timer = None
 
@@ -145,7 +145,7 @@ class AuditLogQueue:
                 return
             await self._send_http_batch(entries)
         except Exception:
-            pass
+            return
         finally:
             self.is_flushing = False
 
@@ -157,7 +157,8 @@ class AuditLogQueue:
         try:
             await self.flush_timer
         except asyncio.CancelledError:
-            pass
+            self.flush_timer = None
+            return
         self.flush_timer = None
 
     def _drain_queue(self) -> List[LogEntry]:

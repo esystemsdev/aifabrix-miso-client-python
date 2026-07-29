@@ -89,6 +89,6 @@ def get_cache_ttl_from_token(token: str, validation_ttl: int) -> int:
                 return max(60, min(ttl, validation_ttl))
     except Exception:
         # If token expiration cannot be determined, use default TTL
-        pass
+        return validation_ttl
 
     return validation_ttl
