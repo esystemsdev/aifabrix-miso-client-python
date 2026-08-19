@@ -8,7 +8,7 @@ When the `/repair-release` command is used, the agent must automatically prepare
    - First, run validation to ensure all tests pass, linting is clean, and the codebase is in a validated state
    - Silent-first path: run `make validate-silent` and use `.temp/validation/` logs as primary diagnostics
    - If silent execution is unavailable, fallback to `make validate`
-   - This includes format/lint/type-check/test validation gates
+   - This includes format/lint/basedpyright/type-check/test validation gates
    - Do not proceed until all validation steps pass
 
 2. **Change Detection Step**:

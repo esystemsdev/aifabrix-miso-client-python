@@ -5,9 +5,9 @@ When the `/validate-tests` command is used, the agent must automatically fix all
 ## Silent Execution Commands
 
 - Primary wrapper: `make validate-silent`
-- Step-level commands: `make format-silent`, `make lint-silent`, `make type-check-silent`, `make test-silent`
+- Step-level commands: `make format-silent`, `make lint-silent`, `make basedpyright-silent`, `make type-check-silent`, `make test-silent`
 - Logs: `.temp/validation/` (primary diagnostics source)
-- Backup non-silent commands (use only if needed): `make validate`, `make format`, `make lint`, `make type-check`, `make test`
+- Backup non-silent commands (use only if needed): `make validate`, `make format`, `make lint`, `make basedpyright`, `make type-check`, `make test`
 
 **Execution Process:**
 
@@ -23,23 +23,31 @@ When the `/validate-tests` command is used, the agent must automatically fix all
    - Re-run `make lint-silent` until it passes (exit code 0)
    - Do not proceed until lint step is green
 
-3. **Type Check Step** (Optional but Recommended):
-   - Run `make type-check-silent` AFTER lint (primary; backup command: `make type-check`)
+3. **Basedpyright Step**:
+   - Run `make basedpyright-silent` AFTER lint (primary; backup command: `make basedpyright`)
+   - Use `BASEDPYRIGHT_PATHS="<touched paths>"` for targeted loops where applicable
+   - If basedpyright fails, fix all reported typing issues in scope
+   - Re-run `make basedpyright-silent` until it passes (exit code 0)
+   - Do not proceed until basedpyright step is green
+
+4. **Type Check Step** (Optional but Recommended):
+   - Run `make type-check-silent` AFTER basedpyright (primary; backup command: `make type-check`)
    - If type checking fails, automatically fix type errors where possible
    - Re-run `make type-check-silent` until it passes or has acceptable warnings (exit code 0)
    - Do not proceed until type-check step is green or acceptable
 
-4. **Test Step**:
+5. **Test Step**:
    - Run `make test-silent` AFTER type-check (primary; backup command: `make test`)
    - If tests fail, automatically fix all test failures
    - Re-run `make test-silent` until all tests pass (exit code 0)
    - Do not proceed until test step is green
    - **All tests MUST be mocked** - no real database connections, external API calls, or I/O operations
-  - **Each individual test execution time MUST be reasonable** - this requirement applies per test case (not to aggregate suite/group runtime). If any single test takes too long, optimize by ensuring all external dependencies are properly mocked (httpx, redis, etc.)
+   - **Each individual test execution time MUST be reasonable** - this requirement applies per test case (not to aggregate suite/group runtime). If any single test takes too long, optimize by ensuring all external dependencies are properly mocked (httpx, redis, etc.)
 
-5. **Final Verification Step**:
+6. **Final Verification Step**:
    - Run `make format-silent` again to ensure no formatting changes were introduced
    - Run `make lint-silent` again to ensure no linting issues were introduced
+   - Run `make basedpyright-silent` again to ensure no type regressions were introduced
    - Run `make type-check-silent` again to ensure no type regressions were introduced
    - If format or lint made any changes, run `make test-silent` again to verify tests still pass
    - Continue this loop until format/lint make no changes, type-check passes, and tests pass
@@ -56,10 +64,12 @@ When the `/validate-tests` command is used, the agent must automatically fix all
 - **Complete Success**: The command is only complete when ALL steps pass AND final verification shows no changes:
   - ✅ `make format-silent` passes (initial)
   - ✅ `make lint-silent` passes (initial)
+  - ✅ `make basedpyright-silent` passes (initial)
   - ✅ `make type-check-silent` passes (initial, optional)
   - ✅ `make test-silent` passes (initial, all mocked, each individual test has reasonable execution time)
   - ✅ `make format-silent` passes (final, no changes)
   - ✅ `make lint-silent` passes (final, no changes)
+  - ✅ `make basedpyright-silent` passes (final, no regressions)
   - ✅ `make type-check-silent` passes (final, no regressions)
   - ✅ `make test-silent` passes (final, if format/lint made changes)
 
@@ -78,6 +88,9 @@ When the `/validate-tests` command is used, the agent must automatically fix all
 - Should check both `miso_client/` and `tests/` directories
 
 ### Type Checking
+- **basedpyright**: Static type-check step in this workflow
+- Default scope from `pyrightconfig.json`; for fix loops use `BASEDPYRIGHT_PATHS="<paths>" make basedpyright-silent`
+- Run before mypy to catch structural and import/type-safety issues early
 - **mypy**: Static type checker
 - Configuration in `pyproject.toml` under `[tool.mypy]`
 - Use `--ignore-missing-imports` for third-party libraries
