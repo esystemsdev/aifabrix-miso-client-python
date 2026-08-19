@@ -1,7 +1,7 @@
 """Reusable auth service flow helpers."""
 
 import logging
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional, cast
 
 from ..api.types.auth_types import TokenExchangeResponse
 from ..models.config import AuthStrategy, UserInfo
@@ -25,11 +25,13 @@ def _extract_validation_data(response: Any) -> Dict[str, Any]:
     }
 
 
-def _normalize_exchange_response_payload(response: Any) -> Any:
+def _normalize_exchange_response_payload(response: Any) -> dict[str, Any]:
     """Normalize legacy exchange endpoint response shape."""
     if isinstance(response, dict) and "data" in response and isinstance(response["data"], dict):
-        return response["data"]
-    return response
+        return cast(dict[str, Any], response["data"])
+    if isinstance(response, dict):
+        return cast(dict[str, Any], response)
+    return {}
 
 
 async def _read_cached_exchange_result(
@@ -41,7 +43,7 @@ async def _read_cached_exchange_result(
     cached = await cache.get(cache_key)
     if cached and isinstance(cached, dict):
         logger.debug("Token exchange cache hit")
-        return TokenExchangeResponse(**cached)
+        return TokenExchangeResponse(**cast(dict[str, Any], cached))
     return None
 
 
@@ -78,12 +80,12 @@ async def fetch_validation_result(
             {"token": token},
             auth_strategy=auth_strategy,
         )
-        return result  # type: ignore[no-any-return]
+        return cast(Dict[str, Any], result)
 
     result = await http_client.authenticated_request(
         "POST", "/api/v1/auth/validate", token, {"token": token}
     )
-    return result  # type: ignore[no-any-return]
+    return cast(Dict[str, Any], result)
 
 
 async def fetch_user_info(
@@ -114,7 +116,7 @@ async def logout_user(
     result = await http_client.authenticated_request(
         "POST", "/api/v1/auth/logout", token, {"token": token}
     )
-    return result if isinstance(result, dict) else {}
+    return cast(Dict[str, Any], result) if isinstance(result, dict) else {}
 
 
 async def exchange_delegated_token(
@@ -140,8 +142,8 @@ async def exchange_delegated_token(
             data=None,
             auto_refresh=False,
         )
-        response = _normalize_exchange_response_payload(response)
-        result = TokenExchangeResponse(**response)
+        payload = _normalize_exchange_response_payload(response)
+        result = TokenExchangeResponse(**payload)
 
     await _cache_exchange_result(cache, cache_key, result, validation_ttl)
     return result
@@ -164,4 +166,4 @@ async def refresh_user_access_token(
     result = await http_client.request(
         "POST", "/api/v1/auth/login/device/refresh", {"refreshToken": refresh_token}
     )
-    return result if isinstance(result, dict) else None
+    return cast(Dict[str, Any], result) if isinstance(result, dict) else None

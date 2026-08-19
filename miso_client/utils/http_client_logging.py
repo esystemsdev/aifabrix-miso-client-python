@@ -6,7 +6,7 @@ is automatically masked using DataMasker before logging.
 """
 
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 
 from .http_log_formatter import build_audit_context, build_debug_context
 from .http_log_masker import (
@@ -57,10 +57,9 @@ def calculate_request_metrics(
         response_status = getattr(response_obj, "status_code", None)
         if isinstance(response_status, int):
             status_code = response_status
-        elif hasattr(error, "status_code"):
-            status_code = error.status_code
         else:
-            status_code = 500
+            error_status = getattr(error, "status_code", None)
+            status_code = error_status if isinstance(error_status, int) else 500
 
     return duration_ms, status_code
 
@@ -163,10 +162,10 @@ def _to_dict_audit_config(audit_config: Optional[Any]) -> Dict[str, Any]:
         return {}
     if hasattr(audit_config, "model_dump"):
         result = audit_config.model_dump()
-        return result if isinstance(result, dict) else {}
+        return cast(Dict[str, Any], result) if isinstance(result, dict) else {}
     if hasattr(audit_config, "dict"):
         result = audit_config.dict()  # type: ignore[attr-defined]
-        return result if isinstance(result, dict) else {}
+        return cast(Dict[str, Any], result) if isinstance(result, dict) else {}
     return {}
 
 

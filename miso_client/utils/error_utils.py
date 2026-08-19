@@ -4,7 +4,7 @@ This module provides error transformation utilities for handling
 camelCase error responses from the API.
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 from ..errors import MisoClientError
 from ..models.error_response import ErrorResponse
@@ -32,7 +32,7 @@ class ApiErrorException(Exception):
         self.errors = error.errors
 
 
-def transformError(error_data: dict) -> ErrorResponse:
+def transformError(error_data: dict[str, Any]) -> ErrorResponse:
     """Transform arbitrary error into standardized camelCase ErrorResponse.
 
     Converts error data dictionary to ErrorResponse object with camelCase field names.
@@ -59,7 +59,9 @@ def transformError(error_data: dict) -> ErrorResponse:
     return ErrorResponse(**error_data)
 
 
-def _prepare_error_data(response_data: dict, status_code: int, instance: Optional[str]) -> dict:
+def _prepare_error_data(
+    response_data: dict[str, Any], status_code: int, instance: Optional[str]
+) -> dict[str, Any]:
     """Prepare normalized error payload for ErrorResponse construction."""
     data = response_data.copy()
     if instance:
@@ -70,7 +72,7 @@ def _prepare_error_data(response_data: dict, status_code: int, instance: Optiona
 
 
 def handleApiError(
-    response_data: dict, status_code: int, instance: Optional[str] = None
+    response_data: dict[str, Any], status_code: int, instance: Optional[str] = None
 ) -> ApiErrorException:
     """Handle API error and raise camelCase ApiErrorException."""
     raise ApiErrorException(

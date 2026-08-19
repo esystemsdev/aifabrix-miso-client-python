@@ -7,7 +7,7 @@ in-memory TTL-based caching when Redis is unavailable.
 
 import json
 import time
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, cast
 
 from ..services.redis import RedisService
 
@@ -85,9 +85,11 @@ class CacheService:
             parsed = json.loads(value_str)
             # Check if it's our wrapped format
             if isinstance(parsed, dict) and "__cached_value__" in parsed:
-                return parsed["__cached_value__"]
+                parsed_dict = cast(Dict[str, Any], parsed)
+                return parsed_dict["__cached_value__"]
             # Otherwise return as-is (could be a string or other JSON value)
-            return parsed
+            parsed_value = cast(Any, parsed)
+            return parsed_value
         except (json.JSONDecodeError, TypeError):
             # If JSON parsing fails, assume it's a plain string
             return value_str

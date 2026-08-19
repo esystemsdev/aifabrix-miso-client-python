@@ -3,7 +3,7 @@
 This module defines custom exceptions for the MisoClient SDK.
 """
 
-from typing import TYPE_CHECKING, Literal, Optional
+from typing import TYPE_CHECKING, Any, Literal, Optional
 
 if TYPE_CHECKING:
     from .models.error_response import ErrorResponse
@@ -29,7 +29,7 @@ class MisoClientError(Exception):
         self,
         message: str,
         status_code: int | None = None,
-        error_body: dict | None = None,
+        error_body: dict[str, Any] | None = None,
         error_response: "ErrorResponse | None" = None,
         auth_method: Optional[AuthMethod] = None,
     ):

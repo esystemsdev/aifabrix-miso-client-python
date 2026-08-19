@@ -4,14 +4,28 @@ This module provides Flask middleware to automatically set logger context
 from request objects, enabling unified logging throughout the application.
 """
 
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    from flask import Flask
+import importlib
+from collections.abc import Callable, Mapping
+from typing import Any, Protocol, cast
 
 from ..utils.logger_helpers import extract_jwt_context
 from ..utils.request_context import extract_request_context
 from .logger_context_storage import clear_logger_context, set_logger_context
+
+
+class FlaskRequestLike(Protocol):
+    """Minimal Flask request surface needed by this middleware."""
+
+    headers: Mapping[str, str]
+    host: str
+
+
+class FlaskAppLike(Protocol):
+    """Minimal Flask app surface needed by this middleware."""
+
+    def before_request(self, func: Callable[[], None]) -> Any: ...
+
+    def after_request(self, func: Callable[[Any], Any]) -> Any: ...
 
 
 def _extract_bearer_token(auth_header: str) -> str:
@@ -67,6 +81,16 @@ def _apply_jwt_context_fields(
         context_dict["sessionId"] = jwt_context["sessionId"]
 
 
+def _get_runtime_request() -> FlaskRequestLike | None:
+    """Load Flask request object dynamically when Flask is installed."""
+    try:
+        flask_module = importlib.import_module("flask")
+    except Exception:
+        return None
+    request_obj = getattr(flask_module, "request", None)
+    return cast(FlaskRequestLike | None, request_obj)
+
+
 def logger_context_middleware() -> None:
     """Flask middleware to set logger context from request.
 
@@ -82,8 +106,9 @@ def logger_context_middleware() -> None:
         ...     logger_context_middleware()
 
     """
-    from flask import request
-
+    request = _get_runtime_request()
+    if request is None:
+        return
     request_context = extract_request_context(request)
     auth_header = request.headers.get("authorization", "")
     jwt_token = _extract_bearer_token(auth_header)
@@ -93,7 +118,7 @@ def logger_context_middleware() -> None:
     set_logger_context(context_dict)
 
 
-def register_logger_context_middleware(app: "Flask") -> None:
+def register_logger_context_middleware(app: FlaskAppLike) -> None:
     """Register logger context middleware with Flask app.
 
     Convenience function to register the middleware automatically.

@@ -4,6 +4,7 @@ Provides server-side route handlers for creating client token endpoints
 that return client token + DataClient configuration to frontend clients.
 """
 
+import importlib
 from typing import Any, Callable, NoReturn, Optional
 
 from ..errors import AuthenticationError
@@ -28,10 +29,13 @@ def _build_options(options: Optional[ClientTokenEndpointOptions]) -> ClientToken
 def _import_fastapi_http_exception() -> Any:
     """Import HTTPException from FastAPI, or raise RuntimeError if unavailable."""
     try:
-        from fastapi import HTTPException
+        fastapi_module = importlib.import_module("fastapi")
+        http_exception = getattr(fastapi_module, "HTTPException", None)
     except ImportError as error:
         raise RuntimeError("FastAPI is not installed") from error
-    return HTTPException
+    if http_exception is None:
+        raise RuntimeError("FastAPI HTTPException class is unavailable")
+    return http_exception
 
 
 def _raise_http_error(status_code: int, message: str, error: str) -> NoReturn:

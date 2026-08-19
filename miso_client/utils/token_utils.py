@@ -35,12 +35,12 @@ def _pick_field(decoded: Dict[str, object], keys: list[str]) -> Optional[str]:
 
 def extract_client_token_info(client_token: str) -> Dict[str, Optional[str]]:
     """Extract application/environment identity info from client token."""
-    if not client_token or not isinstance(client_token, str):
+    if not client_token:
         return dict(EMPTY_TOKEN_INFO)
 
     try:
         decoded = decode_token(client_token)
-        if not decoded or not isinstance(decoded, dict):
+        if not decoded:
             return dict(EMPTY_TOKEN_INFO)
 
         return {

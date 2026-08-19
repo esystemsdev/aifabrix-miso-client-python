@@ -4,7 +4,7 @@ This module provides utilities for validating request origins against
 a list of allowed origins, with support for wildcard port matching.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 from urllib.parse import urlparse
 
 
@@ -16,15 +16,15 @@ def _result(valid: bool, error: Optional[str] = None) -> Dict[str, Any]:
 def _extract_headers_dict(headers: Any) -> Optional[Dict[str, Any]]:
     """Extract dictionary-like headers from supported request/header objects."""
     if isinstance(headers, dict):
-        return headers
+        return cast(Dict[str, Any], headers)
     if hasattr(headers, "headers"):
         headers_obj = getattr(headers, "headers")
         if isinstance(headers_obj, dict):
-            return headers_obj
+            return cast(Dict[str, Any], headers_obj)
         if hasattr(headers_obj, "get"):
-            return dict(headers_obj)
+            return cast(Dict[str, Any], dict(headers_obj))
     if hasattr(headers, "get"):
-        return dict(headers)
+        return cast(Dict[str, Any], dict(headers))
     return None
 
 
@@ -95,7 +95,7 @@ def _allowed_origin_matches(origin_normalized: str, allowed: str) -> bool:
 def _is_allowed_origin(origin_normalized: str, allowed_origins: List[str]) -> bool:
     """Check normalized request origin against configured allowed origins."""
     for allowed in allowed_origins:
-        if not allowed or not isinstance(allowed, str):
+        if not allowed:
             continue
         try:
             if _allowed_origin_matches(origin_normalized, allowed):

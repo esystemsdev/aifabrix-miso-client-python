@@ -27,11 +27,12 @@ def _normalize_foreign_key(value: Any) -> Any:
         # Convert string ID to ForeignKeyReference format
         return {"id": value}
     if isinstance(value, dict):
+        typed_value = cast(Dict[str, Any], value)
         # Already an object, check if it has 'id' field
-        if "id" in value:
-            return value
+        if "id" in typed_value:
+            return typed_value
         # If it's a dict without 'id', treat the whole dict as the reference
-        return value
+        return typed_value
     return value
 
 
@@ -47,14 +48,15 @@ def _normalize_log_entry(entry: Any) -> Any:
     """
     if not isinstance(entry, dict):
         return entry
+    typed_entry = cast(Dict[str, Any], entry)
 
     # Normalize applicationId and userId if they are strings
-    if "applicationId" in entry and isinstance(entry["applicationId"], str):
-        entry["applicationId"] = _normalize_foreign_key(entry["applicationId"])
-    if "userId" in entry and isinstance(entry["userId"], str):
-        entry["userId"] = _normalize_foreign_key(entry["userId"])
+    if "applicationId" in typed_entry and isinstance(typed_entry["applicationId"], str):
+        typed_entry["applicationId"] = _normalize_foreign_key(typed_entry["applicationId"])
+    if "userId" in typed_entry and isinstance(typed_entry["userId"], str):
+        typed_entry["userId"] = _normalize_foreign_key(typed_entry["userId"])
 
-    return entry
+    return typed_entry
 
 
 def normalize_api_response(response: Any) -> Dict[str, Any]:
@@ -75,16 +77,19 @@ def normalize_api_response(response: Any) -> Dict[str, Any]:
         return cast(Dict[str, Any], response)
 
     # Normalize data array if present (for list responses)
-    if "data" in response and isinstance(response["data"], list):
-        response["data"] = [_normalize_log_entry(entry) for entry in response["data"]]
-    elif "data" in response and isinstance(response["data"], dict):
+    typed_response = cast(Dict[str, Any], response)
+
+    if "data" in typed_response and isinstance(typed_response["data"], list):
+        data_entries = cast(list[Any], typed_response["data"])
+        typed_response["data"] = [_normalize_log_entry(entry) for entry in data_entries]
+    elif "data" in typed_response and isinstance(typed_response["data"], dict):
         # Single data object
-        response["data"] = _normalize_log_entry(response["data"])
+        typed_response["data"] = _normalize_log_entry(typed_response["data"])
 
     # If response already has success and timestamp, use as-is
-    if "success" not in response:
-        response["success"] = True
-    if "timestamp" not in response:
-        response["timestamp"] = datetime.now().isoformat() + "Z"
+    if "success" not in typed_response:
+        typed_response["success"] = True
+    if "timestamp" not in typed_response:
+        typed_response["timestamp"] = datetime.now().isoformat() + "Z"
 
-    return response
+    return typed_response

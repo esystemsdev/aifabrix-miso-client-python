@@ -44,6 +44,7 @@ class TestLoggerContextStorage:
         context = LoggerContextStorage.get_context()
 
         assert context == test_context
+        assert context is not None
         assert context["userId"] == "user-123"
         assert context["correlationId"] == "corr-456"
         assert context["ipAddress"] == "127.0.0.1"
@@ -82,6 +83,7 @@ class TestLoggerContextStorage:
         LoggerContextStorage.merge_context(additional)
 
         context = LoggerContextStorage.get_context()
+        assert context is not None
         assert context["userId"] == "user-789"  # Overwritten
         assert context["ipAddress"] == "127.0.0.1"  # Preserved
         assert context["correlationId"] == "corr-456"  # Added
@@ -105,6 +107,8 @@ class TestLoggerContextStorage:
         results = await asyncio.gather(task1(), task2())
 
         # Each task should have its own context
+        assert results[0] is not None
+        assert results[1] is not None
         assert results[0]["task"] == "1"
         assert results[0]["value"] == "task1"
         assert results[1]["task"] == "2"
@@ -124,6 +128,7 @@ class TestLoggerContextStorage:
             return await nested_function()
 
         context = await main_task()
+        assert context is not None
         assert context["task"] == "main"
         assert context["value"] == "main-value"
 
@@ -177,5 +182,6 @@ class TestLoggerContextStorageFunctions:
         merge_logger_context(additional)
 
         context = get_logger_context()
+        assert context is not None
         assert context["userId"] == "user-123"
         assert context["correlationId"] == "corr-456"

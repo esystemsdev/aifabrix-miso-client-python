@@ -4,13 +4,13 @@ This module provides data masking functions specifically for HTTP request/respon
 logging. All sensitive data is masked using DataMasker before logging.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 from urllib.parse import parse_qs, urlparse
 
 from .data_masker import DataMasker
 
 
-def mask_error_message(error: Exception) -> Optional[str]:
+def mask_error_message(error: Optional[Exception]) -> Optional[str]:
     """Mask sensitive data in error message.
 
     Args:
@@ -26,7 +26,7 @@ def mask_error_message(error: Exception) -> Optional[str]:
     try:
         error_message = str(error)
         # Mask if error message contains sensitive keywords
-        if isinstance(error_message, str) and any(
+        if any(
             keyword in error_message.lower() for keyword in ["password", "token", "secret", "key"]
         ):
             return DataMasker.MASKED_VALUE
@@ -80,7 +80,7 @@ def extract_and_mask_query_params(url: str) -> Optional[Dict[str, Any]]:
             k: v[0] if len(v) == 1 else v for k, v in query_dict.items()
         }
         masked = DataMasker.mask_sensitive_data(query_simple)
-        return masked if isinstance(masked, dict) else None
+        return cast(Dict[str, Any], masked) if isinstance(masked, dict) else None
     except Exception:
         return None
 
@@ -105,11 +105,12 @@ def estimate_object_size(obj: Any) -> int:
         return 10  # Estimate for primitives
 
     if isinstance(obj, list):
-        return _estimate_list_size(obj)
+        return _estimate_list_size(cast(list[Any], obj))
 
     # Object: estimate based on property count and values
+    dict_obj = cast(Dict[str, Any], obj)
     size = 0
-    for key, value in obj.items():
+    for key, value in dict_obj.items():
         size += len(str(key).encode("utf-8")) + estimate_object_size(value)
     return size
 
@@ -188,7 +189,7 @@ def mask_response_data(
 
 
 def _stringify_masked_response(
-    truncated_body: Any, original_response: Any, was_truncated: bool
+    truncated_body: object, original_response: object, was_truncated: bool
 ) -> str:
     """Mask and stringify response body with safe fallback behavior."""
     try:
@@ -202,4 +203,15 @@ def _stringify_masked_response(
             return truncated_body
         return str(truncated_body)
     except Exception:
-        return str(truncated_body) if was_truncated else str(original_response)
+        if was_truncated:
+            if isinstance(truncated_body, dict):
+                typed_truncated_dict = cast(Dict[str, Any], truncated_body)
+                return str(typed_truncated_dict)
+            if isinstance(truncated_body, list):
+                typed_truncated_list = cast(list[Any], truncated_body)
+                return str(typed_truncated_list)
+            return str(cast(Any, truncated_body))
+        if isinstance(original_response, dict):
+            typed_original = cast(Dict[str, Any], original_response)
+            return str(typed_original)
+        return str(original_response)

@@ -5,7 +5,7 @@ for integrating with the Miso Controller.
 """
 
 import asyncio
-from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, cast
 
 from .api.types.auth_types import (
     TokenExchangeResponse,
@@ -99,12 +99,20 @@ class MisoClient:
 
     # ==================== AUTHENTICATION METHODS ====================
 
-    def get_token(self, req: dict) -> str | None:
+    def get_token(self, req: object) -> str | None:
         """Extract Bearer token from request headers."""
-        headers_obj = (
-            req.get("headers", {}) if isinstance(req, dict) else getattr(req, "headers", {})
-        )
-        headers: dict[str, Any] = headers_obj if isinstance(headers_obj, dict) else {}
+        headers_obj: object
+        if isinstance(req, dict):
+            req_dict = cast(dict[str, Any], req)
+            headers_obj = req_dict.get("headers", {})
+        else:
+            headers_obj = getattr(req, "headers", {})
+
+        headers: dict[str, Any]
+        if isinstance(headers_obj, dict):
+            headers = cast(dict[str, Any], headers_obj)
+        else:
+            headers = {}
         auth_value = headers.get("authorization") or headers.get("Authorization")
         if not isinstance(auth_value, str):
             return None
@@ -205,7 +213,7 @@ class MisoClient:
 
     def clear_user_token_refresh(self, user_id: str) -> None:
         """Clear refresh callback and tokens for a user."""
-        self.http_client._user_token_refresh.clear_user_tokens(user_id)
+        self.http_client.clear_user_token_refresh(user_id)
 
     # ==================== AUTHORIZATION METHODS ====================
 
@@ -341,7 +349,7 @@ class MisoClient:
         url: str,
         auth_strategy: AuthStrategy,
         data: Optional[Dict[str, Any]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> Any:
         """Make request with authentication strategy (priority-based fallback)."""
         return await self.http_client.request_with_auth_strategy(

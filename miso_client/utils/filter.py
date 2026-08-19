@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from ..models.filter_schema import FilterError, FilterSchema
 
 from ..models.filter import FilterOption, FilterQuery, JsonFilter
-from .filter_parser import parse_filter_params  # noqa: F401
+from .filter_parser import parse_filter_params
 
 VALID_FILTER_OPERATORS = {
     "eq",
@@ -69,7 +69,8 @@ def _parse_sort(params: Dict[str, Any]) -> Optional[List[str]]:
         return None
     sort_values = params["sort"]
     if isinstance(sort_values, list):
-        return [value for value in sort_values if isinstance(value, str)]
+        typed_values = cast(List[Any], sort_values)
+        return [value for value in typed_values if isinstance(value, str)]
     if isinstance(sort_values, str):
         return [sort_values]
     return None
@@ -77,11 +78,20 @@ def _parse_sort(params: Dict[str, Any]) -> Optional[List[str]]:
 
 def _parse_fields(params: Dict[str, Any]) -> Optional[List[str]]:
     """Parse fields selector list from query params."""
-    if "fields" not in params:
+    fields_value = params.get("fields")
+    if fields_value is None:
         return None
-    fields_raw = params["fields"][0] if isinstance(params["fields"], list) else params["fields"]
-    if not isinstance(fields_raw, str):
+    first_value_any: Any
+    if isinstance(fields_value, list):
+        typed_values = cast(List[Any], fields_value)
+        if not typed_values:
+            return None
+        first_value_any = typed_values[0]
+    else:
+        first_value_any = fields_value
+    if not isinstance(first_value_any, str):
         return None
+    fields_raw: str = first_value_any
     fields = [field.strip() for field in fields_raw.split(",") if field.strip()]
     return fields or None
 
@@ -90,20 +100,23 @@ def _validate_group_structure(group: Any) -> bool:
     """Validate one logical group structure (including nested groups)."""
     if not isinstance(group, dict):
         return False
-    if "operator" not in group or group["operator"] not in ["and", "or"]:
+    group_dict = cast(Dict[str, Any], group)
+    if "operator" not in group_dict or group_dict["operator"] not in ["and", "or"]:
         return False
 
-    if "filters" in group and group["filters"] is not None:
-        if not isinstance(group["filters"], list):
+    if "filters" in group_dict and group_dict["filters"] is not None:
+        filters_value = group_dict["filters"]
+        if not isinstance(filters_value, list):
             return False
-        for filter_option in group["filters"]:
+        for filter_option in cast(List[Any], filters_value):
             if not validate_filter_option(filter_option):
                 return False
 
-    if "groups" in group and group["groups"] is not None:
-        if not isinstance(group["groups"], list):
+    if "groups" in group_dict and group_dict["groups"] is not None:
+        groups_value = group_dict["groups"]
+        if not isinstance(groups_value, list):
             return False
-        for nested_group in group["groups"]:
+        for nested_group in cast(List[Any], groups_value):
             if not isinstance(nested_group, dict):
                 return False
             if "operator" not in nested_group:
@@ -113,7 +126,10 @@ def _validate_group_structure(group: Any) -> bool:
 
 def _validate_string_list(value: Any) -> bool:
     """Return True when value is a list[str]."""
-    return isinstance(value, list) and all(isinstance(item, str) for item in value)
+    if not isinstance(value, list):
+        return False
+    typed_list = cast(List[Any], value)
+    return all(isinstance(item, str) for item in typed_list)
 
 
 def _validate_filters_payload(value: Any) -> bool:
@@ -122,7 +138,8 @@ def _validate_filters_payload(value: Any) -> bool:
         return True
     if not isinstance(value, list):
         return False
-    return all(validate_filter_option(filter_option) for filter_option in value)
+    filter_list = cast(List[Any], value)
+    return all(validate_filter_option(filter_option) for filter_option in filter_list)
 
 
 def _validate_groups_payload(value: Any) -> bool:
@@ -131,7 +148,8 @@ def _validate_groups_payload(value: Any) -> bool:
         return True
     if not isinstance(value, list):
         return False
-    return all(_validate_group_structure(group) for group in value)
+    groups = cast(List[Any], value)
+    return all(_validate_group_structure(group) for group in groups)
 
 
 def build_query_string(filter_query: FilterQuery) -> str:
@@ -265,58 +283,60 @@ def query_string_to_json_filter(query_string: str) -> JsonFilter:
     )
 
 
-def validate_filter_option(option: Dict[str, Any]) -> bool:
+def validate_filter_option(option: Any) -> bool:
     """Validate single filter option structure."""
     if not isinstance(option, dict):
         return False
+    option_dict = cast(Dict[str, Any], option)
 
     # Check required fields
-    if "field" not in option or "op" not in option:
+    if "field" not in option_dict or "op" not in option_dict:
         return False
 
-    if option["op"] not in VALID_FILTER_OPERATORS:
+    if option_dict["op"] not in VALID_FILTER_OPERATORS:
         return False
 
     # Value is optional for null check operators
-    if option["op"] not in ("isNull", "isNotNull") and "value" not in option:
+    if option_dict["op"] not in ("isNull", "isNotNull") and "value" not in option_dict:
         return False
 
     # Validate field is string
-    if not isinstance(option["field"], str):
+    if not isinstance(option_dict["field"], str):
         return False
 
     return True
 
 
-def validate_json_filter(json_data: Dict[str, Any]) -> bool:
+def validate_json_filter(json_data: Any) -> bool:
     """Validate JSON filter structure."""
     if not isinstance(json_data, dict):
         return False
+    payload = cast(Dict[str, Any], json_data)
 
-    if not _validate_filters_payload(json_data.get("filters")):
+    if not _validate_filters_payload(payload.get("filters")):
         return False
-    if not _validate_groups_payload(json_data.get("groups")):
+    if not _validate_groups_payload(payload.get("groups")):
         return False
 
     if (
-        "sort" in json_data
-        and json_data["sort"] is not None
-        and not _validate_string_list(json_data["sort"])
+        "sort" in payload
+        and payload["sort"] is not None
+        and not _validate_string_list(payload["sort"])
     ):
         return False
 
-    if "page" in json_data and json_data["page"] is not None:
-        if not isinstance(json_data["page"], int):
+    if "page" in payload and payload["page"] is not None:
+        if not isinstance(payload["page"], int):
             return False
 
-    if "pageSize" in json_data and json_data["pageSize"] is not None:
-        if not isinstance(json_data["pageSize"], int):
+    if "pageSize" in payload and payload["pageSize"] is not None:
+        if not isinstance(payload["pageSize"], int):
             return False
 
     if (
-        "fields" in json_data
-        and json_data["fields"] is not None
-        and not _validate_string_list(json_data["fields"])
+        "fields" in payload
+        and payload["fields"] is not None
+        and not _validate_string_list(payload["fields"])
     ):
         return False
 

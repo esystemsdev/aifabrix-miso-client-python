@@ -6,7 +6,7 @@ is unavailable. It handles caching of roles and permissions, and log queuing.
 
 import logging
 from inspect import isawaitable
-from typing import Awaitable, Optional, cast
+from typing import Awaitable, Optional, Protocol, TypeVar, cast
 
 import redis.asyncio as redis
 
@@ -14,9 +14,26 @@ from ..models.config import RedisConfig
 from ..utils.error_utils import extract_correlation_id_from_error
 
 logger = logging.getLogger(__name__)
+T = TypeVar("T")
 
 
-def _error_extra(error: Exception) -> Optional[dict]:
+class RedisClientLike(Protocol):
+    """Minimal Redis client surface used by this service."""
+
+    def ping(self) -> Awaitable[bool] | bool: ...
+
+    def get(self, key: str) -> Awaitable[object | None] | object | None: ...
+
+    def setex(self, key: str, ttl: int, value: str) -> Awaitable[object] | object: ...
+
+    def delete(self, key: str) -> Awaitable[object] | object: ...
+
+    def rpush(self, queue: str, value: str) -> Awaitable[object] | object: ...
+
+    async def aclose(self) -> None: ...
+
+
+def _error_extra(error: Exception) -> Optional[dict[str, str]]:
     """Build structured logger extra fields from exception context."""
     correlation_id = extract_correlation_id_from_error(error)
     return {"correlationId": correlation_id} if correlation_id else None
@@ -33,26 +50,30 @@ class RedisService:
 
         """
         self.config = config
-        self.redis: Optional[redis.Redis] = None
+        self.redis: Optional[RedisClientLike] = None
         self.connected = False
 
-    def _build_redis_client(self) -> redis.Redis:
+    def _build_redis_client(self) -> RedisClientLike:
         """Create configured Redis client instance."""
         assert self.config is not None
-        return redis.Redis(
-            host=self.config.host,
-            port=self.config.port,
-            password=self.config.password,
-            db=self.config.db,
-            decode_responses=True,
-            socket_connect_timeout=5,
-            socket_timeout=5,
+        return cast(
+            RedisClientLike,
+            redis.Redis(
+                host=self.config.host,
+                port=self.config.port,
+                password=self.config.password,
+                db=self.config.db,
+                decode_responses=True,
+                socket_connect_timeout=5,
+                socket_timeout=5,
+            ),
         )
 
-    async def _await_maybe(self, value: object) -> None:
-        """Await value when it is awaitable."""
+    async def _resolve_maybe_awaitable(self, value: T | Awaitable[T]) -> T:
+        """Return value directly or await it when needed."""
         if isawaitable(value):
-            await cast(Awaitable[object], value)
+            return await cast(Awaitable[T], value)
+        return cast(T, value)
 
     async def connect(self) -> None:
         """Connect to Redis.
@@ -66,7 +87,7 @@ class RedisService:
             return
         try:
             self.redis = self._build_redis_client()
-            await self._await_maybe(self.redis.ping())
+            await self._resolve_maybe_awaitable(self.redis.ping())
             self.connected = True
             logger.info("Connected to Redis")
         except Exception as error:
@@ -111,11 +132,7 @@ class RedisService:
         try:
             assert self.redis is not None
             prefixed_key = f"{self.config.key_prefix}{key}" if self.config else key
-            resp = self.redis.get(prefixed_key)
-            if hasattr(resp, "__await__"):
-                result = await resp  # type: ignore[misc]
-            else:
-                result = resp
+            result = await self._resolve_maybe_awaitable(self.redis.get(prefixed_key))
             return None if result is None else str(result)
         except Exception as error:
             logger.error("Redis get error", exc_info=error, extra=_error_extra(error))
@@ -139,9 +156,7 @@ class RedisService:
         try:
             assert self.redis is not None
             prefixed_key = f"{self.config.key_prefix}{key}" if self.config else key
-            resp = self.redis.setex(prefixed_key, ttl, value)
-            if hasattr(resp, "__await__"):
-                await resp  # type: ignore[misc]
+            await self._resolve_maybe_awaitable(self.redis.setex(prefixed_key, ttl, value))
             return True
         except Exception as error:
             logger.error("Redis set error", exc_info=error, extra=_error_extra(error))
@@ -163,9 +178,7 @@ class RedisService:
         try:
             assert self.redis is not None
             prefixed_key = f"{self.config.key_prefix}{key}" if self.config else key
-            resp = self.redis.delete(prefixed_key)
-            if hasattr(resp, "__await__"):
-                await resp  # type: ignore[misc]
+            await self._resolve_maybe_awaitable(self.redis.delete(prefixed_key))
             return True
         except Exception as error:
             logger.error("Redis delete error", exc_info=error, extra=_error_extra(error))
@@ -188,9 +201,7 @@ class RedisService:
         try:
             assert self.redis is not None
             prefixed_queue = f"{self.config.key_prefix}{queue}" if self.config else queue
-            resp = self.redis.rpush(prefixed_queue, value)
-            if hasattr(resp, "__await__"):
-                await resp  # type: ignore[misc]
+            await self._resolve_maybe_awaitable(self.redis.rpush(prefixed_queue, value))
             return True
         except Exception as error:
             logger.error("Redis rpush error", exc_info=error, extra=_error_extra(error))

@@ -31,12 +31,10 @@ class LoggerChain:
         """
         self.logger = logger
         self.context = context or {}
-        self.options = options or ClientLoggingOptions()
+        self.options: ClientLoggingOptions = options or ClientLoggingOptions()
 
     def _ensure_options(self) -> ClientLoggingOptions:
         """Ensure logging options instance exists and return it."""
-        if self.options is None:
-            self.options = ClientLoggingOptions()
         return self.options
 
     def _merge_request_auto_fields(self, ctx: Any) -> None:
@@ -132,8 +130,6 @@ class LoggerChain:
             Self for method chaining
 
         """
-        if self.options is None:
-            self.options = ClientLoggingOptions()
         if credential_id:
             self.options.credentialId = credential_id
         if credential_type:
@@ -171,8 +167,6 @@ class LoggerChain:
             Self for method chaining
 
         """
-        if self.options is None:
-            self.options = ClientLoggingOptions()
         if error_category:
             self.options.errorCategory = error_category
         if http_status_category:

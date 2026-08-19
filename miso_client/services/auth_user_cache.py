@@ -6,7 +6,7 @@ to reduce API calls to the controller.
 
 import logging
 import time
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 from ..models.config import UserInfo
 from ..utils.jwt_tools import extract_user_id
@@ -52,7 +52,8 @@ async def check_user_info_cache(cache: Optional["CacheService"], token: str) -> 
     cached_data = await cache.get(cache_key)
     if cached_data and isinstance(cached_data, dict) and "user" in cached_data:
         logger.debug("User info cache hit")
-        return UserInfo(**cached_data["user"])
+        user_data = cast(dict[str, Any], cached_data["user"])
+        return UserInfo(**user_data)
 
     return None
 

@@ -189,6 +189,17 @@ Generate candidates from plan-specific implementation risk, including:
 - integration contracts
 - migration/refactor safety
 
+**Operational wording policy (short + implementation-first)**:
+
+- Keep inline entries short and operational (implementation actions, not narrative explanation).
+- Prefer concrete fix-technique phrases, for example:
+  - guard-first branching
+  - signature alignment
+  - typed defaults for mapping access
+  - explicit narrowing before call sites
+  - deterministic optional-dependency fallback
+- Exclude execution-governance/process prose from inline entries (metric table requests, audit-process wording, progress bookkeeping).
+
 **Admission criteria (all required)**:
 
 - Applicable to a specific task in this plan
@@ -196,15 +207,17 @@ Generate candidates from plan-specific implementation risk, including:
 - Verifiable with a concrete check (tests, lint/type checks, focused manual checks)
 - Not duplicated by baseline or existing task text
 - Risk-reducing for this plan's actual scope
+- Classified as code-fix technique for implementation tasks (not execution governance)
 
 **Insertion format (inline in task/batch)**:
 
-- `Additional best-practice fix patterns to apply: <short semicolon-separated list>`
+- `Additional implementation best-practices to apply: <short semicolon-separated list>`
 - List length policy:
   - Target: 1-3 practices per task.
   - Hard limit: maximum 5 practices per task.
   - Include only highest-risk, implementation-critical delta practices.
   - If more than 5 candidates exist, keep top 5 by risk/impact and place remaining candidates in `Recommendations` (do not add them inline to task text).
+  - Keep each practice fragment concise (typically 3-8 words; avoid multi-sentence phrasing).
 
 **Task-level mapping requirement**:
 
@@ -306,10 +319,11 @@ When plan sections are added or updated, keep task state representations consist
    - Ensure documentation reflects any new features, changes, or patterns introduced by the plan
 5. **Insert additional best-practice guidance inline into relevant tasks**:
    - Add only delta-only best-practices not already covered by project rules or plan baseline
-   - Keep entries short and task-specific
+   - Keep entries short, operational, and task-specific
+   - Use code-fix technique phrasing only (exclude execution-governance/process guidance)
    - Preferred placement: directly under each implementation task/batch using:
-     - `Additional best-practice fix patterns to apply: ...`
-   - This format must work for both remediation plans and new-feature implementation plans
+     - `Additional implementation best-practices to apply: ...`
+   - This format must work for any code implementation plan (remediation or new feature)
 
 **Update Strategy**:
 
@@ -513,9 +527,9 @@ Before marking this plan as complete, ensure:
 ## Tasks
 
 - [ ] Create login method  
-  Additional best-practice fix patterns to apply: preserve backward-compatible response contract while introducing new fields; enforce explicit input normalization before auth workflow branching.
+  Additional implementation best-practices to apply: preserve backward-compatible response contract while introducing new fields; enforce explicit input normalization before auth workflow branching.
 - [ ] Add tests  
-  Additional best-practice fix patterns to apply: add one targeted negative test for malformed token payload and one contract test for response field stability.
+  Additional implementation best-practices to apply: add one targeted negative test for malformed token payload and one contract test for response field stability.
 - [ ] Run format → lint → basedpyright → type-check → test validation
 ```
 

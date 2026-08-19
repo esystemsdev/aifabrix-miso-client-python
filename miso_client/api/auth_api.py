@@ -3,7 +3,7 @@
 Provides typed interfaces for authentication endpoints.
 """
 
-from typing import Optional
+from typing import Any, Optional, cast
 
 import httpx
 
@@ -141,7 +141,7 @@ class AuthApi:
 
         """
         base_url = resolve_controller_url(self.http_client.config)
-        headers: dict = {"Content-Type": "application/json"}
+        headers: dict[str, str] = {"Content-Type": "application/json"}
         if send_as_header:
             headers["x-client-token"] = token
         json_body = None if send_as_header else {"token": token}
@@ -242,7 +242,7 @@ class AuthApi:
             MisoClientError: If request fails
 
         """
-        request_data = {}
+        request_data: dict[str, str] = {}
         if environment:
             request_data["environment"] = environment
         if scope:
@@ -434,13 +434,22 @@ class AuthApi:
             MisoClientError: If request fails
 
         """
-        response = await self.http_client.authenticated_request(
+        response_data = await self.http_client.authenticated_request(
             "POST",
             self.TOKEN_EXCHANGE_ENDPOINT,
             delegated_token,
             data=None,
             auto_refresh=False,
         )
-        if isinstance(response, dict) and "data" in response and isinstance(response["data"], dict):
-            response = response["data"]
-        return TokenExchangeResponse(**response)
+        payload: dict[str, Any]
+        if (
+            isinstance(response_data, dict)
+            and "data" in response_data
+            and isinstance(response_data["data"], dict)
+        ):
+            payload = cast(dict[str, Any], response_data["data"])
+        elif isinstance(response_data, dict):
+            payload = cast(dict[str, Any], response_data)
+        else:
+            payload = {}
+        return TokenExchangeResponse(**payload)

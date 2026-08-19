@@ -3,7 +3,7 @@
 import os
 import sys
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union, cast
 
 from ..models.config import ClientLoggingOptions, ForeignKeyReference, LogEntry, LogLevel
 from ..utils.data_masker import DataMasker
@@ -41,22 +41,31 @@ def extract_jwt_context(token: Optional[str]) -> Dict[str, Any]:
     }
 
 
-def _extract_jwt_roles(decoded: Dict[str, Any]) -> list[Any]:
+def _extract_jwt_roles(decoded: Dict[str, Any]) -> list[str]:
     """Extract roles from decoded JWT claims."""
-    if "roles" in decoded:
-        return decoded["roles"] if isinstance(decoded["roles"], list) else []
-    if "realm_access" in decoded and isinstance(decoded["realm_access"], dict):
-        roles = decoded["realm_access"].get("roles", [])
-        return roles if isinstance(roles, list) else []
+    direct_roles: Any = decoded.get("roles")
+    if isinstance(direct_roles, list):
+        typed_roles = cast(list[Any], direct_roles)
+        return [str(role) for role in typed_roles if isinstance(role, str)]
+    realm_access: Any = decoded.get("realm_access")
+    if isinstance(realm_access, dict):
+        realm_access_dict = cast(Dict[str, Any], realm_access)
+        roles: Any = realm_access_dict.get("roles", [])
+        if isinstance(roles, list):
+            typed_roles = cast(list[Any], roles)
+            return [str(role) for role in typed_roles if isinstance(role, str)]
     return []
 
 
-def _extract_jwt_permissions(decoded: Dict[str, Any]) -> list[Any]:
+def _extract_jwt_permissions(decoded: Dict[str, Any]) -> list[str]:
     """Extract permissions from decoded JWT claims."""
-    if "permissions" in decoded:
-        return decoded["permissions"] if isinstance(decoded["permissions"], list) else []
-    if "scope" in decoded and isinstance(decoded["scope"], str):
-        return decoded["scope"].split()
+    permissions: Any = decoded.get("permissions")
+    if isinstance(permissions, list):
+        typed_permissions = cast(list[Any], permissions)
+        return [str(permission) for permission in typed_permissions if isinstance(permission, str)]
+    scope: Any = decoded.get("scope")
+    if isinstance(scope, str):
+        return scope.split()
     return []
 
 
@@ -169,14 +178,12 @@ def _convert_to_foreign_key_reference(
         return None
     if isinstance(value, ForeignKeyReference):
         return value
-    if isinstance(value, str):
-        return ForeignKeyReference(
-            id=value,
-            key=value,
-            name=value,
-            type=entity_type,
-        )
-    return None
+    return ForeignKeyReference(
+        id=value,
+        key=value,
+        name=value,
+        type=entity_type,
+    )
 
 
 def _resolve_application_and_environment(
@@ -328,13 +335,17 @@ def _resolve_log_entry_inputs(params: Dict[str, Any]) -> Dict[str, Any]:
     options, config_client_id = params["options"], params["config_client_id"]
     correlation_id, jwt_token = params["correlation_id"], params["jwt_token"]
     metadata, mask_sensitive = params["metadata"], params["mask_sensitive"]
-    application_context = params["application_context"]
+    application_context_raw = params["application_context"]
     context, resolved_auto_fields = _resolve_auto_fields_and_context(context, auto_fields)
     token_value = jwt_token or resolved_auto_fields.get("token")
     jwt_context = extract_jwt_context(token_value)
     env_metadata = metadata or extract_metadata()
     masked_context = _resolve_masked_context(context, options, mask_sensitive)
-    app_context = application_context or {}
+    app_context = (
+        cast(Dict[str, Optional[str]], application_context_raw)
+        if isinstance(application_context_raw, dict)
+        else {}
+    )
     application_name, environment_name = _resolve_application_and_environment(
         context, options, app_context, config_client_id
     )

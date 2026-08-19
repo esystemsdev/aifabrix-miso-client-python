@@ -7,7 +7,7 @@ from JSON files, supporting custom configuration paths and environment variables
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 # Default path to sensitive fields config relative to this file
 _DEFAULT_CONFIG_PATH = Path(__file__).parent / "sensitive_fields_config.json"
@@ -28,7 +28,7 @@ def _load_json_config(file_path: Path) -> Dict[str, Any]:
     try:
         with open(file_path, "r", encoding="utf-8") as f:
             config = json.load(f)
-        return config if isinstance(config, dict) else {}
+        return cast(Dict[str, Any], config) if isinstance(config, dict) else {}
     except (FileNotFoundError, json.JSONDecodeError, IOError, OSError):
         return {}
 
@@ -84,15 +84,19 @@ def get_sensitive_fields_array(
 
     all_fields: List[str] = []
     if isinstance(fields_dict, dict):
-        for category_fields in fields_dict.values():
+        typed_fields_dict = cast(Dict[str, Any], fields_dict)
+        for category_fields in typed_fields_dict.values():
             if isinstance(category_fields, list):
-                all_fields.extend(category_fields)
+                typed_category_fields = cast(List[Any], category_fields)
+                all_fields.extend(
+                    str(field) for field in typed_category_fields if isinstance(field, str)
+                )
     return _unique_fields_preserving_order(all_fields)
 
 
 def _unique_fields_preserving_order(fields: List[str]) -> List[str]:
     """Remove case-insensitive duplicates while preserving original order."""
-    seen = set()
+    seen: set[str] = set()
     unique_fields: List[str] = []
     for field in fields:
         key = field.lower()
@@ -120,4 +124,7 @@ def get_field_patterns(config_path: Optional[str] = None) -> List[str]:
     """
     config = load_sensitive_fields_config(config_path)
     patterns = config.get("fieldPatterns", [])
-    return patterns if isinstance(patterns, list) else []
+    if not isinstance(patterns, list):
+        return []
+    typed_patterns = cast(List[Any], patterns)
+    return [str(pattern) for pattern in typed_patterns if isinstance(pattern, str)]

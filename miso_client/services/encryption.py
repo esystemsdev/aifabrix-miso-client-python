@@ -13,7 +13,7 @@ import re
 from typing import TYPE_CHECKING, NoReturn, Optional, cast
 
 from ..errors import EncryptionError, MisoClientError
-from ..models.encryption import EncryptResult
+from ..models.encryption import EncryptResult, StorageType
 from ..utils.error_utils import extract_correlation_id_from_error
 
 if TYPE_CHECKING:
@@ -146,7 +146,14 @@ class EncryptionService:
         except Exception:
             return None
         if cached is not None and isinstance(cached, dict):
-            return EncryptResult(**cached)
+            cached_payload = cast(dict[str, object], cached)
+            raw_value = cached_payload.get("value")
+            raw_storage = cached_payload.get("storage")
+            if isinstance(raw_value, str):
+                return EncryptResult(
+                    value=raw_value,
+                    storage=self._resolve_storage_type(raw_storage),
+                )
         return None
 
     async def _read_cached_decrypt_result(self, cache_key: Optional[str]) -> Optional[str]:
@@ -157,7 +164,7 @@ class EncryptionService:
             cached = await self._cache.get(cache_key)
         except Exception:
             return None
-        return cast(str, cached) if isinstance(cached, str) else None
+        return cached if isinstance(cached, str) else None
 
     async def _cache_encrypt_result(
         self, cache_key: Optional[str], result: EncryptResult, ttl: int
@@ -220,6 +227,18 @@ class EncryptionService:
             status_code=error.status_code,
         ) from error
 
+    @staticmethod
+    def _resolve_storage_type(raw_storage: object) -> StorageType:
+        """Validate storage value from controller payload."""
+        if raw_storage == "keyvault":
+            return "keyvault"
+        if raw_storage == "local":
+            return "local"
+        raise EncryptionError(
+            f"Invalid encryption storage value: {raw_storage!r}",
+            code="ENCRYPTION_FAILED",
+        )
+
     async def encrypt(self, plaintext: str, parameter_name: str) -> EncryptResult:
         """Encrypt plaintext value via miso-controller."""
         self._validate_parameter_name(parameter_name)
@@ -236,7 +255,10 @@ class EncryptionService:
                 ENCRYPT_ENDPOINT,
                 data=self._encryption_payload(plaintext, parameter_name, self._encryption_key),
             )
-            result = EncryptResult(value=response["value"], storage=response["storage"])
+            result = EncryptResult(
+                value=str(response["value"]),
+                storage=self._resolve_storage_type(response["storage"]),
+            )
             await self._cache_encrypt_result(cache_key, result, ttl)
             return result
         except MisoClientError as error:

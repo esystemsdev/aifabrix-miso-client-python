@@ -6,7 +6,7 @@ sets logger context from request objects.
 """
 
 import sys
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -111,6 +111,17 @@ class TestFlaskLoggerContextMiddleware:
             clear_logger_context()
             if "flask" in sys.modules and isinstance(sys.modules["flask"], MagicMock):
                 del sys.modules["flask"]
+
+    def test_middleware_returns_when_flask_unavailable(self):
+        """Test middleware exits safely when Flask cannot be imported."""
+        clear_logger_context()
+        with patch(
+            "miso_client.utils.flask_logger_middleware.importlib.import_module",
+            side_effect=ImportError("flask unavailable"),
+        ):
+            logger_context_middleware()
+
+        assert get_logger_context() is None
 
 
 class TestRegisterLoggerContextMiddleware:

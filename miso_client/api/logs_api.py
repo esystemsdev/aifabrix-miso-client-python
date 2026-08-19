@@ -7,7 +7,7 @@ Provides typed interfaces for logging endpoints including:
 - Log export (GET /api/v1/logs/export)
 """
 
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, cast
 
 from ..models.config import AuthStrategy, LogEntry
 from ..utils.http_client import HttpClient
@@ -440,10 +440,11 @@ class LogsApi(LogsStatsDelegationMixin):
         if "processed" not in response or "failed" not in response:
             data = response.get("data")
             if isinstance(data, dict):
+                typed_data = cast(Dict[str, Any], data)
                 if "processed" in data:
-                    response["processed"] = data.get("processed")
+                    response["processed"] = typed_data.get("processed")
                 if "failed" in data:
-                    response["failed"] = data.get("failed")
+                    response["failed"] = typed_data.get("failed")
             elif data is None:
                 response.setdefault("processed", 0)
                 response.setdefault("failed", 0)
