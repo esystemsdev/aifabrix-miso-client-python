@@ -29,14 +29,15 @@ jobs:
     
     - name: Install dependencies
       run: |
-        python3 -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install -r requirements-test.txt
+        python3 -m venv venv
+        venv/bin/python3 -m pip install --upgrade pip
+        venv/bin/python3 -m pip install -r requirements.txt
+        venv/bin/python3 -m pip install -r requirements-test.txt
 
     - name: Run basedpyright
       run: |
-        python3 -m basedpyright
+        venv/bin/python3 -m basedpyright
     
     - name: Run tests
       run: |
-        pytest tests/ -v
+        venv/bin/python3 -m pytest tests/ -v
