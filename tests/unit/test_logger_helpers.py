@@ -20,7 +20,7 @@ def test_build_log_entry_includes_request_metadata_and_app_context(config):
         "requestSize": 512,
     }
     metadata = {"hostname": "unit-test-host"}
-    application_context = {
+    application_context: dict[str, str | None] = {
         "application": "test-app",
         "applicationId": "app-001",
         "environment": "test",
@@ -54,6 +54,7 @@ def test_build_log_entry_includes_request_metadata_and_app_context(config):
     assert log_entry.applicationId is not None
     assert log_entry.applicationId.id == "app-001"
     assert log_entry.userId is None
+    assert log_entry.context is not None
     assert log_entry.context["method"] == "POST"
     assert log_entry.context["path"] == "/api/test"
     assert log_entry.context["referer"] == "https://example.com"

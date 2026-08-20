@@ -4,7 +4,7 @@ Automatically loads environment variables with sensible defaults.
 """
 
 import os
-from typing import Any, Dict, List, Literal, Optional, Tuple, cast
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from ..errors import ConfigurationError
 from ..models.config import AuthMethod, AuthStrategy, MisoClientConfig, RedisConfig
@@ -34,9 +34,29 @@ def _get_required_env(primary_key: str, secondary_key: str, error_message: str) 
 def _parse_log_level() -> Literal["debug", "info", "warn", "error"]:
     """Parse and normalize configured log level."""
     log_level_str = os.environ.get("MISO_LOG_LEVEL", "info")
-    if log_level_str not in VALID_LOG_LEVELS:
-        log_level_str = "info"
-    return cast(Literal["debug", "info", "warn", "error"], log_level_str)
+    if log_level_str == "debug":
+        return "debug"
+    if log_level_str == "warn":
+        return "warn"
+    if log_level_str == "error":
+        return "error"
+    return "info"
+
+
+def _normalize_auth_method(method: str) -> AuthMethod:
+    """Normalize auth method string into AuthMethod literal."""
+    if method == "bearer":
+        return "bearer"
+    if method == "client-token":
+        return "client-token"
+    if method == "client-credentials":
+        return "client-credentials"
+    if method == "api-key":
+        return "api-key"
+    raise ConfigurationError(
+        f"Invalid auth method '{method}' in MISO_AUTH_STRATEGY. "
+        f"Valid methods: {', '.join(VALID_AUTH_METHODS)}"
+    )
 
 
 def _parse_auth_strategy(api_key: Optional[str]) -> Optional[AuthStrategy]:
@@ -48,13 +68,7 @@ def _parse_auth_strategy(api_key: Optional[str]) -> Optional[AuthStrategy]:
     try:
         methods: List[AuthMethod] = []
         for method in [item.strip() for item in auth_strategy_str.split(",")]:
-            if method in VALID_AUTH_METHODS:
-                methods.append(cast(AuthMethod, method))
-            else:
-                raise ConfigurationError(
-                    f"Invalid auth method '{method}' in MISO_AUTH_STRATEGY. "
-                    f"Valid methods: {', '.join(VALID_AUTH_METHODS)}"
-                )
+            methods.append(_normalize_auth_method(method))
         return AuthStrategy(methods=methods, apiKey=api_key) if methods else None
     except ConfigurationError:
         raise

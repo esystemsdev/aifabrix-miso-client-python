@@ -1,0 +1,23 @@
+{
+  "include": [
+    "miso_client",
+    "tests"
+  ],
+  "exclude": [
+    "**/__pycache__",
+    "**/.pytest_cache",
+    "**/.mypy_cache",
+    "**/.ruff_cache",
+    "venv",
+    "build",
+    "dist",
+    ".temp"
+  ],
+  "venvPath": ".",
+  "venv": "venv",
+  "typeCheckingMode": "standard",
+  "strict": [
+    "miso_client"
+  ],
+  "pythonVersion": "3.10"
+}

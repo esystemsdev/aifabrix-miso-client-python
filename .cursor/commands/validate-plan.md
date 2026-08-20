@@ -8,13 +8,14 @@ This command ensures that:
 
 1. Plans are validated against relevant rules before execution
 2. Plan authors understand which rules apply to their plan
-3. Plans include proper DoD requirements (format → lint → type-check → test)
+3. Plans include proper DoD requirements (format → lint → basedpyright → type-check → test)
 4. Plans reference relevant rule files for guidance
 5. Plans are production-ready before implementation begins
 6. Documentation is updated as needed during the validation process
 7. Validation guidance prefers quiet execution with full diagnostics captured in `.temp/validation/`
 8. Plan task checkboxes and frontmatter `todos` remain synchronized after updates
 9. Validation report metadata (especially date) is generated dynamically each run
+10. Only additional (delta-only) best-practice guidance is added directly into relevant plan tasks (no duplication of project-rule practices)
 
 ## Usage
 
@@ -39,9 +40,9 @@ This command ensures that:
 When this command updates plan DoD/validation command blocks, use silent Make targets first:
 
 - Primary wrapper: `make validate-silent`
-- Step-level: `make format-silent`, `make lint-silent`, `make type-check-silent`, `make test-silent`
+- Step-level: `make format-silent`, `make lint-silent`, `make basedpyright-silent`, `make type-check-silent`, `make test-silent`
 - Logs: `.temp/validation/` (primary diagnostics source)
-- Fallback only if needed: `make validate`, `make format`, `make lint`, `make type-check`, `make test`
+- Fallback only if needed: `make validate`, `make format`, `make lint`, `make basedpyright`, `make type-check`, `make test`
 
 ### Output Noise Control (MANDATORY)
 
@@ -165,6 +166,64 @@ To keep validation token-efficient while preserving quality gates:
 - Summarize in 2-3 bullet points per section
 - Focus on actionable requirements
 
+### Step 3.5: Additional Best-Practice Delta Filter
+
+Add only best-practices that are not already covered by project rules or existing plan content, and insert them inline under the exact tasks where they must be applied.
+
+**Baseline (do not duplicate)**:
+
+1. Build baseline best-practices from:
+   - `.cursor/rules/project-rules.mdc` sections already referenced by the plan
+   - Existing plan text (Rules and Standards, DoD, task descriptions)
+2. Normalize baseline practices to intent form (verb + target + constraint), for example:
+   - "validate input parameters before processing"
+   - "mask sensitive fields in logs"
+   - "use async/await with explicit error handling"
+
+**Candidate additional practices (agent recommendations)**:
+
+Generate candidates from plan-specific implementation risk, including:
+- new feature/API behavior
+- security-sensitive logic
+- data validation and error boundary handling
+- integration contracts
+- migration/refactor safety
+
+**Operational wording policy (short + implementation-first)**:
+
+- Keep inline entries short and operational (implementation actions, not narrative explanation).
+- Prefer concrete fix-technique phrases, for example:
+  - guard-first branching
+  - signature alignment
+  - typed defaults for mapping access
+  - explicit narrowing before call sites
+  - deterministic optional-dependency fallback
+- Exclude execution-governance/process prose from inline entries (metric table requests, audit-process wording, progress bookkeeping).
+
+**Admission criteria (all required)**:
+
+- Applicable to a specific task in this plan
+- Actionable during implementation
+- Verifiable with a concrete check (tests, lint/type checks, focused manual checks)
+- Not duplicated by baseline or existing task text
+- Risk-reducing for this plan's actual scope
+- Classified as code-fix technique for implementation tasks (not execution governance)
+
+**Insertion format (inline in task/batch)**:
+
+- `Additional implementation best-practices to apply: <short semicolon-separated list>`
+- List length policy:
+  - Target: 1-3 practices per task.
+  - Hard limit: maximum 5 practices per task.
+  - Include only highest-risk, implementation-critical delta practices.
+  - If more than 5 candidates exist, keep top 5 by risk/impact and place remaining candidates in `Recommendations` (do not add them inline to task text).
+  - Keep each practice fragment concise (typically 3-8 words; avoid multi-sentence phrasing).
+
+**Task-level mapping requirement**:
+
+- Every inserted additional best-practice line must be attached to a concrete task/batch.
+- If no qualifying additional practice exists for a task, do not insert one.
+
 ### Step 4: Validate Rule Compliance
 
 **Validation Checks**:
@@ -172,9 +231,10 @@ To keep validation token-efficient while preserving quality gates:
 1. **DoD Requirements** (from Code Size Guidelines and Testing Conventions sections):
    - ✅ Format step documented (`make format-silent`; backup: `make format`)
    - ✅ Lint step documented (`make lint-silent`; backup: `make lint`)
+   - ✅ Basedpyright step documented (`make basedpyright-silent`; backup: `make basedpyright`)
    - ✅ Type-check step documented (`make type-check-silent`; backup: `make type-check`)
    - ✅ Test step documented (`make test-silent`; backup: `make test`, all tests must pass, ≥80% coverage for new code)
-   - ✅ Validation order specified (FORMAT → LINT → TYPE CHECK → TEST)
+   - ✅ Validation order specified (FORMAT → LINT → BASEDPYRIGHT → TYPE CHECK → TEST)
    - ✅ Zero warnings/errors requirement mentioned
    - ✅ Mandatory sequence documented (never skip steps)
    - ✅ Test coverage ≥80% requirement mentioned (for new code)
@@ -218,7 +278,6 @@ When plan sections are added or updated, keep task state representations consist
      - every major phase in plan body maps to at least one frontmatter todo,
      - every frontmatter todo maps back to a concrete phase in plan body.
    - Flag redundant or duplicate todos for cleanup; merge/remove only when clearly safe.
-
 ### Step 5: Update Plan with Rule References
 
 **Plan Updates**:
@@ -233,9 +292,10 @@ When plan sections are added or updated, keep task state representations consist
 2. **Add or update `## Definition of Done` section**:
    - Format requirement: `make format-silent` (must run first; backup: `make format`)
    - Lint requirement: `make lint-silent` (must run after format; backup: `make lint`)
-   - Type-check requirement: `make type-check-silent` (must run after lint; backup: `make type-check`)
+   - Basedpyright requirement: `make basedpyright-silent` (must run after lint; backup: `make basedpyright`)
+   - Type-check requirement: `make type-check-silent` (must run after basedpyright; backup: `make type-check`)
    - Test requirement: `make test-silent` (must run after type-check; backup: `make test`, all tests must pass, ≥80% coverage for new code)
-   - Validation order: FORMAT → LINT → TYPE CHECK → TEST (mandatory sequence, never skip steps)
+   - Validation order: FORMAT → LINT → BASEDPYRIGHT → TYPE CHECK → TEST (mandatory sequence, never skip steps)
    - File size limits: Files ≤500 lines, methods ≤20-30 lines
    - Type hints: All functions must have type hints
    - Docstrings: All public methods must have Google-style docstrings
@@ -257,6 +317,13 @@ When plan sections are added or updated, keep task state representations consist
    - Check if plan affects public APIs, configuration, or usage patterns
    - Update relevant documentation files (README.md, docs/, API documentation)
    - Ensure documentation reflects any new features, changes, or patterns introduced by the plan
+5. **Insert additional best-practice guidance inline into relevant tasks**:
+   - Add only delta-only best-practices not already covered by project rules or plan baseline
+   - Keep entries short, operational, and task-specific
+   - Use code-fix technique phrasing only (exclude execution-governance/process guidance)
+   - Preferred placement: directly under each implementation task/batch using:
+     - `Additional implementation best-practices to apply: ...`
+   - This format must work for any code implementation plan (remediation or new feature)
 
 **Update Strategy**:
 
@@ -319,6 +386,7 @@ When plan sections are added or updated, keep task state representations consist
 - ✅ Updated Definition of Done section
 - ✅ Added Before Development checklist
 - ✅ Added rule references: [list of sections added]
+- ✅ Inserted task-level additional best-practice lines (delta-only, where applicable)
 - ✅ Updated documentation as needed: [list of documentation files updated]
 
 ### Recommendations
@@ -361,19 +429,21 @@ Every plan must include these requirements in the Definition of Done section:
 
 1. **Format Step**: `make format-silent` (must run first; backup: `make format`)
 2. **Lint Step**: `make lint-silent` (must run after format with zero errors/warnings; backup: `make lint`)
-3. **Type-check Step**: `make type-check-silent` (must run after lint; backup: `make type-check`)
-4. **Test Step**: `make test-silent` (must run after type-check, all tests must pass, ≥80% coverage for new code; backup: `make test`)
-5. **Validation Order**: FORMAT → LINT → TYPE CHECK → TEST (mandatory sequence, never skip steps)
-6. **File Size Limits**: Files ≤500 lines, methods ≤20-30 lines
-7. **Type Hints**: All functions must have type hints
-8. **Docstrings**: All public methods must have Google-style docstrings
-9. **Code Quality**: Code quality validation passes
-10. **Security**: No hardcoded secrets, ISO 27001 compliance, data masking
-11. **Rule References**: Links to applicable sections from `.cursor/rules/project-rules.mdc`
-12. **Documentation**: Update documentation as needed (README, API docs, guides, usage examples)
-13. **All Tasks Completed**: All plan tasks marked as complete
-14. **Task State Sync**: Markdown checkboxes and frontmatter `todos` are consistent
-15. **Todo Coverage Completeness**: Frontmatter `todos` fully covers major execution phases from plan body (no missing required phase todos)
+3. **Basedpyright Step**: `make basedpyright-silent` (must run after lint; backup: `make basedpyright`)
+4. **Type-check Step**: `make type-check-silent` (must run after basedpyright; backup: `make type-check`)
+5. **Test Step**: `make test-silent` (must run after type-check, all tests must pass, ≥80% coverage for new code; backup: `make test`)
+6. **Validation Order**: FORMAT → LINT → BASEDPYRIGHT → TYPE CHECK → TEST (mandatory sequence, never skip steps)
+7. **File Size Limits**: Files ≤500 lines, methods ≤20-30 lines
+8. **Type Hints**: All functions must have type hints
+9. **Docstrings**: All public methods must have Google-style docstrings
+10. **Code Quality**: Code quality validation passes
+11. **Security**: No hardcoded secrets, ISO 27001 compliance, data masking
+12. **Rule References**: Links to applicable sections from `.cursor/rules/project-rules.mdc`
+13. **Documentation**: Update documentation as needed (README, API docs, guides, usage examples)
+14. **All Tasks Completed**: All plan tasks marked as complete
+15. **Task State Sync**: Markdown checkboxes and frontmatter `todos` are consistent
+16. **Todo Coverage Completeness**: Frontmatter `todos` fully covers major execution phases from plan body (no missing required phase todos)
+17. **Inline Additional Best-Practice Discipline**: Only delta-only additional best-practices are inserted, and only under tasks where they are required and verifiable
 
 ## Example Plan Updates
 
@@ -440,9 +510,10 @@ Before marking this plan as complete, ensure:
 
 1. **Format**: Run `make format-silent` FIRST (must pass; backup: `make format`)
 2. **Lint**: Run `make lint-silent` AFTER format (must pass with zero errors/warnings; backup: `make lint`)
-3. **Type-check**: Run `make type-check-silent` AFTER lint (must pass; backup: `make type-check`)
-4. **Test**: Run `make test-silent` AFTER type-check (all tests must pass, ≥80% coverage for new code; backup: `make test`)
-5. **Validation Order**: FORMAT → LINT → TYPE CHECK → TEST (mandatory sequence, never skip steps)
+3. **Basedpyright**: Run `make basedpyright-silent` AFTER lint (must pass; backup: `make basedpyright`)
+4. **Type-check**: Run `make type-check-silent` AFTER basedpyright (must pass; backup: `make type-check`)
+5. **Test**: Run `make test-silent` AFTER type-check (all tests must pass, ≥80% coverage for new code; backup: `make test`)
+6. **Validation Order**: FORMAT → LINT → BASEDPYRIGHT → TYPE CHECK → TEST (mandatory sequence, never skip steps)
 6. **File Size Limits**: Files ≤500 lines, methods ≤20-30 lines
 7. **Type Hints**: All functions have type hints
 8. **Docstrings**: All public methods have Google-style docstrings
@@ -455,9 +526,11 @@ Before marking this plan as complete, ensure:
 
 ## Tasks
 
-- [ ] Create login method
-- [ ] Add tests
-- [ ] Run format → lint → type-check → test validation
+- [ ] Create login method  
+  Additional implementation best-practices to apply: preserve backward-compatible response contract while introducing new fields; enforce explicit input normalization before auth workflow branching.
+- [ ] Add tests  
+  Additional implementation best-practices to apply: add one targeted negative test for malformed token payload and one contract test for response field stability.
+- [ ] Run format → lint → basedpyright → type-check → test validation
 ```
 
 ## Success Criteria
@@ -475,7 +548,7 @@ Before marking this plan as complete, ensure:
 - **Plan Preservation**: Preserve existing plan content when updating sections
 - **Mandatory Sections**: Code Size Guidelines, Security Guidelines, and Testing Conventions are mandatory for ALL plans
 - **Rule Links**: Use anchor links for rule file sections (`.cursor/rules/project-rules.mdc#section-name`)
-- **DoD Order**: Always document validation order as FORMAT → LINT → TYPE CHECK → TEST
+- **DoD Order**: Always document validation order as FORMAT → LINT → BASEDPYRIGHT → TYPE CHECK → TEST
 - **Status**: Report status accurately based on compliance level
 - **Documentation Updates**: Review plan scope and update relevant documentation files (README.md, docs/, API documentation) as needed during validation
 - **Project-Specific**: This is a Python SDK project (library), adapt scope detection accordingly (services, models, HTTP client, Redis, etc.)

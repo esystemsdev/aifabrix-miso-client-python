@@ -10,7 +10,7 @@ The command:
 2. Validates that all tasks are completed
 3. Verifies that all mentioned files exist and are implemented
 4. Checks that tests exist for new/modified code
-5. Runs code quality validation (format → lint → type-check → test)
+5. Runs code quality validation (format → lint → basedpyright → type-check → test)
 6. Validates against cursor rules
 7. Attaches validation results to the plan file itself (adds/updates `## Validation` section)
 8. Synchronizes markdown task checkboxes and frontmatter `todos` with validated outcomes
@@ -28,9 +28,9 @@ Run this command in chat with `/validate-implementation [plan-file-path]`
 ### Silent Execution Commands
 
 - Primary wrapper: `make validate-silent`
-- Step-level commands: `make format-silent`, `make lint-silent`, `make type-check-silent`, `make test-silent`
+- Step-level commands: `make format-silent`, `make lint-silent`, `make basedpyright-silent`, `make type-check-silent`, `make test-silent`
 - Logs: `.temp/validation/` (primary diagnostics source)
-- Backup non-silent commands (use only if needed): `make validate`, `make format`, `make lint`, `make type-check`, `make test`
+- Backup non-silent commands (use only if needed): `make validate`, `make format`, `make lint`, `make basedpyright`, `make type-check`, `make test`
 
 ## What It Does
 
@@ -111,12 +111,18 @@ To reduce token usage without changing validation behavior:
    - Report all linting errors/warnings
    - **CRITICAL**: Zero warnings/errors required
 
-3. **STEP 3 - TYPE CHECK**:
-   - Run `make type-check-silent` AFTER lint (primary; backup command: `make type-check`)
+3. **STEP 3 - BASEDPYRIGHT**:
+   - Run `make basedpyright-silent` AFTER lint (primary; backup command: `make basedpyright`)
+   - Use `BASEDPYRIGHT_PATHS="<touched paths>"` for targeted remediation loops
+   - Verify exit code 0
+   - Report basedpyright issues
+
+4. **STEP 4 - TYPE CHECK**:
+   - Run `make type-check-silent` AFTER basedpyright (primary; backup command: `make type-check`)
    - Verify exit code 0 or acceptable warnings
    - Report type checking issues
 
-4. **STEP 4 - TEST**:
+5. **STEP 5 - TEST**:
    - Run `make test-silent` AFTER type-check (primary; backup command: `make test`)
    - Verify all tests pass
    - Report test failures
@@ -214,8 +220,9 @@ After validation checks complete, synchronize task states in the same plan file:
 
 **STEP 1 - FORMAT**: ✅/❌ PASSED
 **STEP 2 - LINT**: ✅/❌ PASSED (0 errors, 0 warnings)
-**STEP 3 - TYPE CHECK**: ✅/❌ PASSED
-**STEP 4 - TEST**: ✅/❌ PASSED (all tests pass)
+**STEP 3 - BASEDPYRIGHT**: ✅/❌ PASSED
+**STEP 4 - TYPE CHECK**: ✅/❌ PASSED
+**STEP 5 - TEST**: ✅/❌ PASSED (all tests pass)
 
 ### Cursor Rules Compliance
 
@@ -275,6 +282,7 @@ After validation checks complete, synchronize task states in the same plan file:
 **Critical Requirements**:
 - **Format must pass** before linting
 - **Lint must pass** (zero errors/warnings) before type-checking
+- **Basedpyright must pass** after lint before mypy/type-check and tests
 - **Type-check should pass** (or have acceptable warnings) before testing
 - **Tests must pass** before marking as complete
 - **Task states must be synchronized** (markdown checkboxes + frontmatter `todos`) before final status

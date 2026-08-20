@@ -49,7 +49,7 @@ class AuditLogQueue:
         self.redis = redis
         self.config = config
         self.queue: List[QueuedLogEntry] = []
-        self.flush_timer: Optional[asyncio.Task] = None
+        self.flush_timer: Optional[asyncio.Task[None]] = None
         self.is_flushing = False
 
         audit_config: Optional[AuditConfig] = config.audit
@@ -151,15 +151,15 @@ class AuditLogQueue:
 
     async def _cancel_flush_timer(self) -> None:
         """Cancel scheduled flush timer if it exists."""
-        if not self.flush_timer:
-            return
-        self.flush_timer.cancel()
-        try:
-            await self.flush_timer
-        except asyncio.CancelledError:
-            self.flush_timer = None
+        timer = self.flush_timer
+        if timer is None:
             return
         self.flush_timer = None
+        timer.cancel()
+        try:
+            await timer
+        except asyncio.CancelledError:
+            return
 
     def _drain_queue(self) -> List[LogEntry]:
         """Drain in-memory queue and return copied entries."""

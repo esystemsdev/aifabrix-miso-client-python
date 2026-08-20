@@ -127,7 +127,7 @@ class InternalHttpClient:
             parsed = error.response.json()
         except (ValueError, TypeError):
             return {}
-        return parsed if isinstance(parsed, dict) else {}
+        return cast(Dict[str, Any], parsed) if isinstance(parsed, dict) else {}
 
     def _detect_auth_method(
         self,

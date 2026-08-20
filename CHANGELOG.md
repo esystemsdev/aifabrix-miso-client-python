@@ -11,6 +11,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - No unreleased additions.
 
+## [4.20.1] - 2026-08-20
+
+### Added
+
+- **Targeted regression coverage for remediation paths** - Added focused unit tests for newly hardened fallback/guard paths (including client-token manager and Flask middleware runtime fallback behavior).
+
+### Changed
+
+- **Basedpyright remediation sweep** - Resolved the full basedpyright backlog across SDK sources and test suites, including type narrowing, optional-guard safety, protocol-based abstractions, and call-signature consistency fixes.
+- **Validation gate alignment** - Updated local validation command/docs and Makefile flow so `format -> lint -> basedpyright -> type-check -> test` is consistently enforced in quiet validation runs.
+
+### Technical
+
+- **Validation baseline** - `make validate-silent` passes (`format`, `lint`, `basedpyright`, `type-check`, `test`).
+- **Static analysis close-out** - Full-scope basedpyright snapshot is clean (`errorCount=0`, `warningCount=0`).
+- **Version synchronization** - Updated package version metadata to `4.20.1` across release version files.
+
 ## [4.20.0] - 2026-07-29
 
 ### Added

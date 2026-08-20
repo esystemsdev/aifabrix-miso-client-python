@@ -5,6 +5,7 @@ that return client token + DataClient configuration to frontend clients.
 """
 
 import asyncio
+import importlib
 from typing import Any, Callable, Optional
 
 from ..errors import AuthenticationError
@@ -34,10 +35,10 @@ def _error_response(message: str, status_code: int, error: str) -> tuple[dict[st
 def _import_flask_request() -> Optional[Any]:
     """Import Flask request object if Flask is available."""
     try:
-        from flask import request
+        flask_module = importlib.import_module("flask")
     except ImportError:
         return None
-    return request
+    return getattr(flask_module, "request", None)
 
 
 def _get_token_sync(miso_client: Any, headers: Any) -> str:

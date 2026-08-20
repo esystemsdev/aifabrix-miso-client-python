@@ -57,9 +57,9 @@ class TestValidateTokenRequest:
                     id="user-123",
                     username="testuser",
                     email="test@example.com",
-                    name="Test User",
+                    firstName="Test",
+                    lastName="User",
                     roles=["admin"],
-                    permissions=["read", "write"],
                 ),
                 expiresAt="2024-12-31T23:59:59Z",
             ),
@@ -81,7 +81,7 @@ class TestValidateTokenRequest:
         self, mock_api_client, mock_http_client
     ):
         """Test validate_token_request using ApiClient with auth_strategy."""
-        auth_strategy = AuthStrategy(environment="dev", application="app1")
+        auth_strategy = AuthStrategy(methods=["bearer", "client-token"])
         mock_response = ValidateTokenResponse(
             data=ValidateTokenResponseData(
                 authenticated=True,
@@ -89,9 +89,9 @@ class TestValidateTokenRequest:
                     id="user-456",
                     username="testuser2",
                     email="test2@example.com",
-                    name="Test User 2",
+                    firstName="Test",
+                    lastName="User 2",
                     roles=["user"],
-                    permissions=["read"],
                 ),
                 expiresAt="2024-12-31T23:59:59Z",
             ),
@@ -152,7 +152,7 @@ class TestValidateTokenRequest:
         self, mock_http_client
     ):
         """Test validate_token_request using HttpClient with auth_strategy."""
-        auth_strategy = AuthStrategy(environment="prod", application="app2")
+        auth_strategy = AuthStrategy(methods=["client-token"])
         mock_response = {
             "data": {
                 "authenticated": True,
@@ -185,9 +185,9 @@ class TestValidateTokenRequest:
                     id="user-prefer-api",
                     username="preferapi",
                     email="prefer@example.com",
-                    name="Prefer API",
+                    firstName="Prefer",
+                    lastName="API",
                     roles=[],
-                    permissions=[],
                 ),
                 expiresAt="2024-12-31T23:59:59Z",
             ),

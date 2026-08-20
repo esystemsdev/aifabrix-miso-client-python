@@ -128,6 +128,7 @@ class TestAuthApi:
         result = await auth_api.get_user("test-token")
 
         assert isinstance(result, GetUserResponse)
+        assert result.data.user is not None
         assert result.data.user.id == "123"
         mock_http_client.authenticated_request.assert_called_once_with(
             "GET", auth_api.USER_ENDPOINT, "test-token", auth_strategy=None

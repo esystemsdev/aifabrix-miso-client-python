@@ -27,9 +27,10 @@ When this command creates a new implementation plan, validation command blocks i
 must use silent Make targets first, with non-silent commands as fallback.
 
 - Primary wrapper: `make validate-silent`
-- Step-level commands: `make format-silent`, `make lint-silent`, `make type-check-silent`, `make test-silent`
+- Step-level commands: `make format-silent`, `make lint-silent`, `make basedpyright-silent`, `make type-check-silent`, `make test-silent`
 - Logs and diagnostics: `.temp/validation/` is the primary diagnostics source
-- Fallback only if needed: `make validate`, `make format`, `make lint`, `make type-check`, `make test`
+- Fallback only if needed: `make validate`, `make format`, `make lint`, `make basedpyright`, `make type-check`, `make test`
+- For targeted loops, prefer `BASEDPYRIGHT_PATHS=\"<touched paths>\" make basedpyright-silent` before global reruns
 
 ## What It Does
 

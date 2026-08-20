@@ -285,9 +285,7 @@ class TestAuthService:
     async def test_validate_token_failure(self, auth_service):
         """Test failed token validation."""
         validate_response = ValidateTokenResponse(
-            success=True,
             data=ValidateTokenResponseData(authenticated=False, user=None),
-            timestamp="2024-01-01T00:00:00Z",
         )
         auth_service.api_client.auth.validate_token = AsyncMock(return_value=validate_response)
 
@@ -309,9 +307,7 @@ class TestAuthService:
         """Test successful user retrieval."""
         user_info = UserInfo(id="123", username="testuser", email="test@example.com")
         validate_response = ValidateTokenResponse(
-            success=True,
             data=ValidateTokenResponseData(authenticated=True, user=user_info),
-            timestamp="2024-01-01T00:00:00Z",
         )
         auth_service.api_client.auth.validate_token = AsyncMock(return_value=validate_response)
 
@@ -324,9 +320,7 @@ class TestAuthService:
     async def test_get_user_failure(self, auth_service):
         """Test failed user retrieval."""
         validate_response = ValidateTokenResponse(
-            success=True,
             data=ValidateTokenResponseData(authenticated=False, user=None),
-            timestamp="2024-01-01T00:00:00Z",
         )
         auth_service.api_client.auth.validate_token = AsyncMock(return_value=validate_response)
 
@@ -340,15 +334,11 @@ class TestAuthService:
 
         user_info = UserInfo(id="123", username="testuser")
         get_user_response = GetUserResponse(
-            success=True,
             data=GetUserResponseData(user=user_info, authenticated=True),
-            timestamp="2024-01-01T00:00:00Z",
         )
         auth_service.api_client.auth.get_user = AsyncMock(return_value=get_user_response)
         get_user_response = GetUserResponse(
-            success=True,
             data=GetUserResponseData(user=user_info, authenticated=True),
-            timestamp="2024-01-01T00:00:00Z",
         )
         auth_service.api_client.auth.get_user = AsyncMock(return_value=get_user_response)
 
@@ -481,12 +471,10 @@ class TestAuthService:
         """Test token validation cache miss - should make HTTP request and cache result."""
         mock_cache.get = AsyncMock(return_value=None)
         validate_response = ValidateTokenResponse(
-            success=True,
             data=ValidateTokenResponseData(
                 authenticated=True,
                 user=UserInfo(id="123", username="testuser"),
             ),
-            timestamp="2024-01-01T00:00:00Z",
         )
         auth_service.api_client.auth.validate_token = AsyncMock(return_value=validate_response)
 
@@ -503,9 +491,7 @@ class TestAuthService:
         """Test that failed validations are not cached."""
         mock_cache.get = AsyncMock(return_value=None)
         validate_response = ValidateTokenResponse(
-            success=True,
             data=ValidateTokenResponseData(authenticated=False, user=None),
-            timestamp="2024-01-01T00:00:00Z",
         )
         auth_service.api_client.auth.validate_token = AsyncMock(return_value=validate_response)
 
@@ -521,9 +507,7 @@ class TestAuthService:
         from miso_client.api.types.auth_types import LogoutResponse
 
         logout_response = LogoutResponse(
-            success=True,
-            message="Logout successful",
-            timestamp="2024-01-01T00:00:00Z",
+            data=None,
         )
         auth_service.api_client.auth.logout = AsyncMock(return_value=logout_response)
 
@@ -538,12 +522,10 @@ class TestAuthService:
         """Test token validation when cache service is not available."""
         auth_service.cache = None
         validate_response = ValidateTokenResponse(
-            success=True,
             data=ValidateTokenResponseData(
                 authenticated=True,
                 user=UserInfo(id="123", username="testuser"),
             ),
-            timestamp="2024-01-01T00:00:00Z",
         )
         auth_service.api_client.auth.validate_token = AsyncMock(return_value=validate_response)
 

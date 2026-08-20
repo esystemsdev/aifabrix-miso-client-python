@@ -808,6 +808,7 @@ class TestFilterGroup:
         )
 
         assert group.operator == "or"
+        assert group.filters is not None
         assert len(group.filters) == 2
 
     def test_filter_group_nested(self):

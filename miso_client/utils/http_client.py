@@ -100,6 +100,10 @@ class HttpClient:
         """
         return await self._internal_client.get_environment_token()
 
+    def get_internal_client(self) -> InternalHttpClient:
+        """Return shared internal HTTP client instance."""
+        return self._internal_client
+
     async def _wait_for_logging_tasks(self, timeout: float = 0.5) -> None:
         """Wait for all pending logging tasks to complete.
 
@@ -444,6 +448,10 @@ class HttpClient:
 
         """
         self._jwt_cache.clear_token(token)
+
+    def clear_user_token_refresh(self, user_id: str) -> None:
+        """Clear stored user refresh callback and refresh token."""
+        self._user_token_refresh.clear_user_tokens(user_id)
 
     async def post_with_filters(
         self,

@@ -20,7 +20,7 @@ def _parse_positive_int(value: Any, default: int, minimum: int = 1) -> int:
     return parsed if parsed >= minimum else minimum
 
 
-def _pick_first(params: dict, keys: list[str]) -> Any:
+def _pick_first(params: dict[str, Any], keys: list[str]) -> Any:
     """Return first non-None value for provided key candidates."""
     for key in keys:
         value = params.get(key)
@@ -38,7 +38,7 @@ def _parse_page_size_legacy(value: Any, default: int) -> int:
     return parsed if parsed >= 1 else default
 
 
-def parsePaginationParams(params: dict) -> Dict[str, int]:
+def parsePaginationParams(params: dict[str, Any]) -> Dict[str, int]:
     """Parse query parameters into pagination values.
 
     Parses `page` and `pageSize` query parameters into `currentPage` and `pageSize`.

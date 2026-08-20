@@ -11,7 +11,7 @@ _DANGEROUS_PROTOCOLS = ("javascript:", "data:", "vbscript:", "file:", "about:")
 
 def _is_invalid_input(url: str) -> bool:
     """Check whether input URL value is empty or not a string."""
-    return not url or not isinstance(url, str)
+    return not url
 
 
 def _normalize_url(url: str) -> str:

@@ -38,7 +38,7 @@ def _merge_request_context(base_context: Dict[str, Any], request: Any) -> Dict[s
 
 def _resolve_correlation_id(logger_service: "LoggerService", auto_fields: Dict[str, Any]) -> str:
     """Resolve correlation id from context auto fields with fallback generation."""
-    return str(auto_fields.get("correlationId") or logger_service._generate_correlation_id())
+    return str(auto_fields.get("correlationId") or logger_service.generate_correlation_id())
 
 
 async def _resolve_application_context(

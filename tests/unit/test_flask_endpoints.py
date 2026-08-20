@@ -56,19 +56,14 @@ class TestFlaskEndpoints:
             elif "flask" in sys.modules:
                 del sys.modules["flask"]
 
-                assert status_code == 200
-                assert response["token"] == "test-token-123"
-                assert response["expiresIn"] == 1800
-                assert response["config"]["baseUrl"] == "http://localhost:8000"
-                assert (
-                    response["config"]["controllerUrl"] == "https://controller-public.example.com"
-                )
-                assert (
-                    response["config"]["controllerPublicUrl"]
-                    == "https://controller-public.example.com"
-                )
-                assert response["config"]["clientId"] == "test-client"
-                assert response["config"]["clientTokenUri"] == "/api/v1/auth/client-token"
+        assert status_code == 200
+        assert response["token"] == "test-token-123"
+        assert response["expiresIn"] == 1800
+        assert response["config"]["baseUrl"] == "http://localhost:8000"
+        assert response["config"]["controllerUrl"] == "https://controller-public.example.com"
+        assert response["config"]["controllerPublicUrl"] == "https://controller-public.example.com"
+        assert response["config"]["clientId"] == "test-client"
+        assert response["config"]["clientTokenUri"] == "/api/v1/auth/client-token"
 
     def test_create_flask_endpoint_not_initialized(self):
         """Test Flask endpoint returns 503 when client not initialized."""
@@ -122,9 +117,9 @@ class TestFlaskEndpoints:
             elif "flask" in sys.modules:
                 del sys.modules["flask"]
 
-                assert status_code == 403
-                assert response["error"] == "Forbidden"
-                assert "Origin validation failed" in response["message"]
+        assert status_code == 403
+        assert response["error"] == "Forbidden"
+        assert "Origin validation failed" in response["message"]
 
     def test_create_flask_endpoint_custom_options(self):
         """Test Flask endpoint with custom options."""
@@ -168,10 +163,10 @@ class TestFlaskEndpoints:
             elif "flask" in sys.modules:
                 del sys.modules["flask"]
 
-                assert status_code == 200
-                assert response["token"] == "test-token"
-                assert response["expiresIn"] == 3600
-                assert "config" not in response
+        assert status_code == 200
+        assert response["token"] == "test-token"
+        assert response["expiresIn"] == 3600
+        assert "config" not in response
 
     def test_create_flask_endpoint_no_controller_url(self):
         """Test Flask endpoint returns 500 when controller URL not configured."""
@@ -211,6 +206,6 @@ class TestFlaskEndpoints:
             elif "flask" in sys.modules:
                 del sys.modules["flask"]
 
-                assert status_code == 500
-                assert response["error"] == "Internal Server Error"
-                assert "Controller URL not configured" in response["message"]
+        assert status_code == 500
+        assert response["error"] == "Internal Server Error"
+        assert "Controller URL not configured" in response["message"]

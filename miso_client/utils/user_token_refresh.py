@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any, Awaitable, Callable, Dict, Optional, Sequence
+from typing import Any, Awaitable, Callable, Dict, Optional, Sequence, cast
 
 from .jwt_tools import decode_token, extract_user_id
 
@@ -36,7 +36,7 @@ def _extract_canonical_refresh_payload(
     data = refresh_response.get("data")
     if not isinstance(data, dict):
         return None
-    return data
+    return cast(Dict[str, Any], data)
 
 
 def _parse_timestamp_number(value: float) -> Optional[datetime]:
@@ -362,8 +362,9 @@ class UserTokenRefreshManager:
         refresh_response = await self._auth_service.refresh_user_token(refresh_token)
         if not isinstance(refresh_response, dict):
             return None
+        typed_refresh_response = cast(Dict[str, Any], refresh_response)
 
-        refresh_payload = _extract_canonical_refresh_payload(refresh_response)
+        refresh_payload = _extract_canonical_refresh_payload(typed_refresh_response)
         if refresh_payload is None:
             return None
 
@@ -425,3 +426,7 @@ class UserTokenRefreshManager:
             except Exception as error:
                 logger.error(f"Token refresh failed for user {user_id}", exc_info=error)
                 return None
+
+    async def refresh_token(self, token: str, user_id: Optional[str] = None) -> Optional[str]:
+        """Public wrapper for token refresh operation."""
+        return await self._refresh_token(token, user_id)

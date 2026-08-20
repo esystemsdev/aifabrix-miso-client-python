@@ -4,14 +4,34 @@ This module provides FastAPI middleware to automatically set logger context
 from request objects, enabling unified logging throughout the application.
 """
 
-from typing import TYPE_CHECKING, Any, Awaitable, Callable
-
-if TYPE_CHECKING:
-    from fastapi import Request, Response
+from collections.abc import Awaitable, Callable, Mapping
+from typing import Any, Protocol
 
 from ..utils.logger_helpers import extract_jwt_context
 from ..utils.request_context import extract_request_context
 from .logger_context_storage import set_logger_context
+
+
+class URLLike(Protocol):
+    """Minimal URL interface used by logger middleware."""
+
+    @property
+    def hostname(self) -> str | None:
+        """Return URL hostname when available."""
+        ...
+
+
+class RequestLike(Protocol):
+    """Minimal request interface used by logger middleware."""
+
+    headers: Mapping[str, str]
+    url: URLLike | None
+
+
+class ResponseLike(Protocol):
+    """Protocol marker for middleware response objects."""
+
+    ...
 
 
 def _extract_bearer_token(auth_header: str) -> str:
@@ -19,10 +39,10 @@ def _extract_bearer_token(auth_header: str) -> str:
     return auth_header.replace("Bearer ", "") if auth_header.startswith("Bearer ") else ""
 
 
-def _extract_hostname(request: "Request") -> str | None:
+def _extract_hostname(request: RequestLike) -> str | None:
     """Extract request hostname if available."""
-    if hasattr(request, "url") and request.url:
-        return getattr(request.url, "hostname", None)
+    if request.url:
+        return request.url.hostname
     return None
 
 
@@ -75,11 +95,11 @@ def _apply_jwt_context_fields(
         context_dict["sessionId"] = jwt_context["sessionId"]
 
 
-def _prepare_logger_context(request: "Request") -> dict[str, str | int | None]:
+def _prepare_logger_context(request: RequestLike) -> dict[str, str | int | None]:
     """Prepare complete logger context dictionary from incoming request."""
     request_context = extract_request_context(request)
-    headers = request.headers if hasattr(request, "headers") else {}
-    auth_header = headers.get("authorization", "") if hasattr(headers, "get") else ""
+    headers = request.headers
+    auth_header = headers.get("authorization", "")
     jwt_token = _extract_bearer_token(auth_header)
     jwt_context = extract_jwt_context(jwt_token) if jwt_token else {}
     hostname = _extract_hostname(request)
@@ -87,8 +107,8 @@ def _prepare_logger_context(request: "Request") -> dict[str, str | int | None]:
 
 
 async def logger_context_middleware(
-    request: "Request", call_next: Callable[["Request"], Awaitable["Response"]]
-) -> "Response":
+    request: RequestLike, call_next: Callable[[RequestLike], Awaitable[ResponseLike]]
+) -> ResponseLike:
     """Set logger context for request lifetime in FastAPI middleware."""
     set_logger_context(_prepare_logger_context(request))
 

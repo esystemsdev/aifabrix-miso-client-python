@@ -6,7 +6,7 @@ in log entries and context data. Policy is driven by ``sensitive_fields_config.j
 """
 
 from pathlib import Path
-from typing import Any, Callable, Optional, Set
+from typing import Any, Callable, Optional, Set, cast
 
 from .sensitive_fields_loader import get_sensitive_fields_array, load_sensitive_fields_config
 
@@ -51,17 +51,18 @@ class DataMasker:
         return field.lower().replace("_", "").replace("-", "")
 
     @classmethod
-    def _never_mask_from_cfg(cls, cfg: dict) -> Set[str]:
-        raw = cfg.get("neverMaskFields") or []
+    def _never_mask_from_cfg(cls, cfg: dict[str, Any]) -> Set[str]:
+        raw = cfg.get("neverMaskFields")
         out: Set[str] = set()
         if isinstance(raw, list):
-            for x in raw:
+            raw_list = cast(list[Any], raw)
+            for x in raw_list:
                 if isinstance(x, str) and x.strip():
                     out.add(cls._normalize_field_name(x))
         return out
 
     @classmethod
-    def _substr_min_from_cfg(cls, cfg: dict) -> int:
+    def _substr_min_from_cfg(cls, cfg: dict[str, Any]) -> int:
         sm = cfg.get("substringMinLength", 4)
         try:
             return max(1, min(int(sm), 64))
@@ -103,8 +104,7 @@ class DataMasker:
             json_fields = get_sensitive_fields_array(config_path)
             if json_fields:
                 for field in json_fields:
-                    if isinstance(field, str):
-                        merged_fields.add(cls._normalize_field_name(field))
+                    merged_fields.add(cls._normalize_field_name(field))
         except Exception:
             json_fields = []
 
@@ -153,9 +153,11 @@ class DataMasker:
         if not isinstance(data, (dict, list)):
             return data
         if isinstance(data, list):
-            return [cls._mask_recursive(item, is_sensitive) for item in data]
+            list_data = cast(list[Any], data)
+            return [cls._mask_recursive(item, is_sensitive) for item in list_data]
+        dict_data = cast(dict[str, Any], data)
         masked: dict[str, Any] = {}
-        for key, value in data.items():
+        for key, value in dict_data.items():
             if is_sensitive(key):
                 masked[key] = cls.MASKED_VALUE
             elif isinstance(value, (dict, list)):
@@ -165,15 +167,14 @@ class DataMasker:
         return masked
 
     @classmethod
-    def _sensitive_set_for_explicit_config(cls, config_path: str, cfg: dict) -> Set[str]:
+    def _sensitive_set_for_explicit_config(cls, config_path: str, cfg: dict[str, Any]) -> Set[str]:
         merge = bool(cfg.get("mergeWithHardcodedDefaults", True))
         sens: Set[str] = set()
         if merge:
             sens.update(cls._hardcoded_sensitive_fields)
         try:
             for field in get_sensitive_fields_array(config_path):
-                if isinstance(field, str):
-                    sens.add(cls._normalize_field_name(field))
+                sens.add(cls._normalize_field_name(field))
         except Exception:
             return sens
         if not merge and not sens:
@@ -231,9 +232,11 @@ class DataMasker:
             return False
 
         if isinstance(data, list):
-            return any(cls.contains_sensitive_data(item) for item in data)
+            list_data = cast(list[Any], data)
+            return any(cls.contains_sensitive_data(item) for item in list_data)
 
-        for key, value in data.items():
+        dict_data = cast(dict[str, Any], data)
+        for key, value in dict_data.items():
             if cls.is_sensitive_field(key):
                 return True
             if isinstance(value, (dict, list)):

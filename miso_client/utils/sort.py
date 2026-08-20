@@ -4,7 +4,7 @@ This module provides reusable sort utilities for parsing sort parameters
 and building sort query strings.
 """
 
-from typing import List, cast
+from typing import Any, List, cast
 from urllib.parse import quote
 
 from ..models.sort import SortOption, SortOrder
@@ -15,7 +15,8 @@ def _normalize_sort_strings(sort_param: object) -> List[str]:
     if isinstance(sort_param, str):
         return [sort_param]
     if isinstance(sort_param, list):
-        return [item for item in sort_param if isinstance(item, str)]
+        typed_values = cast(List[Any], sort_param)
+        return [item for item in typed_values if isinstance(item, str)]
     return []
 
 
@@ -32,10 +33,10 @@ def _parse_sort_option(sort_str: str) -> SortOption | None:
         order = "asc"
     if not field:
         return None
-    return SortOption(field=field, order=cast(SortOrder, order))
+    return SortOption(field=field, order=order)
 
 
-def parse_sort_params(params: dict) -> List[SortOption]:
+def parse_sort_params(params: dict[str, Any]) -> List[SortOption]:
     """Parse sort query parameters into SortOption list.
 
     Parses `?sort=-field` format into SortOption objects.

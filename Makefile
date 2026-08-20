@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help install install-dev test test-cov test-integration test-integration-legacy test-manual lint format type-check build check clean clean-venv validate validate-api publish test-publish venv all dev format-silent lint-silent test-silent test-cov-silent test-integration-silent type-check-silent validate-silent
+.PHONY: help install install-dev test test-cov test-integration test-integration-legacy test-manual lint format basedpyright type-check build check clean clean-venv validate validate-api publish test-publish venv all dev format-silent lint-silent basedpyright-silent test-silent test-cov-silent test-integration-silent type-check-silent validate-silent
 
 help: ## Show all commands
 	@echo "Usage: make [target]"
@@ -12,6 +12,7 @@ PYTHON := python3
 VENV := venv
 VENV_PYTHON := $(VENV)/bin/python
 VENV_PIP := $(VENV_PYTHON) -m pip
+BASEDPYRIGHT_PATHS ?= miso_client tests
 
 # Shared helper for silent targets (stores output in .temp/validation/)
 define run_silent
@@ -79,6 +80,12 @@ type-check: venv ## Run type checking
 type-check-silent: ## Run type-check in silent mode (writes .temp/validation/03-type-check)
 	@$(call run_silent,type-check,03-type-check)
 
+basedpyright: venv ## Run basedpyright (set BASEDPYRIGHT_PATHS for targeted checks)
+	$(VENV_PYTHON) -m basedpyright $(BASEDPYRIGHT_PATHS)
+
+basedpyright-silent: ## Run basedpyright in silent mode (writes .temp/validation/03a-basedpyright)
+	@$(call run_silent,basedpyright,03a-basedpyright)
+
 build: venv ## Build the package
 	$(VENV_PYTHON) -m build
 
@@ -101,14 +108,16 @@ validate: venv ## Run lint + format + test (excludes integration tests)
 	$(VENV_PYTHON) -m ruff check miso_client/ tests/
 	$(VENV_PYTHON) -m black miso_client/ tests/
 	$(VENV_PYTHON) -m isort miso_client/ tests/
+	$(VENV_PYTHON) -m basedpyright $(BASEDPYRIGHT_PATHS)
 	$(VENV_PYTHON) -m pytest tests/ -v --ignore=tests/integration/ --ignore=tests/manual/
 
 validate-silent: ## Run validate chain in silent mode (logs in .temp/validation/)
 	@$(MAKE) --no-print-directory format-silent
 	@$(MAKE) --no-print-directory lint-silent
+	@$(MAKE) --no-print-directory basedpyright-silent
 	@$(MAKE) --no-print-directory type-check-silent
 	@$(MAKE) --no-print-directory test-silent
-	@echo "[OK] validate-silent logs: .temp/validation/{01-format,02-lint,03-type-check,04-test}"
+	@echo "[OK] validate-silent logs: .temp/validation/{01-format,02-lint,03a-basedpyright,03-type-check,04-test}"
 
 validate-api: venv ## Validate API endpoints via integration tests (uses .env)
 	@echo "Running API endpoint integration tests..."

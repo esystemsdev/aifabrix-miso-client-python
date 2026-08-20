@@ -5,7 +5,8 @@ Extracted from http_client.py to reduce file size and improve maintainability.
 
 import asyncio
 import time
-from typing import Any, Dict, Optional
+from collections.abc import Awaitable
+from typing import Any, Dict, Optional, cast
 
 from ..models.config import MisoClientConfig
 from ..services.logger import LoggerService
@@ -14,7 +15,7 @@ from .http_client_logging import log_http_request_audit, log_http_request_debug
 from .http_error_handler import extract_correlation_id_from_response
 
 
-def handle_logging_task_error(task: asyncio.Task) -> None:
+def handle_logging_task_error(task: asyncio.Task[Any]) -> None:
     """Handle errors in background logging tasks.
 
     Silently swallows all exceptions to prevent logging errors from breaking requests.
@@ -38,18 +39,23 @@ def handle_logging_task_error(task: asyncio.Task) -> None:
         return
 
 
-async def wait_for_logging_tasks(logging_tasks: set[asyncio.Task], timeout: float = 0.5) -> None:
+async def wait_for_logging_tasks(
+    logging_tasks: set[asyncio.Task[Any]], timeout: float = 0.5
+) -> None:
     """Wait for active logging tasks to complete."""
     if not logging_tasks:
         return
 
-    active_tasks = [task for task in logging_tasks if not task.done()]
+    active_tasks: list[asyncio.Task[Any]] = [task for task in logging_tasks if not task.done()]
     if not active_tasks:
         return
 
     try:
         await asyncio.wait_for(
-            asyncio.gather(*active_tasks, return_exceptions=True),
+            asyncio.gather(
+                *(cast(Awaitable[Any], task) for task in active_tasks),
+                return_exceptions=True,
+            ),
             timeout=timeout,
         )
     except (asyncio.TimeoutError, RuntimeError):

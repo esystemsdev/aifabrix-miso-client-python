@@ -7,7 +7,18 @@ import asyncio
 import sys
 
 from miso_client import MisoClient, load_config
+from miso_client.errors import MisoClientError
 from miso_client.utils.jwt_tools import decode_token, extract_user_id
+
+
+def _print_error_response(error: Exception) -> bool:
+    """Print structured error response when available."""
+    if not isinstance(error, MisoClientError) or error.error_response is None:
+        return False
+    print(f"   Status: {error.error_response.statusCode}")
+    print(f"   Type: {error.error_response.type}")
+    print(f"   Errors: {error.error_response.errors}")
+    return True
 
 
 async def main() -> None:
@@ -57,31 +68,14 @@ async def main() -> None:
         print(f"❌ Token validation error: {error}")
         return
 
-    # Get roles - try with environment parameter using service method
+    # Get roles
     print("Fetching roles...")
     roles = []
-    # Try common environment values
-    environments_to_try = ["miso", "dev", "tst", "pro"]
-
-    for env in environments_to_try:
-        try:
-            # Use service method with environment parameter
-            roles = await client.get_roles(token, environment=env)
-            if roles:
-                print(f"   ✅ Success with environment='{env}' using service method")
-                break
-        except Exception as api_error:
-            error_msg = str(api_error)
-            print(f"   Error with environment='{env}': {error_msg}")
-            if hasattr(api_error, "error_response") and api_error.error_response:
-                print(f"   Status: {api_error.error_response.statusCode}")
-                print(f"   Type: {api_error.error_response.type}")
-                print(f"   Errors: {api_error.error_response.errors}")
-                if api_error.error_response.statusCode == 400:
-                    # Try next environment
-                    continue
-                else:
-                    break
+    try:
+        roles = await client.get_roles(token)
+    except Exception as api_error:
+        print(f"   Error fetching roles: {api_error}")
+        _print_error_response(api_error)
 
     if not roles:
         print("   ⚠️  No roles found with any environment")
@@ -91,30 +85,16 @@ async def main() -> None:
         print(f"   Sample: {', '.join(roles[:5])}")
     print()
 
-    # Get permissions - try with environment parameter using service method
+    # Get permissions
     print("Fetching permissions...")
     permissions = []
-    # Try common environment values
-    for env in environments_to_try:
-        try:
-            # Use service method with environment parameter
-            permissions = await client.get_permissions(token, environment=env)
-            if permissions:
-                print(f"   ✅ Success with environment='{env}' using service method")
-                break
-        except Exception as api_error:
-            error_msg = str(api_error)
-            print(f"   Error with environment='{env}': {error_msg}")
-            if hasattr(api_error, "error_response") and api_error.error_response:
-                print(f"   Status: {api_error.error_response.statusCode}")
-                print(f"   Type: {api_error.error_response.type}")
-                print(f"   Errors: {api_error.error_response.errors}")
+    try:
+        permissions = await client.get_permissions(token)
+    except Exception as api_error:
+        print(f"   Error fetching permissions: {api_error}")
+        if _print_error_response(api_error):
+            if isinstance(api_error, MisoClientError) and api_error.error_response is not None:
                 print(f"   Correlation ID: {api_error.error_response.correlationId}")
-                if api_error.error_response.statusCode == 400:
-                    # Try next environment
-                    continue
-                else:
-                    break
 
     if not permissions:
         print("   ⚠️  No permissions found with any environment")

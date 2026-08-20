@@ -10,6 +10,7 @@ import asyncio
 import sys
 
 from miso_client import MisoClient, load_config
+from miso_client.errors import MisoClientError
 
 
 async def run_permission_diagnosis(token: str) -> None:
@@ -84,7 +85,7 @@ async def run_permission_diagnosis(token: str) -> None:
         except Exception as e:
             print(f"✗ Error fetching permissions: {e}")
             print(f"  Error type: {type(e).__name__}")
-            if hasattr(e, "error_response") and e.error_response:
+            if isinstance(e, MisoClientError) and e.error_response is not None:
                 print(f"  Status Code: {e.error_response.statusCode}")
                 print(f"  Error Type: {e.error_response.type}")
                 print(f"  Errors: {e.error_response.errors}")
@@ -153,7 +154,7 @@ async def run_permission_diagnosis(token: str) -> None:
                 print(f"\n✗ After refresh: User DOES NOT have permission: {target_permission}")
         except Exception as e:
             print(f"✗ Error refreshing permissions: {e}")
-            if hasattr(e, "error_response") and e.error_response:
+            if isinstance(e, MisoClientError) and e.error_response is not None:
                 print(f"  Status Code: {e.error_response.statusCode}")
                 print(f"  Error Type: {e.error_response.type}")
                 print(f"  Errors: {e.error_response.errors}")

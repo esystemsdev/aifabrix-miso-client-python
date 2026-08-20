@@ -6,7 +6,7 @@ caching, and correlation ID extraction.
 
 import asyncio
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Any, Optional, cast
 
 import httpx
 
@@ -23,6 +23,8 @@ CORRELATION_HEADERS = [
     "x-correlationid",
     "request-id",
 ]
+
+JsonDict = dict[str, Any]
 
 
 class ClientTokenManager:
@@ -97,21 +99,22 @@ class ClientTokenManager:
         finally:
             await temp_client.aclose()
 
-    def _normalize_token_response_data(self, payload: object) -> dict:
+    def _normalize_token_response_data(self, payload: object) -> JsonDict:
         """Normalize token response payload with nested-data support."""
         if not isinstance(payload, dict):
             return {}
-        data = dict(payload)
-        if "data" in data and isinstance(data["data"], dict):
-            nested_data = dict(data["data"])
+        data = cast(JsonDict, payload.copy())
+        nested_payload = data.get("data")
+        if isinstance(nested_payload, dict):
+            nested_data = cast(JsonDict, nested_payload.copy())
             if "success" in data:
                 nested_data["success"] = data["success"]
             return nested_data
         return data
 
-    def _ensure_token_defaults(self, data: dict) -> dict:
+    def _ensure_token_defaults(self, data: JsonDict) -> JsonDict:
         """Ensure response has success and expiresIn defaults when token is present."""
-        result = dict(data)
+        result: JsonDict = dict(data)
         if "token" not in result:
             return result
         if "success" not in result:
@@ -136,8 +139,11 @@ class ClientTokenManager:
         """Calculate expiresIn from JWT exp claim, or default."""
         try:
             decoded = decode_token(token)
-            if decoded and "exp" in decoded and isinstance(decoded["exp"], (int, float)):
-                token_exp = datetime.fromtimestamp(decoded["exp"])
+            if not isinstance(decoded, dict):
+                return 1800
+            exp_raw = decoded.get("exp")
+            if isinstance(exp_raw, (int, float)):
+                token_exp = datetime.fromtimestamp(exp_raw)
                 now = datetime.now()
                 return max(0, int((token_exp - now).total_seconds()))
         except Exception:

@@ -75,8 +75,9 @@ def coerce_value(value: Any, field_def: FilterFieldDefinition) -> Tuple[Any, Opt
     field_type = field_def.type
 
     if isinstance(value, list):
-        coerced_list = []
-        for item in value:
+        coerced_list: List[Any] = []
+        value_items = cast(List[Any], value)
+        for item in value_items:
             coerced_item, error = coerce_single_value(item, field_type, field_def.enum)
             if error:
                 return None, error
@@ -134,18 +135,21 @@ def compile_filter(
     return CompiledFilter(sql=sql, params=params, param_index=param_index + len(params))
 
 
-def parse_json_filter(json_data: dict) -> List[FilterOption]:
+def parse_json_filter(json_data: Dict[str, Any]) -> List[FilterOption]:
     """Parse JSON filter payload into FilterOption list."""
     filters: List[FilterOption] = []
 
     for field, value_spec in json_data.items():
         if isinstance(value_spec, dict):
+            nested_spec = cast(Dict[str, Any], value_spec)
             # Nested format: {"field": {"op": "value"}}
-            for op, value in value_spec.items():
-                filters.append(FilterOption(field=field, op=op, value=value))
+            for op, value in nested_spec.items():
+                filters.append(
+                    FilterOption(field=str(field), op=cast(FilterOperator, op), value=value)
+                )
         else:
             # Flat format: {"field": "value"} (defaults to "eq")
-            filters.append(FilterOption(field=field, op="eq", value=value_spec))
+            filters.append(FilterOption(field=str(field), op="eq", value=value_spec))
 
     return filters
 

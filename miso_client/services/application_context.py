@@ -79,7 +79,7 @@ class ApplicationContextService:
             Dictionary with application and environment (or None if format doesn't match)
 
         """
-        if not client_id or not isinstance(client_id, str):
+        if not client_id:
             return {"application": None, "environment": None}
 
         # Parse format: miso-controller-{environment}-{application}

@@ -28,8 +28,7 @@ class ApplicationContextMixin:
         from ..services.application_context import ApplicationContextService
 
         if self._app_context_service is None:
-            # Access internal HTTP client from http_client
-            internal_client = self.http_client._internal_client
+            internal_client = self.http_client.get_internal_client()
             self._app_context_service = ApplicationContextService(internal_client)
         return self._app_context_service
 
@@ -42,11 +41,8 @@ class ApplicationContextMixin:
         """
         try:
             app_context_service = self._get_app_context_service()
-            # If context is cached, use it synchronously (matching TypeScript behavior)
-            if app_context_service._cached_context is not None:
-                env = app_context_service._cached_context.environment
-                return env if env and env != "unknown" else None
-            # If not cached, return None (will be fetched async on first use)
-            return None
+            context = app_context_service.get_application_context_sync()
+            env = context.environment
+            return env if env and env != "unknown" else None
         except Exception:
             return None

@@ -31,7 +31,8 @@ def _normalize_filter_strings(filter_param: Any) -> List[str]:
     if isinstance(filter_param, str):
         return [filter_param]
     if isinstance(filter_param, list):
-        return [item for item in filter_param if isinstance(item, str)]
+        typed_values = cast(List[Any], filter_param)
+        return [item for item in typed_values if isinstance(item, str)]
     return []
 
 
@@ -72,7 +73,7 @@ def _parse_filter_option(filter_str: str) -> Optional[FilterOption]:
     return FilterOption(field=field, op=cast(FilterOperator, op), value=value)
 
 
-def parse_filter_params(params: dict) -> List[FilterOption]:
+def parse_filter_params(params: dict[str, Any]) -> List[FilterOption]:
     """Parse query filter parameters into FilterOption list."""
     filters: List[FilterOption] = []
 

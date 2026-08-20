@@ -110,6 +110,10 @@ class LoggerService:
         )
         return f"{client_prefix}-{timestamp}-{self.correlation_counter}-{random_part}"
 
+    def generate_correlation_id(self) -> str:
+        """Generate correlation id for external helpers."""
+        return self._generate_correlation_id()
+
     async def error(
         self,
         message: str,
