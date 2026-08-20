@@ -7,6 +7,7 @@ and public HttpClient (with ISO 27001 compliant audit and debug logging).
 
 import asyncio
 from datetime import datetime, timedelta
+from typing import Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -2629,7 +2630,7 @@ class TestHttpClientUserTokenRefresh:
     ):
         """Test that 401 with failed refresh raises original error."""
 
-        async def failing_refresh_callback(token: str) -> str:
+        async def failing_refresh_callback(token: str) -> Optional[str]:
             return None  # Refresh failed
 
         http_client.register_user_token_refresh_callback("user-123", failing_refresh_callback)

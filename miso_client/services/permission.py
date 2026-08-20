@@ -7,7 +7,7 @@ Optimized to extract userId from JWT token before API calls for cache optimizati
 
 import logging
 import time
-from typing import TYPE_CHECKING, List, Optional, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 from ..models.config import AuthStrategy, PermissionResult
 from ..services.application_context import ApplicationContextService
@@ -56,7 +56,8 @@ class PermissionService(ApplicationContextMixin):
             return None
         cached_data = await self.cache.get(cache_key)
         if cached_data and isinstance(cached_data, dict):
-            return cast(List[str], cached_data.get("permissions", []))
+            typed_cached_data = cast(Dict[str, Any], cached_data)
+            return cast(List[str], typed_cached_data.get("permissions", []))
         return None
 
     async def _resolve_user_id(

@@ -77,6 +77,8 @@ class TestMaskRequestData:
 
         masked_headers, masked_body = mask_request_data(headers, body)
 
+        assert masked_headers is not None
+        assert masked_body is not None
         assert masked_headers["Authorization"] == DataMasker.MASKED_VALUE
         assert masked_headers["Content-Type"] == "application/json"
         assert masked_body["username"] == "user"
@@ -88,6 +90,7 @@ class TestMaskRequestData:
         masked_headers, masked_body = mask_request_data(None, body)
 
         assert masked_headers is None
+        assert masked_body is not None
         assert masked_body["data"] == "value"
 
     def test_mask_request_data_none_body(self):
@@ -95,6 +98,7 @@ class TestMaskRequestData:
         headers = {"Authorization": "Bearer token123"}
         masked_headers, masked_body = mask_request_data(headers, None)
 
+        assert masked_headers is not None
         assert masked_headers["Authorization"] == DataMasker.MASKED_VALUE
         assert masked_body is None
 

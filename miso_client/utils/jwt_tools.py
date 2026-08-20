@@ -6,7 +6,7 @@ Includes JWT token caching for performance optimization.
 """
 
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional, Tuple, cast
+from typing import Any, Dict, Optional, Tuple
 
 import jwt
 
@@ -27,7 +27,7 @@ def decode_token(token: str) -> Optional[Dict[str, Any]]:
     """
     try:
         # Decode without verification (no secret key needed)
-        decoded = cast(Dict[str, Any], jwt.decode(token, options={"verify_signature": False}))
+        decoded = jwt.decode(token, options={"verify_signature": False})
         return decoded
     except Exception:
         # Token is invalid or malformed

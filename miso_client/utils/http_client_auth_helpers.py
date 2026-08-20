@@ -60,7 +60,7 @@ async def _refresh_token_for_401(
 ) -> Optional[str]:
     """Refresh token after 401 response using user id hint."""
     user_id = extract_user_id(token)
-    return await user_token_refresh._refresh_token(token, user_id)
+    return await user_token_refresh.refresh_token(token, user_id)
 
 
 async def _retry_with_refreshed_token(

@@ -426,3 +426,7 @@ class UserTokenRefreshManager:
             except Exception as error:
                 logger.error(f"Token refresh failed for user {user_id}", exc_info=error)
                 return None
+
+    async def refresh_token(self, token: str, user_id: Optional[str] = None) -> Optional[str]:
+        """Public wrapper for token refresh operation."""
+        return await self._refresh_token(token, user_id)

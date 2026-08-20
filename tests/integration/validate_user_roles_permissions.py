@@ -13,7 +13,16 @@ import json
 import sys
 
 from miso_client import MisoClient, load_config
+from miso_client.errors import MisoClientError
 from miso_client.utils.jwt_tools import decode_token, extract_user_id
+
+
+def _print_error_response(error: Exception) -> bool:
+    """Print structured SDK error response."""
+    if not isinstance(error, MisoClientError) or error.error_response is None:
+        return False
+    print(f"   Error response: {error.error_response}")
+    return True
 
 
 async def validate_user_roles_permissions(token: str) -> None:
@@ -84,8 +93,7 @@ async def validate_user_roles_permissions(token: str) -> None:
     except Exception as error:
         print(f"❌ ERROR: Token validation error: {error}")
         print(f"   Error type: {type(error).__name__}")
-        if hasattr(error, "error_response"):
-            print(f"   Error response: {error.error_response}")
+        _print_error_response(error)
         return
 
     # Step 4: Get user info
@@ -128,8 +136,7 @@ async def validate_user_roles_permissions(token: str) -> None:
     except Exception as error:
         print(f"❌ ERROR: Failed to get roles: {error}")
         print(f"   Error type: {type(error).__name__}")
-        if hasattr(error, "error_response"):
-            print(f"   Error response: {error.error_response}")
+        _print_error_response(error)
         roles = []
 
     # Step 6: Get permissions
@@ -143,8 +150,7 @@ async def validate_user_roles_permissions(token: str) -> None:
             print(f"   Raw API response: {json.dumps(raw_permissions_response, indent=2)}")
         except Exception as api_error:
             print(f"   ⚠️  Direct API call error: {api_error}")
-            if hasattr(api_error, "error_response"):
-                print(f"   Error response: {api_error.error_response}")
+            _print_error_response(api_error)
 
         permissions = await client.get_permissions(token)
         print(f"✅ Permissions retrieved: {len(permissions)} permissions")
@@ -167,13 +173,12 @@ async def validate_user_roles_permissions(token: str) -> None:
     except Exception as error:
         print(f"❌ ERROR: Failed to get permissions: {error}")
         print(f"   Error type: {type(error).__name__}")
-        if hasattr(error, "error_response"):
+        if isinstance(error, MisoClientError) and error.error_response is not None:
             print(f"   Error response: {error.error_response}")
-            if error.error_response:
-                print(f"   Status Code: {error.error_response.statusCode}")
-                print(f"   Error Type: {error.error_response.type}")
-                print(f"   Errors: {error.error_response.errors}")
-                print(f"   Correlation ID: {error.error_response.correlationId}")
+            print(f"   Status Code: {error.error_response.statusCode}")
+            print(f"   Error Type: {error.error_response.type}")
+            print(f"   Errors: {error.error_response.errors}")
+            print(f"   Correlation ID: {error.error_response.correlationId}")
         permissions = []
 
     # Step 7: Try refresh to bypass cache
@@ -189,8 +194,7 @@ async def validate_user_roles_permissions(token: str) -> None:
     except Exception as error:
         print(f"❌ ERROR: Failed to refresh permissions: {error}")
         print(f"   Error type: {type(error).__name__}")
-        if hasattr(error, "error_response"):
-            print(f"   Error response: {error.error_response}")
+        _print_error_response(error)
         print()
 
     # Summary

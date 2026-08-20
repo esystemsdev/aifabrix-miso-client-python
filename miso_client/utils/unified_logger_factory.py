@@ -19,7 +19,7 @@ from .logger_context_storage import (
 _default_logger_service: Optional[LoggerService] = None
 
 
-def set_default_logger_service(logger_service: LoggerService) -> None:
+def set_default_logger_service(logger_service: Optional[LoggerService]) -> None:
     """Set the default logger service for get_logger() factory function.
 
     This should be called once during MisoClient initialization.

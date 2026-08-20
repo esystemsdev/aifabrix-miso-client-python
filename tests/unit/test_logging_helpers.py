@@ -4,7 +4,7 @@ Unit tests for logging_helpers module.
 
 from typing import Optional
 
-from miso_client.utils.logging_helpers import extract_logging_context
+from miso_client.utils.logging_helpers import HasId, extract_logging_context
 
 
 class MockHasKey:
@@ -22,11 +22,11 @@ class MockHasExternalSystem:
         self,
         id: str,
         display_name: Optional[str] = None,
-        external_system: Optional[MockHasKey] = None,
+        external_system: Optional[HasId] = None,
     ):
         self.id = id
         self.displayName = display_name
-        self.externalSystem = external_system
+        self.externalSystem: Optional[HasId] = external_system
 
 
 class TestExtractLoggingContext:

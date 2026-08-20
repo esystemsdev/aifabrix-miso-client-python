@@ -105,7 +105,7 @@ def _is_allowed_origin(origin_normalized: str, allowed_origins: List[str]) -> bo
     return False
 
 
-def validate_origin(headers: Any, allowed_origins: List[str]) -> Dict[str, Any]:
+def validate_origin(headers: Any, allowed_origins: Optional[List[str]]) -> Dict[str, Any]:
     """Validate request origin against an allowed-origins list."""
     if not allowed_origins:
         return _result(True)

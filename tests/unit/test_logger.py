@@ -454,6 +454,7 @@ class TestLoggerServiceGetMethods:
         assert log_entry.correlationId == "corr-123"
         assert log_entry.ipAddress == "192.168.1.1"
         assert log_entry.userAgent == "Mozilla/5.0"
+        assert log_entry.context is not None
         assert log_entry.context["method"] == "POST"
         assert log_entry.context["path"] == "/api/test"
         assert log_entry.context["referer"] == "https://example.com"
@@ -475,6 +476,7 @@ class TestLoggerServiceGetMethods:
 
         assert isinstance(log_entry, LogEntry)
         assert log_entry.message == "Test message"
+        assert log_entry.context is not None
         assert log_entry.context["method"] == "GET"
         assert log_entry.context["path"] == "/api/test"
         assert log_entry.userId is None  # No token
@@ -555,6 +557,7 @@ class TestLoggerServiceGetMethods:
 
         assert isinstance(log_entry, LogEntry)
         assert log_entry.message == "Request processed"
+        assert log_entry.context is not None
         assert log_entry.context["method"] == "POST"
         assert log_entry.context["path"] == "/api/users"
 

@@ -33,7 +33,7 @@ def _pick_field(decoded: Dict[str, object], keys: list[str]) -> Optional[str]:
     return None
 
 
-def extract_client_token_info(client_token: str) -> Dict[str, Optional[str]]:
+def extract_client_token_info(client_token: Optional[str]) -> Dict[str, Optional[str]]:
     """Extract application/environment identity info from client token."""
     if not client_token:
         return dict(EMPTY_TOKEN_INFO)

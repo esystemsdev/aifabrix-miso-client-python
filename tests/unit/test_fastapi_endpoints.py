@@ -107,7 +107,7 @@ class TestFastApiEndpoints:
 
         # Mock FastAPI module - use ModuleType so imports work correctly
         mock_fastapi = ModuleType("fastapi")
-        mock_fastapi.HTTPException = MockHTTPException
+        setattr(mock_fastapi, "HTTPException", MockHTTPException)
         fastapi_original = sys.modules.get("fastapi")
         sys.modules["fastapi"] = mock_fastapi
 
@@ -184,7 +184,7 @@ class TestFastApiEndpoints:
 
         # Mock FastAPI module - use ModuleType so imports work correctly
         mock_fastapi = ModuleType("fastapi")
-        mock_fastapi.HTTPException = MockHTTPException
+        setattr(mock_fastapi, "HTTPException", MockHTTPException)
         fastapi_original = sys.modules.get("fastapi")
         sys.modules["fastapi"] = mock_fastapi
 
