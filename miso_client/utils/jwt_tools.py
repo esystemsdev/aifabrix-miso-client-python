@@ -11,6 +11,17 @@ from typing import Any, Dict, Optional, Tuple, cast
 import jwt
 
 
+def _payload_dict(value: object) -> Optional[Dict[str, Any]]:
+    """Narrow a JWT decode result to a string-keyed payload dict."""
+    if not isinstance(value, dict):
+        return None
+    mapping = cast(Dict[object, object], value)
+    payload: Dict[str, Any] = {}
+    for raw_key, raw_item in mapping.items():
+        payload[str(raw_key)] = raw_item
+    return payload
+
+
 def decode_token(token: str) -> Optional[Dict[str, Any]]:
     """Safely decode JWT token without verification.
 
@@ -27,10 +38,8 @@ def decode_token(token: str) -> Optional[Dict[str, Any]]:
     """
     try:
         # Decode without verification (no secret key needed)
-        decoded = jwt.decode(token, options={"verify_signature": False})
-        if isinstance(decoded, dict):
-            return cast(Dict[str, Any], decoded)
-        return None
+        decoded: object = jwt.decode(token, options={"verify_signature": False})
+        return _payload_dict(decoded)
     except Exception:
         # Token is invalid or malformed
         return None
