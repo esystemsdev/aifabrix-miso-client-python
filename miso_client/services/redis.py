@@ -6,7 +6,7 @@ is unavailable. It handles caching of roles and permissions, and log queuing.
 
 import logging
 from inspect import isawaitable
-from typing import Awaitable, Optional, Protocol, TypeVar, cast
+from typing import Awaitable, Optional, Protocol, Sequence, TypeVar, cast
 
 import redis.asyncio as redis
 
@@ -26,9 +26,13 @@ class RedisClientLike(Protocol):
 
     def setex(self, key: str, ttl: int, value: str) -> Awaitable[object] | object: ...
 
-    def delete(self, key: str) -> Awaitable[object] | object: ...
+    def delete(self, *keys: str) -> Awaitable[object] | object: ...
 
     def rpush(self, queue: str, value: str) -> Awaitable[object] | object: ...
+
+    def scan(
+        self, cursor: object, match: str | None = None, count: int | None = None
+    ) -> Awaitable[object] | object: ...
 
     async def aclose(self) -> None: ...
 
@@ -206,3 +210,58 @@ class RedisService:
         except Exception as error:
             logger.error("Redis rpush error", exc_info=error, extra=_error_extra(error))
             return False
+
+    async def delete_prefix(self, prefix: str) -> int:
+        """Delete keys matching prefix (SCAN + DELETE). Prefix is unprefixed cache key."""
+        if not prefix or not self.is_connected():
+            return 0
+        try:
+            assert self.redis is not None
+            match = f"{self.config.key_prefix}{prefix}*" if self.config else f"{prefix}*"
+            return await self._scan_delete(match)
+        except Exception as error:
+            logger.error("Redis delete_prefix error", exc_info=error, extra=_error_extra(error))
+            return 0
+
+    async def _scan_delete(self, match: str) -> int:
+        assert self.redis is not None
+        scan = getattr(self.redis, "scan", None)
+        if scan is None:
+            return 0
+        deleted = 0
+        cursor: object = 0
+        while True:
+            result = await self._resolve_maybe_awaitable(scan(cursor, match=match, count=200))
+            cursor, keys = _unpack_scan(result)
+            if keys:
+                await self._resolve_maybe_awaitable(self.redis.delete(*keys))
+                deleted += len(keys)
+            if cursor in (0, "0"):
+                break
+        return deleted
+
+
+def _unpack_scan(result: object) -> tuple[object, list[str]]:
+    sequence = _as_object_sequence(result)
+    if sequence is None or len(sequence) < 2:
+        return 0, []
+    cursor = sequence[0]
+    keys = _as_string_list(sequence[1])
+    if keys is None:
+        return cursor, []
+    return cursor, keys
+
+
+def _as_object_sequence(result: object) -> Sequence[object] | None:
+    if isinstance(result, tuple) or isinstance(result, list):
+        return cast(Sequence[object], result)
+    return None
+
+
+def _as_string_list(raw: object) -> list[str] | None:
+    if not isinstance(raw, list):
+        return None
+    keys: list[str] = []
+    for item in cast(list[object], raw):
+        keys.append(str(item))
+    return keys
