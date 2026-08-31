@@ -2684,6 +2684,22 @@ class TestRedisService:
         assert result is True
 
     @pytest.mark.asyncio
+    async def test_delete_prefix_scans_and_deletes(self, redis_service):
+        redis_service.redis = MagicMock()
+        redis_service.redis.scan = AsyncMock(
+            side_effect=[(1, ["miso:permissions:user-1"]), (0, ["miso:permissions:user-2"])]
+        )
+        redis_service.redis.delete = AsyncMock()
+        redis_service.connected = True
+
+        deleted = await redis_service.delete_prefix("permissions:")
+
+        assert deleted == 2
+        assert redis_service.redis.scan.call_count == 2
+        redis_service.redis.delete.assert_any_call("miso:permissions:user-1")
+        redis_service.redis.delete.assert_any_call("miso:permissions:user-2")
+
+    @pytest.mark.asyncio
     async def test_rpush_success(self, redis_service):
         """Test successful Redis rpush operation."""
         redis_service.redis = MagicMock()

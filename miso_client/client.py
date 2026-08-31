@@ -318,6 +318,10 @@ class MisoClient:
         """Delete cached value."""
         return await self.cache.delete(key)
 
+    async def cache_delete_prefix(self, prefix: str) -> int:
+        """Delete cached values whose keys start with prefix."""
+        return await self.cache.delete_prefix(prefix)
+
     async def cache_clear(self) -> None:
         """Clear all cached values."""
         await self.cache.clear()

@@ -178,6 +178,29 @@ class TestCacheService:
         assert await cache_no_redis.get("test_key") is None
 
     @pytest.mark.asyncio
+    async def test_delete_prefix_memory_only(self, cache_no_redis):
+        await cache_no_redis.set("permissions:user-1", {"permissions": ["a"]}, 60)
+        await cache_no_redis.set("permissions:user-2", {"permissions": ["b"]}, 60)
+        await cache_no_redis.set("roles:user-1", {"roles": ["r"]}, 60)
+
+        deleted = await cache_no_redis.delete_prefix("permissions:")
+
+        assert deleted == 2
+        assert await cache_no_redis.get("permissions:user-1") is None
+        assert await cache_no_redis.get("permissions:user-2") is None
+        assert await cache_no_redis.get("roles:user-1") == {"roles": ["r"]}
+
+    @pytest.mark.asyncio
+    async def test_delete_prefix_calls_redis(self, cache_with_redis, mock_redis):
+        mock_redis.delete_prefix = AsyncMock(return_value=3)
+        await cache_with_redis.set("permissions:user-1", {"permissions": ["a"]}, 60)
+
+        deleted = await cache_with_redis.delete_prefix("permissions:")
+
+        assert deleted == 4
+        mock_redis.delete_prefix.assert_called_once_with("permissions:")
+
+    @pytest.mark.asyncio
     async def test_clear_memory(self, cache_no_redis):
         """Test clearing memory cache."""
         await cache_no_redis.set("key1", "value1", 60)

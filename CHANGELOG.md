@@ -11,6 +11,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - No unreleased additions.
 
+## [4.20.2] - 2026-08-31
+
+### Added
+
+- **Prefix cache delete** - Added `MisoClient.cache_delete_prefix` (and matching `CacheService` / `RedisService.delete_prefix`) so callers can invalidate a key family (for example identity permission and role caches) without enumerating each key. Redis uses SCAN + DELETE; in-memory cache deletes matching keys by prefix.
+
+### Fixed
+
+- **JWT decode typing** - `decode_token` now returns only a dict payload (or `None`), which satisfies mypy `no-any-return` on PyJWT's untyped decode result.
+
+### Technical
+
+- **Validation baseline** - `make validate-silent` passes (`format`, `lint`, `basedpyright`, `type-check`, `test`).
+- **Version synchronization** - Updated package version metadata to `4.20.2` across release version files.
+
 ## [4.20.1] - 2026-08-20
 
 ### Added

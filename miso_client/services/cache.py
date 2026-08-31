@@ -7,6 +7,7 @@ in-memory TTL-based caching when Redis is unavailable.
 
 import json
 import time
+from inspect import isawaitable
 from typing import Any, Dict, Optional, Tuple, cast
 
 from ..services.redis import RedisService
@@ -189,6 +190,28 @@ class CacheService:
             del self._memory_cache[key]
             deleted = True
 
+        return deleted
+
+    def _delete_memory_prefix(self, prefix: str) -> int:
+        keys = [key for key in list(self._memory_cache) if key.startswith(prefix)]
+        for key in keys:
+            del self._memory_cache[key]
+        return len(keys)
+
+    async def delete_prefix(self, prefix: str) -> int:
+        """Delete keys with prefix from memory and Redis."""
+        if not prefix:
+            return 0
+        deleted = self._delete_memory_prefix(prefix)
+        if not (self.redis and self.redis.is_connected()):
+            return deleted
+        redis_delete = getattr(self.redis, "delete_prefix", None)
+        if redis_delete is None:
+            return deleted
+        result = redis_delete(prefix)
+        redis_count = await result if isawaitable(result) else result
+        if isinstance(redis_count, int):
+            return deleted + redis_count
         return deleted
 
     async def clear(self) -> None:
