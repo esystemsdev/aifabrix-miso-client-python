@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **JWT decode typing** - `decode_token` now returns only a dict payload (or `None`), which satisfies mypy `no-any-return` on PyJWT's untyped decode result.
+- **JWT decode typing** - `decode_token` copies the unverified payload into a typed dict (or `None`) so local mypy and CI basedpyright agree on PyJWT's decode result.
 
 ### Technical
 
