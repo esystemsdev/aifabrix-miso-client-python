@@ -8,7 +8,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="miso-client",
-    version="4.20.2",
+    version="4.21.0",
     author="AI Fabrix Team",
     author_email="team@aifabrix.ai",
     description="Python client SDK for AI Fabrix authentication, authorization, and logging",
@@ -47,6 +47,10 @@ setup(
         "python-dotenv>=1.0.0",
     ],
     extras_require={
+        "azure": [
+            "azure-identity>=1.25.3,<2; python_version >= '3.9'",
+            "aiohttp>=3.9,<4; python_version >= '3.9'",
+        ],
         "dev": [
             "pytest>=7.4.3",
             "pytest-asyncio>=0.21.1",

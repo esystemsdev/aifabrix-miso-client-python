@@ -5,6 +5,13 @@
 
 The **AI Fabrix Miso Client SDK** provides authentication, authorization, and logging for Python applications integrated with the AI Fabrix platform.
 
+## Optional secret initialization
+
+`await init_secrets()` provides one server-side startup API for local credentials and
+opt-in Azure managed identity. Unset or local mode works with existing controllers
+without Azure calls or packages. See [Secret initialization](docs/managed-identity-bootstrap.md)
+for configuration, rotation and the controller requirements for Azure mode.
+
 ## ✨ Benefits
 
 ### 🔐 Enterprise Security

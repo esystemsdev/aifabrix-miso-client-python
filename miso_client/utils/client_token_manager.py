@@ -86,7 +86,7 @@ class ClientTokenManager:
             headers={
                 "Content-Type": "application/json",
                 "x-client-id": client_id,
-                "x-client-secret": self.config.client_secret,
+                "x-client-secret": self.config.client_secret or "",
             },
         )
 
@@ -205,6 +205,10 @@ class ClientTokenManager:
             AuthenticationError: If token fetch fails
 
         """
+        if self.config.runtime_guard is not None:
+            self.config.runtime_guard()
+        if self.config.application_token_provider is not None:
+            return await self.config.application_token_provider.get_token()
         now = datetime.now()
         if self._is_token_valid(now):
             assert self.client_token is not None
@@ -221,6 +225,9 @@ class ClientTokenManager:
 
     async def fetch_client_token(self) -> None:
         """Fetch and cache client token from controller."""
+        if self.config.application_token_provider is not None:
+            await self.config.application_token_provider.get_token()
+            return
         client_id = self.config.client_id
         response: Optional[httpx.Response] = None
         correlation_id: Optional[str] = None
