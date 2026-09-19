@@ -2,6 +2,13 @@
 
 When the `/repair-release` command is used, the agent must automatically prepare the component for release by running validation, analyzing changes, updating the changelog, and incrementing the version number. The agent must work autonomously without asking the user for input.
 
+Prepare metadata locally only; do not commit, tag, push, merge, or publish.
+Promotion uses `/push-release-branch`, then `/push-github` after human PR merge.
+When called from release preparation, reuse an already prepared unpublished version
+whose metadata and changelog agree instead of bumping again.
+Do not run bare `bump2version` (automatic commit/tag are enabled); edit files directly
+or pass `--no-commit --no-tag`.
+
 **Execution Process:**
 
 1. **Validation Step**:
@@ -12,7 +19,7 @@ When the `/repair-release` command is used, the agent must automatically prepare
    - Do not proceed until all validation steps pass
 
 2. **Change Detection Step**:
-   - Get the last deployed version from git tags (e.g., `v2.1.2`)
+   - Identify the last published release reachable from the source (a tag alone does not prove publication)
    - Compare current HEAD with the last tag to detect what has changed
    - Analyze git commit messages and file changes to categorize changes:
      - **New Features**: New services, new utilities, new functionality (minor version bump: 2.x.0)
@@ -49,13 +56,14 @@ When the `/repair-release` command is used, the agent must automatically prepare
      - `pyproject.toml`: Update `version = "X.Y.Z"` in `[project]` section
      - `setup.py`: Update `version="X.Y.Z"` in `setup()` call
      - `miso_client/__init__.py`: Update `__version__ = "X.Y.Z"`
-     - `.bumpversion.cfg`: Update `current_version = X.Y.Z` (optional, for bumpversion tool)
+     - `.bumpversion.cfg`: Update `current_version = X.Y.Z` (required, for bumpversion consistency)
    - Ensure formatting is preserved in each file
 
 6. **Final Verification Step**:
    - Verify all version files were updated correctly
    - Verify CHANGELOG.md was updated with new entry
    - Verify changelog entry follows the correct format
+   - Run `make validate-silent` again after metadata changes and require success
    - Display summary of changes made
 
 **Critical Requirements:**
@@ -69,7 +77,7 @@ When the `/repair-release` command is used, the agent must automatically prepare
   - Patch (2.1.2 → 2.1.3): Bug fixes, small corrections, patches
   - Minor (2.1.2 → 2.2.0): New features, new services, new utilities, significant functionality
 - **Date Format**: Use YYYY-MM-DD format for changelog dates
-- **Git Tag Detection**: Use `git tag --sort=-version:refname` to find the latest version tag
+- **Git Tag Detection**: Use `git tag --merged HEAD --sort=-version:refname` to find the latest version tag
 - **Change Extraction**: Extract meaningful change descriptions from git commits
 - **No User Input**: Work autonomously and only report completion when all steps are done
 - **Version Consistency**: Update version in all three locations: `pyproject.toml`, `setup.py`, and `miso_client/__init__.py`
@@ -91,7 +99,7 @@ When the `/repair-release` command is used, the agent must automatically prepare
   - New utilities (HTTP client, config loader, etc.)
   - New features or functionality
   - New configuration options
-  - Breaking changes (should be rare, but if they occur, use minor version)
+  - Breaking changes require a major version increment and migration notes
   - Significant enhancements to existing features
   - New type definitions or interfaces
 

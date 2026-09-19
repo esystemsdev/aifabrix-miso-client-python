@@ -16,80 +16,39 @@ Go to your GitHub repository → Settings → Secrets and variables → Actions,
 
 - `PYPI_TOKEN`: Your PyPI API token (create at [pypi.org/manage/account/token/](https://pypi.org/manage/account/token/))
 
-### 2. Configure GitHub Environments
+### 2. Version Management
 
-1. Go to Settings → Environments
-2. Create a new environment called `pypi`
-3. Add the `PYPI_TOKEN` secret to this environment
-4. Optionally, add protection rules (required reviewers, etc.)
-
-### 3. Version Management
-
-The project uses `bump2version` for automated version management:
-
-```bash
-# Install bump2version
-pip install bump2version
-
-# Bump patch version (0.1.0 → 0.1.1)
-bump2version patch
-
-# Bump minor version (0.1.0 → 0.2.0)
-bump2version minor
-
-# Bump major version (0.1.0 → 1.0.0)
-bump2version major
-```
+Use `/repair-release` to prepare the version and changelog locally. Keep
+`pyproject.toml`, `setup.py`, `miso_client/__init__.py`, and `.bumpversion.cfg`
+in sync. Preparation does not commit, tag or publish. If using `bump2version`
+manually, pass `--no-commit --no-tag` because the configuration enables both.
 
 ## Automated Workflows
 
 ### Test Workflow (`.github/workflows/test.yml`)
 
-**Triggers:**
-- Push to `main` or `develop` branches
-- Pull requests to `main` or `develop` branches
+Runs on pushes and pull requests targeting `main`, `dev`, and
+`release/miso-client-python-*`. It runs basedpyright and pytest on Python 3.11.
 
-**What it does:**
-- Tests on Python 3.8, 3.9, 3.10, 3.11, 3.12
-- Runs linting with `ruff`
-- Runs type checking with `mypy`
-- Runs tests with `pytest` and coverage
-- Uploads coverage to Codecov
+### Manual CodeQL (`.github/workflows/codeql-manual.yml`)
 
-### Build Workflow (`.github/workflows/build.yml`)
-
-**Triggers:**
-- Push to `main` branch
-- Pull requests to `main` branch
-
-**What it does:**
-- Builds the package using `python -m build`
-- Checks the package with `twine check`
-- Uploads build artifacts for download
+Dispatched on the release branch before PR handoff and on the approved tag before
+publication. Scans Python and GitHub Actions. Review both SARIF artifacts and
+require zero findings; a green workflow alone does not prove zero findings.
 
 ### Publish Workflow (`.github/workflows/publish.yml`)
 
-**Triggers:**
-- When a release is published
-- Manual workflow dispatch
-
-**What it does:**
-- Builds the package
-- Publishes to PyPI using the `PYPI_TOKEN`
-
-### Release Workflow (`.github/workflows/release.yml`)
-
-**Triggers:**
-- Push to `main` branch
-- Manual workflow dispatch
-
-**What it does:**
-- Automatically bumps version
-- Creates a git tag
-- Pushes changes and tags
-- Creates a GitHub release
+A published GitHub Release triggers package validation, build, package checks and
+PyPI upload using the repository `PYPI_TOKEN` secret. Manual dispatch is available
+for retries pinned to the approved tag, with the matching metadata version.
+Branch pushes and tag pushes alone do not publish. There is no automatic version
+bump or standalone build/release workflow. The workflow does not currently bind
+to a GitHub environment; an environment-only secret is insufficient.
 
 ## Manual Deployment
+
+Use these commands for local package checks and Test PyPI. Production publication
+follows the reviewed release process below.
 
 ### 1. Build the Package
 
@@ -104,14 +63,12 @@ python -m build
 twine check dist/*
 ```
 
-### 2. Upload to PyPI
+### 2. Upload to Test PyPI
 
 ```bash
 # Upload to Test PyPI first (recommended)
 twine upload --repository testpypi dist/*
 
-# Upload to PyPI
-twine upload dist/*
 ```
 
 ### 3. Install from PyPI
@@ -213,24 +170,34 @@ make validate  # Runs lint + format + test
 
 ## Release Process
 
-### Automated Release (Recommended)
+Development → release branch → reviewed PR to `main` → GitHub Release → PyPI.
 
-1. Push changes to `main` branch
-2. The release workflow will automatically:
-   - Bump the version
-   - Create a git tag
-   - Push changes
-   - Create a GitHub release
-3. The publish workflow will automatically publish to PyPI
+1. On `dev` (or the current development branch), run
+   [/push-release-branch](../.cursor/commands/push-release-branch.md).
+   It prepares or reuses an unpublished version, runs local validation, and
+   pushes to `release/miso-client-python-X.Y.0`. For example, `4.20.3` uses
+   `release/miso-client-python-4.20.0`; patch releases share that branch.
+2. Require tests and zero CodeQL findings for the exact release commit. Open or
+   reuse the release branch's PR to `main`, and provide its review link.
+3. A human reviews and merges the PR after required checks pass. Configure main
+   branch protection to require PR review and the Test check. Command instructions
+   do not themselves enforce GitHub repository settings.
+4. Run [/push-github](../.cursor/commands/push-github.md) after merge. It verifies
+   the merged PR and main commit, creates an immutable annotated `vX.Y.Z` tag on
+   that commit, checks CodeQL on the tag, and publishes the GitHub Release.
+5. Require the matching publish workflow to succeed and verify the version on
+   PyPI before reporting completion.
 
-### Manual Release
+Never push directly to `main` as part of this process. Keep release fixes in the
+same line by merging them back into development before the next promotion.
+Existing patch-named release branches are inspected for missing fixes before
+creating the `X.Y.0` branch; they are not automatically renamed or deleted.
 
-1. Update version in `pyproject.toml` and `miso_client/__init__.py`
-2. Update `CHANGELOG.md`
-3. Create a git tag: `git tag v0.1.0`
-4. Push changes and tags: `git push && git push --tags`
-5. Create a GitHub release
-6. The publish workflow will automatically publish to PyPI
+`/push-release-branch silent` combines commit/push approval after preparation;
+PR creation remains separate unless explicitly authorized. It does not publish.
+An interrupted run reuses prepared metadata, existing PRs and matching tags.
+Never move a release tag or overwrite published package contents. Fixes requiring
+changed release contents go through a new version and the same review process.
 
 ## Troubleshooting
 

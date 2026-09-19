@@ -1,8 +1,10 @@
 name: Test
 
 on:
+  push:
+    branches: [ main, dev, "release/miso-client-python-*" ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, dev, "release/miso-client-python-*" ]
 
 permissions:
   contents: read

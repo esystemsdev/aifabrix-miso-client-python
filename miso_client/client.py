@@ -19,6 +19,10 @@ from .services.logger import LoggerService
 from .services.permission import PermissionService
 from .services.redis import RedisService
 from .services.role import RoleService
+from .utils.application_url_resolver import (
+    resolve_public_application_url,
+    resolve_public_origins,
+)
 from .utils.audit_log_queue import AuditLogQueue
 from .utils.http_client import HttpClient
 from .utils.internal_http_client import InternalHttpClient
@@ -442,4 +446,53 @@ class MisoClient:
 
         return await self.api_client.applications.get_application_status(
             resolved_env_key, resolved_app_key, auth_strategy
+        )
+
+    async def resolve_application_url(
+        self,
+        reference: str,
+        env_key: Optional[str] = None,
+        app_key: Optional[str] = None,
+        auth_strategy: Optional[AuthStrategy] = None,
+    ) -> str:
+        """Resolve a public ``url://`` reference from current Controller state."""
+        context = self._get_app_context_service().get_application_context_sync()
+        resolved_env_key = env_key or context.environment
+        resolved_app_key = app_key or context.application
+        if not resolved_env_key or not resolved_app_key or resolved_env_key == "unknown":
+            raise ValueError("URL resolution requires environment and application context")
+        return await resolve_public_application_url(
+            self, resolved_env_key, resolved_app_key, reference, auth_strategy
+        )
+
+    async def resolve_allowed_origins(
+        self,
+        origins: Optional[List[str]] = None,
+        env_key: Optional[str] = None,
+        app_key: Optional[str] = None,
+        auth_strategy: Optional[AuthStrategy] = None,
+    ) -> Optional[List[str]]:
+        """Resolve logical CORS entries on each call so Controller cache purge is immediate."""
+        configured = self.config.allowedOrigins if origins is None else origins
+        if not configured:
+            return configured
+        context = self._get_app_context_service().get_application_context_sync()
+        resolved_env_key = env_key or context.environment
+        resolved_app_key = app_key or context.application
+        if not resolved_env_key or not resolved_app_key or resolved_env_key == "unknown":
+            if any("url://" in origin for origin in configured):
+                raise ValueError("CORS URL resolution requires environment and application context")
+            return configured
+        own_status = await self.get_application_status(
+            resolved_env_key, resolved_app_key, auth_strategy
+        )
+        current_declaration = own_status.logicalAllowedOrigins or configured
+        if not any("url://" in origin for origin in current_declaration):
+            return current_declaration
+        return await resolve_public_origins(
+            self,
+            resolved_env_key,
+            resolved_app_key,
+            current_declaration,
+            auth_strategy,
         )
