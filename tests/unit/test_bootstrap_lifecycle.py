@@ -67,7 +67,7 @@ async def test_close_during_refresh_cannot_repopulate():
     task = asyncio.create_task(runtime.refresh())
     await ready.wait()
     await runtime.close()
-    await task
+    assert await task is None
     with pytest.raises(BootstrapError, match="closed"):
         runtime.secrets.get("DATABASE_URL")
 
