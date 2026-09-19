@@ -28,6 +28,7 @@ from .errors import (
     EncryptionError,
     MisoClientError,
 )
+from .models.bootstrap import BootstrapContext, BootstrapError, IdentityToken
 
 # Config models
 from .models.config import (
@@ -92,6 +93,8 @@ from .services.unified_logger import UnifiedLogger
 
 # Utilities
 from .utils.audit_log_queue import AuditLogQueue
+from .utils.bootstrap import init_secrets
+from .utils.bootstrap_runtime import SecretsRuntime
 from .utils.config_loader import load_config
 from .utils.controller_url_resolver import is_browser, resolve_controller_url
 from .utils.data_masker import DataMasker
@@ -158,13 +161,18 @@ from .utils.user_token_refresh import (
     normalize_expires_at,
 )
 
-__version__ = "4.20.2"
+__version__ = "4.21.0"
 __author__ = "AI Fabrix Team"
 __license__ = "MIT"
 
 
 # Export types
 __all__ = [
+    "init_secrets",
+    "SecretsRuntime",
+    "BootstrapError",
+    "BootstrapContext",
+    "IdentityToken",
     # Core
     "MisoClient",
     # Config models

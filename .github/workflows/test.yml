@@ -1,8 +1,10 @@
 name: Test
 
 on:
+  push:
+    branches: [ main, dev, "release/miso-client-python-*" ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, dev, "release/miso-client-python-*" ]
 
 permissions:
   contents: read
@@ -10,6 +12,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
     - uses: actions/checkout@v4
@@ -40,4 +43,4 @@ jobs:
     
     - name: Run tests
       run: |
-        venv/bin/python3 -m pytest tests/ -v
+        timeout --signal=TERM --kill-after=10s 180s venv/bin/python3 -m pytest tests/ -v -o faulthandler_timeout=45

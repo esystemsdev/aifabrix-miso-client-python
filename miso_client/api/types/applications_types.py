@@ -4,7 +4,7 @@ All types follow OpenAPI specification with camelCase field names.
 """
 
 from enum import Enum
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -53,6 +53,10 @@ class ApplicationStatusResponse(BaseModel):
     port: Optional[int] = Field(default=None, description="Application port")
     status: Optional[str] = Field(default=None, description="Application status")
     runtimeStatus: Optional[str] = Field(default=None, description="Runtime status")
+    logicalAllowedOrigins: Optional[List[str]] = Field(
+        default=None,
+        description="Owning application's safe logical CORS declaration",
+    )
     environmentId: Optional[str] = Field(default=None, description="Environment ID")
     createdAt: Optional[str] = Field(default=None, description="Creation timestamp (ISO 8601)")
     updatedAt: Optional[str] = Field(default=None, description="Update timestamp (ISO 8601)")

@@ -15,6 +15,8 @@ import httpx
 from ..errors import AuthenticationError, ConnectionError, MisoClientError
 from ..models.config import AuthMethod, AuthStrategy, MisoClientConfig
 from .auth_strategy import AuthStrategyHandler
+from .bootstrap_auth import handle_bootstrap_auth_response
+from .bootstrap_request_policy import ManagedRequestPolicy
 from .client_token_manager import ClientTokenManager
 from .controller_url_resolver import resolve_controller_url
 from .http_error_handler import detect_auth_method_from_headers, parse_error_response
@@ -46,17 +48,25 @@ class InternalHttpClient:
 
         """
         self.config = config
+        self._managed_policy = (
+            ManagedRequestPolicy(config.controller_url)
+            if config.application_token_provider is not None
+            else None
+        )
         self.client: Optional[httpx.AsyncClient] = None
         self.token_manager = ClientTokenManager(config)
 
     async def _initialize_client(self) -> None:
         """Initialize HTTP client if not already initialized."""
+        if self.config.runtime_guard is not None:
+            self.config.runtime_guard()
         if self.client is None:
             # Use resolved URL (controllerPrivateUrl or controller_url)
             resolved_url = resolve_controller_url(self.config)
             self.client = httpx.AsyncClient(
                 base_url=resolved_url,
                 timeout=30.0,
+                trust_env=self._managed_policy is None,
                 headers={
                     "Content-Type": "application/json",
                 },
@@ -68,6 +78,14 @@ class InternalHttpClient:
         token = await self.token_manager.get_client_token()
         if self.client:
             self.client.headers["x-client-token"] = token
+
+    async def _prepare_request(self, url: str, kwargs: Dict[str, Any]) -> None:
+        """Validate the target before retrieving or attaching application credentials."""
+        await self._initialize_client()
+        if self._managed_policy is not None:
+            assert self.client is not None
+            self._managed_policy.prepare(self.client.base_url, url, kwargs)
+        await self._ensure_client_token()
 
     async def close(self) -> None:
         """Close the HTTP client."""
@@ -103,6 +121,10 @@ class InternalHttpClient:
         request_headers: Optional[Dict[str, str]] = None,
     ) -> MisoClientError:
         """Create MisoClientError from HTTP status error with auth metadata."""
+        if self.config.application_token_provider is not None:
+            return MisoClientError(
+                "Managed runtime request failed", status_code=error.response.status_code
+            )
         error_response = parse_error_response(error.response, url)
         error_body = self._extract_error_body(error, error_response)
         auth_method = self._detect_auth_method(error, error_response, request_headers)
@@ -113,6 +135,12 @@ class InternalHttpClient:
             error_response=error_response,
             auth_method=auth_method,
         )
+
+    def _connection_error(self, error: httpx.RequestError) -> MisoClientError:
+        """Omit raw Azure runtime request objects and messages from diagnostics."""
+        if self.config.application_token_provider is not None:
+            return ConnectionError("Managed runtime request failed")
+        return ConnectionError(f"Request failed: {str(error)}")
 
     def _extract_error_body(
         self, error: httpx.HTTPStatusError, error_response: Any
@@ -191,9 +219,12 @@ class InternalHttpClient:
             return await caller(url, files=files, **kwargs)
         return await caller(url, **kwargs)
 
-    def _clear_token_if_unauthorized(self, response: httpx.Response) -> None:
-        """Clear cached client token when response indicates unauthorized access."""
-        if response.status_code == 401:
+    async def _handle_token_response(self, response: httpx.Response) -> None:
+        """Separate application identity failures from ordinary user/RBAC errors."""
+        provider = self.config.application_token_provider
+        if provider is not None:
+            await handle_bootstrap_auth_response(response, provider)
+        elif response.status_code == 401:
             self.token_manager.clear_token()
 
     async def get(self, url: str, **kwargs: Any) -> Any:
@@ -212,22 +243,22 @@ class InternalHttpClient:
         kwargs: Dict[str, Any],
     ) -> Any:
         """Execute request with optional body payload and shared error handling."""
-        await self._initialize_client()
-        await self._ensure_client_token()
+        await self._prepare_request(url, kwargs)
         json_body, content, data_from_kwargs, files = self._extract_body_kwargs(data, kwargs)
         try:
             response = await self._dispatch_with_body(
                 method, url, json_body, content, data_from_kwargs, files, kwargs
             )
-            self._clear_token_if_unauthorized(response)
+            await self._handle_token_response(response)
             response.raise_for_status()
             return _parse_optional_json_response(response)
         except httpx.HTTPStatusError as e:
-            raise self._create_error_from_http_status(
+            failure = self._create_error_from_http_status(
                 e, url, self._request_headers_for_error(kwargs)
             )
         except httpx.RequestError as e:
-            raise ConnectionError(f"Request failed: {str(e)}")
+            failure = self._connection_error(e)
+        raise failure
 
     async def put(self, url: str, data: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Any:
         """Make PUT request."""
@@ -245,23 +276,23 @@ class InternalHttpClient:
         self, method: Literal["get", "delete"], url: str, kwargs: Dict[str, Any]
     ) -> Any:
         """Execute GET/DELETE request using shared error-handling flow."""
-        await self._initialize_client()
-        await self._ensure_client_token()
+        await self._prepare_request(url, kwargs)
         try:
             assert self.client is not None
             caller = getattr(self.client, method)
             response = await caller(url, **kwargs)
-            self._clear_token_if_unauthorized(response)
+            await self._handle_token_response(response)
             response.raise_for_status()
             if method == "delete":
                 return _parse_optional_json_response(response)
             return response.json()
         except httpx.HTTPStatusError as e:
-            raise self._create_error_from_http_status(
+            failure = self._create_error_from_http_status(
                 e, url, self._request_headers_for_error(kwargs)
             )
         except httpx.RequestError as e:
-            raise ConnectionError(f"Request failed: {str(e)}")
+            failure = self._connection_error(e)
+        raise failure
 
     async def get_raw(self, url: str, **kwargs: Any) -> httpx.Response:
         """Make GET request and return the raw ``httpx.Response`` (no ``.json()`` parsing).
@@ -269,20 +300,20 @@ class InternalHttpClient:
         Use for binary bodies (file downloads, Graph ``/content`` after redirects) where
         :meth:`get` would raise ``UnicodeDecodeError`` or ``json.JSONDecodeError``.
         """
-        await self._initialize_client()
-        await self._ensure_client_token()
+        await self._prepare_request(url, kwargs)
         try:
             assert self.client is not None
             response = await self.client.get(url, **kwargs)
-            self._clear_token_if_unauthorized(response)
+            await self._handle_token_response(response)
             response.raise_for_status()
             return response
         except httpx.HTTPStatusError as e:
-            raise self._create_error_from_http_status(
+            failure = self._create_error_from_http_status(
                 e, url, self._request_headers_for_error(kwargs)
             )
         except httpx.RequestError as e:
-            raise ConnectionError(f"Request failed: {str(e)}")
+            failure = self._connection_error(e)
+        raise failure
 
     async def request(
         self,
@@ -336,6 +367,8 @@ class InternalHttpClient:
         **kwargs: Any,
     ) -> Any:
         """Make request using auth strategy fallback order."""
+        if self.config.runtime_guard is not None:
+            self.config.runtime_guard()
         await self._initialize_client()
         client_token = await self._resolve_client_token_for_auth_strategy(auth_strategy)
         succeeded, result, last_error = await self._try_auth_methods(

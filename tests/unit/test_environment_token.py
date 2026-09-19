@@ -67,6 +67,28 @@ class TestEnvironmentToken:
         mock_client.logger.audit.assert_called()
 
     @pytest.mark.asyncio
+    async def test_resolves_logical_allowed_origin_before_validation(self):
+        config = MisoClientConfig(
+            controller_url="https://controller.example.com",
+            client_id="miso-controller-dev-portal",
+            client_secret="test-secret",
+            allowedOrigins=["http://localhost:*,url://public"],
+        )
+        mock_client = MagicMock()
+        mock_client.config = config
+        mock_client.resolve_allowed_origins = AsyncMock(
+            return_value=["http://localhost:*", "https://current.example.com"]
+        )
+        mock_client.auth.get_environment_token = AsyncMock(return_value="test-token")
+        mock_client.logger.error = AsyncMock()
+        mock_client.logger.audit = AsyncMock()
+
+        token = await get_environment_token(mock_client, {"origin": "https://current.example.com"})
+
+        assert token == "test-token"
+        mock_client.resolve_allowed_origins.assert_awaited_once_with(config.allowedOrigins)
+
+    @pytest.mark.asyncio
     async def test_get_environment_token_no_allowed_origins(self):
         """Test getting environment token when no allowed origins configured."""
         config = MisoClientConfig(

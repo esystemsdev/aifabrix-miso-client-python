@@ -225,3 +225,10 @@ client = MisoClient(config)
 ```
 
 Use this `client` when creating the endpoint: `create_fastapi_client_token_endpoint(client)` or `create_flask_client_token_endpoint(client)`.
+
+## Optional runtime initialization
+
+[Secret initialization](managed-identity-bootstrap.md) adds an opt-in managed-identity
+provider without changing normal application-token transport. Unset/local mode uses
+the existing controller token endpoint and credentials, so an SDK upgrade does not
+require a controller upgrade. Explicit Azure mode requires the v1 bootstrap broker.

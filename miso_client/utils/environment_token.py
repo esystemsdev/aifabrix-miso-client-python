@@ -26,7 +26,7 @@ def _token_resource(config: Any) -> str:
 
 
 async def _log_origin_validation_failure(
-    logger: LoggerService, config: Any, error_message: str
+    logger: LoggerService, config: Any, error_message: str, allowed_origins: Any = None
 ) -> None:
     """Log origin validation failure before raising auth error."""
     masked_config = _masked_config(config)
@@ -34,27 +34,47 @@ async def _log_origin_validation_failure(
         "Origin validation failed for environment token request",
         context={
             "error": error_message,
-            "allowedOrigins": config.allowedOrigins,
+            "allowedOrigins": config.allowedOrigins if allowed_origins is None else allowed_origins,
             "clientId": config.client_id,
         },
     )
     await logger.audit(
         "auth.environment_token.origin_validation_failed",
         resource="/api/v1/auth/token",
-        context={"error": error_message, "allowedOrigins": config.allowedOrigins, **masked_config},
+        context={
+            "error": error_message,
+            "allowedOrigins": config.allowedOrigins if allowed_origins is None else allowed_origins,
+            **masked_config,
+        },
     )
 
 
-async def _validate_request_origin(config: Any, logger: LoggerService, headers: Any) -> None:
+async def _validate_request_origin(
+    config: Any, logger: LoggerService, headers: Any, allowed_origins: Any = None
+) -> None:
     """Validate request origin when allowedOrigins is configured."""
-    if not config.allowedOrigins:
+    effective_origins = config.allowedOrigins if allowed_origins is None else allowed_origins
+    if not effective_origins:
         return
-    validation_result = validate_origin(headers, config.allowedOrigins)
+    validation_result = validate_origin(headers, effective_origins)
     if validation_result["valid"]:
         return
     error_message = validation_result.get("error", "Origin validation failed")
-    await _log_origin_validation_failure(logger, config, error_message)
+    await _log_origin_validation_failure(logger, config, error_message, effective_origins)
     raise AuthenticationError(f"Origin validation failed: {error_message}")
+
+
+async def _resolve_allowed_origins(miso_client: Any, logger: LoggerService) -> Any:
+    """Resolve logical public origins before the existing synchronous matcher runs."""
+    configured = miso_client.config.allowedOrigins
+    if not configured or not any("url://" in origin for origin in configured):
+        return configured
+    try:
+        return await miso_client.resolve_allowed_origins(configured)
+    except Exception as error:
+        message = f"Origin validation failed: {str(error)}"
+        await _log_origin_validation_failure(logger, miso_client.config, message)
+        raise AuthenticationError(message) from error
 
 
 async def _request_environment_token(miso_client: Any) -> str:
@@ -93,7 +113,8 @@ async def get_environment_token(miso_client: Any, headers: Any) -> str:
     config = miso_client.config
     logger: LoggerService = miso_client.logger
 
-    await _validate_request_origin(config, logger, headers)
+    allowed_origins = await _resolve_allowed_origins(miso_client, logger)
+    await _validate_request_origin(config, logger, headers, allowed_origins)
     masked_config = _masked_config(config)
 
     await logger.audit(

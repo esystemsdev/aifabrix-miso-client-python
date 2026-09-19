@@ -4,9 +4,12 @@ This module contains Pydantic models that define the configuration structure
 and data types used throughout the MisoClient SDK.
 """
 
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Callable, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic.json_schema import SkipJsonSchema
+
+from .bootstrap import ApplicationTokenProvider
 
 # Authentication method types
 AuthMethod = Literal["bearer", "client-token", "client-credentials", "api-key"]
@@ -87,7 +90,26 @@ class MisoClientConfig(BaseModel):
 
     controller_url: str = Field(..., description="Miso Controller base URL")
     client_id: str = Field(..., description="Client identifier for authentication")
-    client_secret: str = Field(..., description="Client secret for authentication")
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    client_secret: Optional[str] = Field(
+        default=None, repr=False, description="Legacy client secret"
+    )
+    application_token_provider: SkipJsonSchema[Optional[ApplicationTokenProvider]] = Field(
+        default=None, exclude=True, repr=False
+    )
+    runtime_guard: SkipJsonSchema[Optional[Callable[[], None]]] = Field(
+        default=None, exclude=True, repr=False
+    )
+
+    @model_validator(mode="after")
+    def validate_authentication(self) -> "MisoClientConfig":
+        """Require legacy credentials or one explicit token provider."""
+        if self.application_token_provider is None and self.client_secret is None:
+            raise ValueError("client_secret is required without an application token provider")
+        if self.application_token_provider is not None and self.client_secret is not None:
+            raise ValueError("Choose credentials or an application token provider")
+        return self
+
     redis: Optional[RedisConfig] = Field(default=None, description="Optional Redis configuration")
     log_level: Literal["debug", "info", "warn", "error"] = Field(
         default="info", description="Log level"

@@ -11,6 +11,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - No unreleased additions.
 
+## [4.21.0] - 2026-09-19
+
+### Added
+
+- Public `url://` application URL and logical CORS-origin resolution through the existing application-status API.
+- Async `init_secrets()` runtime with local compatibility and opt-in managed-identity bootstrap, optional Azure dependencies, secret accessors, rotation callbacks and bounded shutdown.
+- Strict broker response validation, token-only SDK authentication, shared refresh and independent token/secret expiry.
+- Installed-wheel smoke validation and regression tests for local no-Azure behavior, typed authentication failures, retries, concurrency, clock rollback and secret-safe diagnostics.
+
+### Fixed
+
+- Pin managed application credentials to the HTTPS controller origin, disable redirects/environment proxies, reject compressed broker payloads before decoding, and restrict bootstrap diagnostics to safe error categories.
+- Reject nonfinite identity-token expiry and unknown bootstrap envelope fields.
+- Application runtime invalidation distinguishes typed bootstrap denials from ordinary user authentication and business permission errors; expired application tokens refresh without replaying failed requests.
+
+### Technical
+
+- Bound verbose test case IDs to prevent oversized CI logs, and require immutable matching tags plus verified PyPI responses for publication.
+- Correct the package minimum to Python 3.10, matching existing runtime requirements; Python 3.8/3.9 installations are now rejected by pip. Local startup is verified on Python 3.10–3.13.
+- Azure enablement requires compatible controller bootstrap support, canonical contract parity and consumer/live identity proof. This release preparation does not certify Azure rollout.
+- Development-to-release PR and post-merge publication commands separate review from PyPI publication.
+
 ## [4.20.2] - 2026-08-31
 
 ### Added

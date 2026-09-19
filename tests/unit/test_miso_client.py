@@ -4625,3 +4625,27 @@ class TestMisoClientApplicationStatus:
 
             with pytest.raises(ValueError, match="env_key and app_key are required"):
                 await miso_client.get_application_status()
+
+    @pytest.mark.asyncio
+    async def test_resolve_allowed_origins_uses_controller_declaration(self, miso_client):
+        """Concrete bootstrap values never hide the current logical CORS declaration."""
+        from miso_client.api.types.applications_types import ApplicationStatusResponse
+
+        miso_client.api_client.applications.get_application_status.side_effect = [
+            ApplicationStatusResponse(
+                key="my-app",
+                url="https://stale.azurewebsites.net",
+                logicalAllowedOrigins=[
+                    "http://localhost:*",
+                    "url://keycloak-host-public",
+                ],
+            ),
+            ApplicationStatusResponse(key="keycloak", url="https://customer.example.com/auth"),
+        ]
+
+        result = await miso_client.resolve_allowed_origins(
+            ["https://stale.azurewebsites.net"], env_key="dev", app_key="my-app"
+        )
+
+        assert result == ["http://localhost:*", "https://customer.example.com"]
+        assert miso_client.api_client.applications.get_application_status.await_count == 2
