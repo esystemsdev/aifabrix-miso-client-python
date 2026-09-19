@@ -7,7 +7,7 @@ name = "miso-client"
 version = "4.21.0"
 description = "Python client SDK for AI Fabrix authentication, authorization, and logging"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 license = "MIT"
 authors = [
     {name = "AI Fabrix Team", email = "team@aifabrix.ai"}
@@ -21,8 +21,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",

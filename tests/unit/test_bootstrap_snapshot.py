@@ -54,6 +54,7 @@ def test_reject_invalid_without_sensitive_exception(mutate):
         b"x" * (MAX_BODY + 1),
         b'{"success":true,"success":true,"data":{}}',
     ],
+    ids=["null", "empty-object", "invalid-json", "array", "oversize-body", "duplicate-key"],
 )
 def test_reject_envelope_duplicate_and_size(body):
     with pytest.raises(BootstrapError):

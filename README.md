@@ -94,7 +94,7 @@ for configuration, rotation and the controller requirements for Azure mode.
 
 - Progressive activation (6-step setup)
 - Works with any framework (FastAPI, Django, Flask, Starlette)
-- Python 3.8+ support with full type hints
+- Python 3.10+ support with full type hints
 - Async/await support throughout
 
 ### **Flexible Configuration**

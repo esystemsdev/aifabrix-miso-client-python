@@ -35,9 +35,8 @@ There is no automatic detection of Azure from a hostname or installed package.
 
 ## Opt-in Azure mode
 
-The installed wheel is verified on Python 3.10–3.13. Python 3.8/3.9 currently fail
-on an existing SDK type annotation despite the older package metadata minimum.
-Use Python 3.10 or newer for this delivery. Install the optional adapter:
+The installed wheel is verified on Python 3.10–3.13. Python 3.10 is the minimum supported
+version; package metadata prevents installation on Python 3.8/3.9. Install the optional adapter:
 
 ```bash
 pip install 'miso-client[azure]'

@@ -28,7 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Technical
 
-- Local startup verified on Python 3.10–3.13. Existing Python 3.8/3.9 import failures remain despite the package metadata minimum; use a verified Python version.
+- Bound verbose test case IDs to prevent oversized CI logs, and require immutable matching tags plus verified PyPI responses for publication.
+- Correct the package minimum to Python 3.10, matching existing runtime requirements; Python 3.8/3.9 installations are now rejected by pip. Local startup is verified on Python 3.10–3.13.
 - Azure enablement requires compatible controller bootstrap support, canonical contract parity and consumer/live identity proof. This release preparation does not certify Azure rollout.
 - Development-to-release PR and post-merge publication commands separate review from PyPI publication.
 
