@@ -39,9 +39,9 @@ async def test_single_flight_waiter_cancel_and_close_late_response():
     await asyncio.sleep(0)
     first.cancel()
     with pytest.raises(asyncio.CancelledError):
-        await first
+        _ = await first
     release.set()
-    await second
+    assert await second is None
     assert calls == 1
     assert runtime.secrets.require("DATABASE_URL") == "secret-sentinel"
     await runtime.close()

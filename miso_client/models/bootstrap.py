@@ -14,10 +14,37 @@ ChangeHandler = Callable[[Tuple[str, ...]], None]
 InvalidationHandler = Callable[[InvalidationReason], None]
 
 
+SAFE_ERROR_CODES = frozenset(
+    {
+        "authorization-denied",
+        "snapshot-expired",
+        "protocol-error",
+        "closed",
+        "invalid-azure-settings",
+        "invalid-azure-audience",
+        "temporarily-unavailable",
+        "invalid-identity-token",
+        "transport-error",
+        "invalid-auth-mode",
+        "initialization-failed",
+        "azure-requires-python-3.9",
+        "azure-extra-unavailable",
+        "required-secret-unavailable",
+        "not-initialized",
+        "token-unavailable",
+        "token-expired",
+        "cleanup-failed",
+        "untrusted-request-target",
+        "operation-failed",
+    }
+)
+
+
 class BootstrapError(MisoClientError):
     """Safe bootstrap failure with a fixed category and no transport payload."""
 
     def __init__(self, code: str, status_code: Optional[int] = None):
+        code = code if code in SAFE_ERROR_CODES else "operation-failed"
         super().__init__("Secret runtime operation failed: " + code, status_code=status_code)
         self.code = code
 
@@ -27,7 +54,7 @@ class IdentityToken(BaseModel):
 
     model_config = ConfigDict(frozen=True, hide_input_in_errors=True)
     token: SecretStr = Field(repr=False, exclude=True)
-    expires_at: float
+    expires_at: float = Field(gt=0, allow_inf_nan=False)
 
 
 class IdentityTokenProvider(Protocol):
@@ -35,7 +62,7 @@ class IdentityTokenProvider(Protocol):
 
     async def get_token(self, scope: str) -> IdentityToken:
         """Acquire an Entra token for one scope."""
-        ...
+        raise NotImplementedError
 
 
 class ApplicationTokenProvider(ABC):

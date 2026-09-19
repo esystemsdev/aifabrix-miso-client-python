@@ -26,7 +26,7 @@ def bootstrap_error_code(response: httpx.Response) -> str:
         if isinstance(data, dict):
             code = cast(Dict[str, object], data).get("code")
     except (ValueError, TypeError, RecursionError):
-        pass
+        code = None  # Ordinary malformed error bodies carry no trusted runtime code.
     if isinstance(code, str) and BOOTSTRAP_AUTH_ERRORS.get(code) == response.status_code:
         return code
     return ""

@@ -34,7 +34,7 @@ def validate_settings(url: str, audience: str) -> str:
             and parts.port != 0
         )
     except ValueError:
-        pass
+        valid = False  # Reject malformed deployment URLs without raw diagnostics.
     if not valid or not audience or audience.strip() != audience:
         raise BootstrapError("invalid-azure-settings")
     if audience.endswith("/.default"):
@@ -65,7 +65,7 @@ def retry_delay(value: Optional[str], attempt: int) -> float:
                 else (parsedate_to_datetime(value).timestamp() - time.time())
             )
         except (ValueError, TypeError, OverflowError):
-            pass
+            seconds = None  # Malformed Retry-After falls back to bounded jitter.
     if seconds is not None and seconds >= 0:
         if seconds > 10:
             raise BootstrapError("temporarily-unavailable")
@@ -131,7 +131,11 @@ class BrokerTransport:
             "POST",
             self.endpoint,
             json={"protocolVersion": 1},
-            headers={"Authorization": "Bearer " + token, "Accept": "application/json"},
+            headers={
+                "Authorization": "Bearer " + token,
+                "Accept": "application/json",
+                "Accept-Encoding": "identity",
+            },
             follow_redirects=False,
         ) as response:
             if response.status_code in (401, 403):
@@ -140,6 +144,8 @@ class BrokerTransport:
                 return None, retry_delay(response.headers.get("Retry-After"), attempt)
             if response.status_code != 200:
                 raise BootstrapError("protocol-error", response.status_code)
+            if response.headers.get("Content-Encoding", "identity").lower() != "identity":
+                raise BootstrapError("protocol-error")
             body = bytearray()
             async for chunk in response.aiter_bytes():
                 if len(body) + len(chunk) > MAX_BODY:

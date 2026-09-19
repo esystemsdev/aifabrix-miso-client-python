@@ -63,7 +63,10 @@ failure; use local mode with existing credentials for an older controller.
 
 Azure mode receives a Miso application token and permitted runtime secrets, never a
 Miso client secret. The SDK renews through the broker and uses existing application
-token transport on ordinary calls. It does not read Key Vault or write remote secrets
+token transport on ordinary calls. Managed-token calls are pinned to the configured
+HTTPS controller origin; cross-origin URLs, credential-bearing URLs and redirects
+are rejected. Environment proxies are disabled for managed SDK HTTP clients.
+The broker requests uncompressed JSON and rejects compressed responses before decoding. It does not read Key Vault or write remote secrets
 into the process environment, files, Redis caches or diagnostics. Managed-app Miso
 and Keycloak retain their separate platform startup; this helper is for workloads.
 

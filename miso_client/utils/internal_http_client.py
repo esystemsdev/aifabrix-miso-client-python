@@ -16,6 +16,7 @@ from ..errors import AuthenticationError, ConnectionError, MisoClientError
 from ..models.config import AuthMethod, AuthStrategy, MisoClientConfig
 from .auth_strategy import AuthStrategyHandler
 from .bootstrap_auth import handle_bootstrap_auth_response
+from .bootstrap_request_policy import ManagedRequestPolicy
 from .client_token_manager import ClientTokenManager
 from .controller_url_resolver import resolve_controller_url
 from .http_error_handler import detect_auth_method_from_headers, parse_error_response
@@ -47,6 +48,11 @@ class InternalHttpClient:
 
         """
         self.config = config
+        self._managed_policy = (
+            ManagedRequestPolicy(config.controller_url)
+            if config.application_token_provider is not None
+            else None
+        )
         self.client: Optional[httpx.AsyncClient] = None
         self.token_manager = ClientTokenManager(config)
 
@@ -60,6 +66,7 @@ class InternalHttpClient:
             self.client = httpx.AsyncClient(
                 base_url=resolved_url,
                 timeout=30.0,
+                trust_env=self._managed_policy is None,
                 headers={
                     "Content-Type": "application/json",
                 },
@@ -71,6 +78,14 @@ class InternalHttpClient:
         token = await self.token_manager.get_client_token()
         if self.client:
             self.client.headers["x-client-token"] = token
+
+    async def _prepare_request(self, url: str, kwargs: Dict[str, Any]) -> None:
+        """Validate the target before retrieving or attaching application credentials."""
+        await self._initialize_client()
+        if self._managed_policy is not None:
+            assert self.client is not None
+            self._managed_policy.prepare(self.client.base_url, url, kwargs)
+        await self._ensure_client_token()
 
     async def close(self) -> None:
         """Close the HTTP client."""
@@ -228,8 +243,7 @@ class InternalHttpClient:
         kwargs: Dict[str, Any],
     ) -> Any:
         """Execute request with optional body payload and shared error handling."""
-        await self._initialize_client()
-        await self._ensure_client_token()
+        await self._prepare_request(url, kwargs)
         json_body, content, data_from_kwargs, files = self._extract_body_kwargs(data, kwargs)
         try:
             response = await self._dispatch_with_body(
@@ -262,8 +276,7 @@ class InternalHttpClient:
         self, method: Literal["get", "delete"], url: str, kwargs: Dict[str, Any]
     ) -> Any:
         """Execute GET/DELETE request using shared error-handling flow."""
-        await self._initialize_client()
-        await self._ensure_client_token()
+        await self._prepare_request(url, kwargs)
         try:
             assert self.client is not None
             caller = getattr(self.client, method)
@@ -287,8 +300,7 @@ class InternalHttpClient:
         Use for binary bodies (file downloads, Graph ``/content`` after redirects) where
         :meth:`get` would raise ``UnicodeDecodeError`` or ``json.JSONDecodeError``.
         """
-        await self._initialize_client()
-        await self._ensure_client_token()
+        await self._prepare_request(url, kwargs)
         try:
             assert self.client is not None
             response = await self.client.get(url, **kwargs)

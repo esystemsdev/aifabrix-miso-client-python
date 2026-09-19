@@ -17,8 +17,13 @@ class _AzureToken(Protocol):
 
 
 class _Credential(Protocol):
-    async def get_token(self, scope: str) -> _AzureToken: ...
-    async def close(self) -> None: ...
+    async def get_token(self, scope: str) -> _AzureToken:
+        """Acquire the official adapter token."""
+        raise NotImplementedError
+
+    async def close(self) -> None:
+        """Release adapter resources."""
+        raise NotImplementedError
 
 
 class AzureIdentityProvider:
@@ -37,7 +42,7 @@ class AzureIdentityProvider:
                 ),
             )
         except Exception:
-            pass
+            credential = None  # Do not retain dependency errors containing host settings.
         if credential is None:
             raise BootstrapError("azure-extra-unavailable")
         self._credential = credential

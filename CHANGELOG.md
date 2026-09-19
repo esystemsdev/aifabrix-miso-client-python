@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Pin managed application credentials to the HTTPS controller origin, disable redirects/environment proxies, reject compressed broker payloads before decoding, and restrict bootstrap diagnostics to safe error categories.
+- Reject nonfinite identity-token expiry and unknown bootstrap envelope fields.
 - Application runtime invalidation distinguishes typed bootstrap denials from ordinary user authentication and business permission errors; expired application tokens refresh without replaying failed requests.
 
 ### Technical

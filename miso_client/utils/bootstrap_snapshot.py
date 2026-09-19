@@ -103,13 +103,13 @@ def parse_snapshot(body: bytes, now: float) -> Snapshot:
         if not isinstance(raw, dict):
             raise ValueError("envelope")
         envelope = cast(Dict[str, object], raw)
-        if envelope.get("success") is not True:
+        if set(envelope) != {"success", "data"} or envelope.get("success") is not True:
             raise ValueError("envelope")
         candidate = Snapshot.model_validate(envelope.get("data"))
         _validate_values(candidate, now)
         result = candidate
     except (ValueError, TypeError, ValidationError, RecursionError):
-        pass
+        result = None  # Discard sensitive input/errors before raising a safe category.
     if result is None:
         raise BootstrapError("protocol-error")
     return result
