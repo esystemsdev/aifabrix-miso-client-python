@@ -147,6 +147,7 @@ def test_invalid_mint_values_are_safe_protocol_failures(mutate):
         b'{"success":false,"data":{}}',
         b"x" * (MAX_BODY + 1),
     ],
+    ids=["array", "null", "malformed-json", "duplicate-data", "unsuccessful", "oversized"],
 )
 async def test_bad_mint_response_prevents_snapshot_access(body):
     handler = AsyncMock(return_value=httpx.Response(201, content=body))
