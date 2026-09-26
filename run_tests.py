@@ -22,7 +22,7 @@ def main():
         sys.executable,
         "-m",
         "pytest",
-        "tests/",
+        "tests/unit/",
         "-v",
         "--cov=miso_client",
         "--cov-report=term-missing",

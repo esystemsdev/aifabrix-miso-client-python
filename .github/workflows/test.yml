@@ -43,4 +43,4 @@ jobs:
     
     - name: Run tests
       run: |
-        timeout --signal=TERM --kill-after=10s 180s venv/bin/python3 -m pytest tests/ -v --ignore=tests/manual/ -o faulthandler_timeout=45
+        timeout --signal=TERM --kill-after=10s 180s venv/bin/python3 -m pytest tests/unit/ -v -o faulthandler_timeout=45

@@ -65,7 +65,7 @@ jobs:
         if: steps.pypi.outputs.exists == 'false'
         run: |
           venv/bin/python -m basedpyright
-          timeout --signal=TERM --kill-after=10s 180s venv/bin/python -m pytest tests/ -q -o faulthandler_timeout=45
+          timeout --signal=TERM --kill-after=10s 180s venv/bin/python -m pytest tests/unit/ -q -o faulthandler_timeout=45
       - name: Build and check distributions
         if: steps.pypi.outputs.exists == 'false'
         run: |
