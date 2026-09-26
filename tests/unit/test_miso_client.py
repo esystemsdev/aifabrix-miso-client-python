@@ -4634,7 +4634,7 @@ class TestMisoClientApplicationStatus:
         miso_client.api_client.applications.get_application_status.side_effect = [
             ApplicationStatusResponse(
                 key="my-app",
-                url="https://stale.azurewebsites.net",
+                url="https://stale.example.test",
                 logicalAllowedOrigins=[
                     "http://localhost:*",
                     "url://keycloak-host-public",
@@ -4644,7 +4644,7 @@ class TestMisoClientApplicationStatus:
         ]
 
         result = await miso_client.resolve_allowed_origins(
-            ["https://stale.azurewebsites.net"], env_key="dev", app_key="my-app"
+            ["https://stale.example.test"], env_key="dev", app_key="my-app"
         )
 
         assert result == ["http://localhost:*", "https://customer.example.com"]

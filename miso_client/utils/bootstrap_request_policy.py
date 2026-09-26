@@ -15,7 +15,7 @@ class ManagedRequestPolicy:
     def __init__(self, controller_url: str):
         self.origin = httpx.URL(controller_url)
         if self.origin.scheme != "https" or not self.origin.host or self.origin.userinfo:
-            raise BootstrapError("invalid-azure-settings")
+            raise BootstrapError("invalid-bootstrap-settings")
 
     def prepare(self, base: httpx.URL, url: str, kwargs: Dict[str, Any]) -> None:
         """Reject credential forwarding and disable redirects before token lookup."""

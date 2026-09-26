@@ -16,11 +16,6 @@ RESERVED_KEYS = {
     "MISO_AUTH_MODE",
     "MISO_AUTH_STRATEGY",
     "MISO_CONTROLLER_URL",
-    "MISO_WEB_SERVER_URL",
-    "MISO_BOOTSTRAP_AUDIENCE",
-    "AZURE_CLIENT_ID",
-    "AZURE_TENANT_ID",
-    "AZURE_CLIENT_SECRET",
     "MISO_CLIENTID",
     "MISO_CLIENT_ID",
     "MISO_CLIENTSECRET",
@@ -44,7 +39,7 @@ class Snapshot(BaseModel):
     expiresAt: str
 
 
-def _unique_object(pairs: List[Tuple[str, object]]) -> Dict[str, object]:
+def unique_object(pairs: List[Tuple[str, object]]) -> Dict[str, object]:
     """Reject duplicate members before model construction."""
     result: Dict[str, object] = {}
     for key, value in pairs:
@@ -56,7 +51,7 @@ def _unique_object(pairs: List[Tuple[str, object]]) -> Dict[str, object]:
 
 def timestamp(value: str) -> float:
     """Parse an explicit UTC RFC3339 timestamp."""
-    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z", value):
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z", value, flags=re.ASCII):
         raise ValueError("invalid timestamp")
     return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
 
@@ -99,7 +94,7 @@ def parse_snapshot(body: bytes, now: float) -> Snapshot:
     try:
         if len(body) > MAX_BODY:
             raise ValueError("oversize")
-        raw = cast(object, json.loads(body, object_pairs_hook=_unique_object))
+        raw = cast(object, json.loads(body, object_pairs_hook=unique_object))
         if not isinstance(raw, dict):
             raise ValueError("envelope")
         envelope = cast(Dict[str, object], raw)

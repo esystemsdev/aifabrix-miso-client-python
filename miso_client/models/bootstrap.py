@@ -1,11 +1,11 @@
-"""Server-side bootstrap contracts; no Azure dependency is imported here."""
+"""Server-side bootstrap contracts; client credentials never enter the snapshot."""
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Callable, Literal, Optional, Protocol, Tuple
+from typing import Callable, Literal, Optional, Tuple
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..errors import MisoClientError
 
@@ -20,15 +20,12 @@ SAFE_ERROR_CODES = frozenset(
         "snapshot-expired",
         "protocol-error",
         "closed",
-        "invalid-azure-settings",
-        "invalid-azure-audience",
         "temporarily-unavailable",
-        "invalid-identity-token",
         "transport-error",
         "invalid-auth-mode",
+        "invalid-bootstrap-settings",
+        "invalid-bootstrap-http-client",
         "initialization-failed",
-        "azure-requires-python-3.9",
-        "azure-extra-unavailable",
         "required-secret-unavailable",
         "not-initialized",
         "token-unavailable",
@@ -47,22 +44,6 @@ class BootstrapError(MisoClientError):
         code = code if code in SAFE_ERROR_CODES else "operation-failed"
         super().__init__("Secret runtime operation failed: " + code, status_code=status_code)
         self.code = code
-
-
-class IdentityToken(BaseModel):
-    """In-memory identity token returned by an injected async provider."""
-
-    model_config = ConfigDict(frozen=True, hide_input_in_errors=True)
-    token: SecretStr = Field(repr=False, exclude=True)
-    expires_at: float = Field(gt=0, allow_inf_nan=False)
-
-
-class IdentityTokenProvider(Protocol):
-    """Optional test/host identity seam; ownership remains with the caller."""
-
-    async def get_token(self, scope: str) -> IdentityToken:
-        """Acquire an Entra token for one scope."""
-        raise NotImplementedError
 
 
 class ApplicationTokenProvider(ABC):

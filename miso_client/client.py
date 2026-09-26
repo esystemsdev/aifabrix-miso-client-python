@@ -155,13 +155,13 @@ class MisoClient:
         return await self.auth.is_authenticated(token, auth_strategy=auth_strategy)
 
     async def exchange_token(self, delegated_token: str) -> TokenExchangeResponse:
-        """Exchange a delegated token (e.g. Entra) for a Keycloak token.
+        """Exchange a delegated token (from an identity provider) for a Keycloak token.
 
         Use the returned access token for subsequent authenticated calls
         (e.g. get_roles, get_permissions, validate_token).
 
         Args:
-            delegated_token: Delegated token (e.g. Entra ID token) to exchange
+            delegated_token: Delegated token (from the configured identity provider) to exchange
 
         Returns:
             TokenExchangeResponse with effective Keycloak access token (accessToken field)

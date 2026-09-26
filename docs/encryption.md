@@ -1,6 +1,6 @@
 # Encryption Service
 
-The MisoClient SDK provides encryption and decryption functionality for sensitive data via the miso-controller. This enables secure storage of secrets using Azure Key Vault (production) or local AES-256-GCM encryption (development).
+The MisoClient SDK provides encryption and decryption functionality for sensitive data via the miso-controller. This enables secure storage of secrets using controller-managed secret storage (production) or local AES-256-GCM encryption (development).
 
 ## Overview
 
@@ -24,7 +24,7 @@ The encryption key is **required** for encrypt/decrypt operations. Set **either*
 - Contact your environment administrator or DevOps team
 - The key is environment-specific (different for production, staging, development)
 - The key may be stored in:
-  - **Azure Key Vault** (production) - administrator retrieves from Key Vault
+  - **controller-managed secret storage** (production) - administrator retrieves from Key Vault
   - **Environment configuration** (development) - administrator provides directly
 
 ### Security Model
@@ -145,12 +145,12 @@ The `EncryptResult.storage` field indicates which backend was used:
 
 | Storage | Value Format | Description |
 |---------|--------------|-------------|
-| `keyvault` | `kv://<parameterName>` | Secret stored in Azure Key Vault |
+| `keyvault` | `kv://<parameterName>` | Secret stored in controller-managed secret storage |
 | `local` | `enc://v1:<base64>` | AES-256-GCM encrypted locally |
 
 The storage backend is determined by the controller's configuration:
 
-- **Production**: Typically uses Azure Key Vault (`keyvault`)
+- **Production**: Typically uses controller-managed secret storage (`keyvault`)
 - **Development**: Typically uses local encryption (`local`)
 
 ## Manual Testing

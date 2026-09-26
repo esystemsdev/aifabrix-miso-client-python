@@ -50,10 +50,10 @@ def get_token_exchange_cache_key(delegated_token: str) -> str:
     """Generate cache key for token exchange result using SHA-256 hash.
 
     Uses token hash instead of full token for security.
-    Used to cache Keycloak token returned from exchanging a delegated (e.g. Entra) token.
+    Used to cache Keycloak token returned from exchanging a delegated (from an identity provider) token.
 
     Args:
-        delegated_token: Delegated token string (e.g. Entra ID token)
+        delegated_token: Delegated token string (from the configured identity provider)
 
     Returns:
         Cache key string in format: token_exchange:{sha256_hash}

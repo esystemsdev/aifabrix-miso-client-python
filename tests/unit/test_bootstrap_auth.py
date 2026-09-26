@@ -13,7 +13,7 @@ from miso_client.utils.bootstrap_runtime import SecretsRuntime
 from miso_client.utils.bootstrap_snapshot import parse_snapshot
 from miso_client.utils.bootstrap_transport import BrokerTransport
 from miso_client.utils.internal_http_client import InternalHttpClient
-from tests.unit.test_bootstrap import Identity, response_data
+from tests.unit.test_bootstrap import response_data
 
 
 def runtime_with_snapshot():
@@ -89,7 +89,9 @@ async def test_typed_identity_failure_invalidates_before_next_request(status, co
 @pytest.mark.asyncio
 async def test_expired_token_refreshes_concurrent_responses_without_replaying_mutations():
     runtime = runtime_with_snapshot()
-    transport = BrokerTransport("https://miso.test/api/v1/auth/bootstrap", "api://b", Identity())
+    transport = BrokerTransport(
+        "https://miso.test/api/v1/auth/bootstrap", "client", "credential-sentinel"
+    )
     started = asyncio.Event()
     release = asyncio.Event()
 
@@ -133,7 +135,9 @@ async def test_expired_token_refreshes_concurrent_responses_without_replaying_mu
 @pytest.mark.asyncio
 async def test_failed_expiry_refresh_cannot_reuse_rejected_token():
     runtime = runtime_with_snapshot()
-    transport = BrokerTransport("https://miso.test/api/v1/auth/bootstrap", "api://b", Identity())
+    transport = BrokerTransport(
+        "https://miso.test/api/v1/auth/bootstrap", "client", "credential-sentinel"
+    )
     transport.fetch = AsyncMock(side_effect=BootstrapError("temporarily-unavailable"))
     runtime.attach_transport(transport)
     client = client_for(

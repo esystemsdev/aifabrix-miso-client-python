@@ -1,6 +1,5 @@
 """Bootstrap compatibility, isolated transport and actual SDK request tests."""
 
-import builtins
 import json
 import os
 import time
@@ -9,24 +8,28 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
-from pydantic import SecretStr
 
-from miso_client import BootstrapError, IdentityToken, init_secrets
+from miso_client import BootstrapError, init_secrets
 from miso_client.utils.bootstrap_snapshot import parse_snapshot
 from miso_client.utils.bootstrap_transport import BrokerTransport, retry_delay
 
 
-class Identity:
-    def __init__(self):
-        self.calls = []
-        self.closed = False
+def mint_data():
+    return {
+        "data": {
+            "token": "mint-sentinel",
+            "expiresIn": 900,
+            "expiresAt": datetime.fromtimestamp(time.time() + 900, timezone.utc)
+            .isoformat(timespec="milliseconds")
+            .replace("+00:00", "Z"),
+        }
+    }
 
-    async def get_token(self, scope):
-        self.calls.append(scope)
-        return IdentityToken(token=SecretStr("identity-sentinel"), expires_at=time.time() + 3600)
 
-    async def close(self):
-        self.closed = True
+def mint_or_snapshot(request):
+    if request.url.path.endswith("/token"):
+        return httpx.Response(201, json=mint_data())
+    return httpx.Response(200, json=response_data())
 
 
 def response_data(now=None):
@@ -57,32 +60,26 @@ def response_data(now=None):
 def isolated_environment(monkeypatch):
     monkeypatch.delenv("DATABASE_URL", raising=False)
     for key in list(os.environ):
-        if key.startswith(("MISO_", "REDIS_", "AZURE_")):
+        if key.startswith(("MISO_", "REDIS_")):
             monkeypatch.delenv(key)
     monkeypatch.setattr("miso_client.utils.config_loader._load_dotenv_if_available", lambda: None)
 
 
-def azure_env(monkeypatch):
-    monkeypatch.setenv("MISO_AUTH_MODE", "azure-managed-identity")
+def credential_env(monkeypatch):
+    monkeypatch.setenv("MISO_AUTH_MODE", "client-credentials")
     monkeypatch.setenv("MISO_CONTROLLER_URL", "https://controller.test")
-    monkeypatch.setenv("MISO_BOOTSTRAP_AUDIENCE", "api://broker")
+    monkeypatch.setenv("MISO_CLIENTID", "client")
+    monkeypatch.setenv("MISO_CLIENTSECRET", "credential-sentinel")
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("mode", [None, "local"])
-async def test_local_existing_controller_no_azure_or_bootstrap(monkeypatch, mode):
+async def test_local_existing_controller_without_bootstrap(monkeypatch, mode):
     if mode:
         monkeypatch.setenv("MISO_AUTH_MODE", mode)
     monkeypatch.setenv("MISO_CLIENTID", "legacy-client")
     monkeypatch.setenv("MISO_CLIENTSECRET", "legacy-secret")
     monkeypatch.setenv("DATABASE_URL", "local-secret")
-    identity = Identity()
-    original_import = builtins.__import__
-
-    def reject_azure(name, *args, **kwargs):
-        assert not name.startswith("azure")
-        return original_import(name, *args, **kwargs)
-
     seen = []
 
     def legacy_endpoint(request):
@@ -103,20 +100,19 @@ async def test_local_existing_controller_no_azure_or_bootstrap(monkeypatch, mode
         return httpx.Response(200, json={"ok": True})
 
     original_client = httpx.AsyncClient
-    with patch("builtins.__import__", side_effect=reject_azure), patch(
+    with patch(
         "httpx.AsyncClient",
         side_effect=lambda **kw: original_client(
             transport=httpx.MockTransport(legacy_endpoint), **kw
         ),
     ):
-        runtime = await init_secrets(token_provider=identity)
+        runtime = await init_secrets()
         assert runtime.secrets.require("DATABASE_URL") == "local-secret"
         assert runtime.context is None
         assert runtime.secrets.get("MISSING") is None
         result = await runtime.client._internal_http_client.get("/api/legacy")
         assert result == {"ok": True}
         assert seen == ["/api/v1/auth/token", "/api/legacy"]
-        assert identity.calls == []
         await runtime.close()
         await runtime.close()
         with pytest.raises(BootstrapError, match="closed"):
@@ -129,7 +125,7 @@ async def test_local_aliases_dotenv_selection_and_snapshot(monkeypatch):
     monkeypatch.setenv("MISO_CLIENT_SECRET", "secret")
 
     def dotenv():
-        monkeypatch.setenv("MISO_AUTH_MODE", "azure-managed-identity")
+        monkeypatch.setenv("MISO_AUTH_MODE", "client-credentials")
         monkeypatch.setenv("DATABASE_URL", "dotenv-secret")
 
     monkeypatch.setattr("miso_client.utils.config_loader._load_dotenv_if_available", dotenv)
@@ -141,7 +137,7 @@ async def test_local_aliases_dotenv_selection_and_snapshot(monkeypatch):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("mode", ["typo", "", "Azure"])
+@pytest.mark.parametrize("mode", ["typo", "", "unsupported-provider"])
 async def test_unknown_mode_no_network(monkeypatch, mode):
     monkeypatch.setenv("MISO_AUTH_MODE", mode)
     with patch("httpx.AsyncClient", side_effect=AssertionError("no network")):
@@ -150,27 +146,29 @@ async def test_unknown_mode_no_network(monkeypatch, mode):
 
 
 @pytest.mark.asyncio
-async def test_azure_missing_settings_never_reads_legacy(monkeypatch):
-    monkeypatch.setenv("MISO_AUTH_MODE", "azure-managed-identity")
+async def test_credentials_missing_settings_never_reads_legacy(monkeypatch):
+    monkeypatch.setenv("MISO_AUTH_MODE", "client-credentials")
     monkeypatch.setenv("MISO_CLIENTSECRET", "legacy-secret")
-    identity = Identity()
     with patch("miso_client.utils.bootstrap.load_config", side_effect=AssertionError("no local")):
-        with pytest.raises(BootstrapError, match="invalid-azure-settings"):
-            await init_secrets(token_provider=identity)
-    assert identity.calls == []
+        with pytest.raises(BootstrapError, match="invalid-bootstrap-settings"):
+            await init_secrets()
 
 
 @pytest.mark.asyncio
-async def test_azure_token_only_actual_request_and_denial(monkeypatch):
-    azure_env(monkeypatch)
-    identity = Identity()
+async def test_credentials_token_only_actual_request_and_denial(monkeypatch):
+    credential_env(monkeypatch)
     calls = []
 
     def handler(request):
         calls.append(request.url.path)
+        if request.url.path.endswith("/token"):
+            assert request.headers["x-client-secret"] == "credential-sentinel"
+            assert "x-client-token" not in request.headers
+            return httpx.Response(201, json=mint_data())
         if request.url.path.endswith("bootstrap"):
             assert json.loads(request.content) == {"protocolVersion": 1}
-            assert request.headers["authorization"] == "Bearer identity-sentinel"
+            assert request.headers["x-client-token"] == "mint-sentinel"
+            assert "authorization" not in request.headers
             assert "x-client-secret" not in request.headers
             return httpx.Response(200, json=response_data())
         assert request.headers["x-client-token"] == "application-sentinel"
@@ -184,8 +182,8 @@ async def test_azure_token_only_actual_request_and_denial(monkeypatch):
         "httpx.AsyncClient",
         side_effect=lambda **kw: original(transport=httpx.MockTransport(handler), **kw),
     ):
-        injected = original(transport=httpx.MockTransport(handler))
-        runtime = await init_secrets(token_provider=identity, http_client=injected)
+        injected = original(transport=httpx.MockTransport(handler), trust_env=False)
+        runtime = await init_secrets(http_client=injected)
         client = runtime.client
         assert client.config.client_secret is None
         assert runtime.secrets.require("DATABASE_URL") == "secret-sentinel"
@@ -198,22 +196,21 @@ async def test_azure_token_only_actual_request_and_denial(monkeypatch):
             runtime.secrets.get("DATABASE_URL")
         with pytest.raises(BootstrapError):
             await client._internal_http_client.get("/protected")
-        assert calls == ["/api/v1/auth/bootstrap", "/protected"]
+        assert calls == ["/api/v1/auth/token", "/api/v1/auth/bootstrap", "/protected"]
         assert "DATABASE_URL" not in os.environ
         await runtime.close()
-        assert not injected.is_closed and not identity.closed
+        assert not injected.is_closed
         await injected.aclose()
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("status", [401, 403, 404, 422, 302])
 async def test_no_downgrade_or_retry_terminal_status(monkeypatch, status):
-    azure_env(monkeypatch)
-    identity = Identity()
+    credential_env(monkeypatch)
     handler = AsyncMock(return_value=httpx.Response(status, text="secret-sentinel"))
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler), trust_env=False) as client:
         with pytest.raises(BootstrapError) as caught:
-            await init_secrets(token_provider=identity, http_client=client)
+            await init_secrets(http_client=client)
         assert "secret-sentinel" not in str(caught.value)
         assert caught.value.__context__ is None
     assert handler.call_count == 1
@@ -222,15 +219,16 @@ async def test_no_downgrade_or_retry_terminal_status(monkeypatch, status):
 @pytest.mark.asyncio
 async def test_transient_retry_then_success():
     responses = [
+        httpx.Response(201, json=mint_data()),
         httpx.Response(503),
         httpx.Response(429, headers={"Retry-After": "0"}),
         httpx.Response(200, json=response_data()),
     ]
     async with httpx.AsyncClient(
-        transport=httpx.MockTransport(lambda r: responses.pop(0))
+        transport=httpx.MockTransport(lambda r: responses.pop(0)), trust_env=False
     ) as client:
         transport = BrokerTransport(
-            "https://controller.test/api/v1/auth/bootstrap", "api://b", Identity(), client
+            "https://controller.test/api/v1/auth/bootstrap", "client", "credential-sentinel", client
         )
         with patch("miso_client.utils.bootstrap_transport.asyncio.sleep", new=AsyncMock()):
             body = await transport.fetch()

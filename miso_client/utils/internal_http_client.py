@@ -137,7 +137,7 @@ class InternalHttpClient:
         )
 
     def _connection_error(self, error: httpx.RequestError) -> MisoClientError:
-        """Omit raw Azure runtime request objects and messages from diagnostics."""
+        """Omit raw bootstrap runtime request objects and messages from diagnostics."""
         if self.config.application_token_provider is not None:
             return ConnectionError("Managed runtime request failed")
         return ConnectionError(f"Request failed: {str(error)}")

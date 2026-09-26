@@ -1,4 +1,4 @@
-"""Owned secret runtime shared by local and managed-identity initialization."""
+"""Owned secret runtime shared by local and client-credential initialization."""
 
 from __future__ import annotations
 
@@ -57,7 +57,6 @@ class SecretsRuntime(ApplicationTokenProvider):
         self._snapshot: Optional[Snapshot] = None
         self._clock: Optional[SnapshotClock] = None
         self._transport: Optional[BrokerTransport] = None
-        self._identity_close: Optional[Callable[[], Awaitable[None]]] = None
         self._changes: List[ChangeHandler] = []
         self._invalidations: List[InvalidationHandler] = []
         self._refresh_task: Optional[asyncio.Task[None]] = None
@@ -76,11 +75,9 @@ class SecretsRuntime(ApplicationTokenProvider):
     def attach_transport(
         self,
         transport: BrokerTransport,
-        identity_close: Optional[Callable[[], Awaitable[None]]] = None,
     ) -> None:
         """Attach internal owned cleanup resources before initialization."""
         self._transport = transport
-        self._identity_close = identity_close
 
     async def initialize_client(
         self, config: "MisoClientConfig", values: Optional[Dict[str, str]] = None
@@ -129,6 +126,8 @@ class SecretsRuntime(ApplicationTokenProvider):
             return
         self._reason = reason
         self._generation += 1
+        if self._transport is not None:
+            self._transport.invalidate()
         self._values.clear()
         self._snapshot = None
         self._rejected_token = None
@@ -164,20 +163,31 @@ class SecretsRuntime(ApplicationTokenProvider):
         """Install a validated snapshot atomically and notify key changes."""
         if self._reason is not None:
             raise BootstrapError(self._reason)
-        if self._context is not None and self._context != snapshot.context:
+        if (self._context is not None and self._context != snapshot.context) or (
+            self._snapshot is not None and self._snapshot.clientId != snapshot.clientId
+        ):
             self.invalidate("protocol-error")
             raise BootstrapError("protocol-error")
         values = {key: value.get_secret_value() for key, value in snapshot.configuration.items()}
-        changed = tuple(
+        changed = self._changed_keys(values)
+        clock = SnapshotClock(snapshot, time.time(), time.monotonic())
+        if self._transport is not None:
+            self._transport.install_token(snapshot.clientToken, clock)
+        self._snapshot, self._context, self._values = snapshot, snapshot.context, values
+        self._clock = clock
+        self._refresh_at = timestamp(snapshot.issuedAt) + random.uniform(110, 120)
+        self._notify_changes(changed)
+
+    def _changed_keys(self, values: Dict[str, str]) -> tuple[str, ...]:
+        return tuple(
             sorted(
                 key
                 for key in self._values.keys() | values.keys()
                 if self._values.get(key) != values.get(key)
             )
         )
-        self._snapshot, self._context, self._values = snapshot, snapshot.context, values
-        self._clock = SnapshotClock(snapshot, time.time(), time.monotonic())
-        self._refresh_at = timestamp(snapshot.issuedAt) + random.uniform(110, 120)
+
+    def _notify_changes(self, changed: tuple[str, ...]) -> None:
         for listener in tuple(self._changes) if changed else ():
             try:
                 listener(changed)
@@ -236,10 +246,13 @@ class SecretsRuntime(ApplicationTokenProvider):
             body = await self._transport.fetch()
             snapshot = parse_snapshot(body, time.time())
             if generation == self._generation:
+                self.ensure_active()
                 self.install(snapshot)
         except BootstrapError as error:
             self._next_attempt = time.monotonic() + 30
-            if error.code in ("authorization-denied", "protocol-error"):
+            if error.code == "snapshot-expired":
+                self.invalidate("snapshot-expired")
+            elif error.code in ("authorization-denied", "protocol-error"):
                 self.invalidate(
                     "authorization-denied"
                     if error.code == "authorization-denied"
@@ -301,8 +314,6 @@ class SecretsRuntime(ApplicationTokenProvider):
             cleanup.append(self._client.disconnect())
         if self._transport is not None:
             cleanup.append(self._transport.close())
-        if self._identity_close is not None:
-            cleanup.append(self._identity_close())
         if cleanup:
             results = await asyncio.gather(*cleanup, return_exceptions=True)
             if any(isinstance(result, BaseException) for result in results):

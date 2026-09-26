@@ -9,11 +9,10 @@ import httpx
 import pytest
 
 from miso_client import BootstrapError, init_secrets
-from miso_client.utils.bootstrap_identity import AzureIdentityProvider
 from miso_client.utils.bootstrap_runtime import SecretsRuntime
 from miso_client.utils.bootstrap_snapshot import parse_snapshot
 from miso_client.utils.bootstrap_transport import BrokerTransport, validate_settings
-from tests.unit.test_bootstrap import Identity, azure_env, response_data
+from tests.unit.test_bootstrap import credential_env, response_data
 
 
 @pytest.mark.asyncio
@@ -30,7 +29,9 @@ async def test_single_flight_waiter_cancel_and_close_late_response():
         return json.dumps(response_data()).encode()
 
     runtime = SecretsRuntime()
-    transport = BrokerTransport("https://miso.test/api/v1/auth/bootstrap", "api://b", Identity())
+    transport = BrokerTransport(
+        "https://miso.test/api/v1/auth/bootstrap", "client", "credential-sentinel"
+    )
     transport.fetch = fetch
     runtime.attach_transport(transport)
     first = asyncio.create_task(runtime.refresh())
@@ -61,7 +62,9 @@ async def test_close_during_refresh_cannot_repopulate():
             return json.dumps(response_data()).encode()
 
     runtime = SecretsRuntime()
-    transport = BrokerTransport("https://miso.test/api/v1/auth/bootstrap", "api://b", Identity())
+    transport = BrokerTransport(
+        "https://miso.test/api/v1/auth/bootstrap", "client", "credential-sentinel"
+    )
     transport.fetch = fetch
     runtime.attach_transport(transport)
     task = asyncio.create_task(runtime.refresh())
@@ -74,7 +77,9 @@ async def test_close_during_refresh_cannot_repopulate():
 
 @pytest.mark.asyncio
 async def test_refresh_failure_cooldown_prevents_request_storm():
-    transport = BrokerTransport("https://miso.test/api/v1/auth/bootstrap", "api://b", Identity())
+    transport = BrokerTransport(
+        "https://miso.test/api/v1/auth/bootstrap", "client", "credential-sentinel"
+    )
     fetch = AsyncMock(side_effect=BootstrapError("temporarily-unavailable"))
     transport.fetch = fetch
     runtime = SecretsRuntime()
@@ -92,7 +97,9 @@ async def test_refresh_failure_cooldown_prevents_request_storm():
 @pytest.mark.parametrize("code", ["authorization-denied", "protocol-error"])
 async def test_refresh_terminal_failure_revokes_snapshot(code):
     runtime = SecretsRuntime()
-    transport = BrokerTransport("https://miso.test/api/v1/auth/bootstrap", "api://b", Identity())
+    transport = BrokerTransport(
+        "https://miso.test/api/v1/auth/bootstrap", "client", "credential-sentinel"
+    )
     transport.fetch = AsyncMock(side_effect=BootstrapError(code))
     runtime.attach_transport(transport)
     runtime.install(parse_snapshot(json.dumps(response_data()).encode(), time.time()))
@@ -104,24 +111,11 @@ async def test_refresh_terminal_failure_revokes_snapshot(code):
 
 
 @pytest.mark.asyncio
-async def test_identity_error_is_sanitized_and_not_retried():
-    provider = Identity()
-    provider.get_token = AsyncMock(side_effect=ValueError("identity-secret-sentinel"))
-    transport = BrokerTransport("https://miso.test/api/v1/auth/bootstrap", "api://b", provider)
-    with pytest.raises(BootstrapError) as caught:
-        await transport.fetch()
-    assert "identity-secret-sentinel" not in str(caught.value)
-    assert caught.value.__context__ is None
-    assert provider.get_token.call_count == 1
-    await transport.close()
-
-
-@pytest.mark.asyncio
 async def test_http_maximum_three_attempts():
     handler = AsyncMock(return_value=httpx.Response(503))
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler), trust_env=False) as client:
         transport = BrokerTransport(
-            "https://miso.test/api/v1/auth/bootstrap", "api://b", Identity(), client
+            "https://miso.test/api/v1/auth/bootstrap", "client", "credential-sentinel", client
         )
         with patch("miso_client.utils.bootstrap_transport.asyncio.sleep", new=AsyncMock()):
             with pytest.raises(BootstrapError):
@@ -135,78 +129,36 @@ async def test_http_maximum_three_attempts():
         "",
         "http://host",
         "https://user:pass@host",
-        "https://host/path",
+        "https://host/../path",
+        "https://host/%2fpath",
+        "https://host/path//sub",
         "https://host?q=1",
         "https://host#x",
         "https://host:bad",
     ],
 )
-def test_bad_url_rejected_before_identity(url):
+def test_bad_url_rejected_before_network(url):
     with pytest.raises(BootstrapError):
-        validate_settings(url, "api://b")
-
-
-def test_scope_is_not_accepted_as_audience():
-    with pytest.raises(BootstrapError):
-        validate_settings("https://host", "api://b/.default")
-
-
-def test_missing_azure_dependency_has_safe_error():
-    with patch(
-        "miso_client.utils.bootstrap_identity.importlib.import_module",
-        side_effect=ImportError("secret-sentinel"),
-    ):
-        with pytest.raises(BootstrapError, match="azure-extra-unavailable") as caught:
-            AzureIdentityProvider()
-    assert caught.value.__context__ is None
-
-
-def test_python38_azure_guard_before_import():
-    with patch("miso_client.utils.bootstrap_identity.sys.version_info", (3, 8)), patch(
-        "miso_client.utils.bootstrap_identity.importlib.import_module",
-        side_effect=AssertionError("not imported"),
-    ):
-        with pytest.raises(BootstrapError, match="azure-requires-python"):
-            AzureIdentityProvider()
+        validate_settings(url)
 
 
 @pytest.mark.asyncio
-async def test_failed_init_closes_owned_identity(monkeypatch):
-    azure_env(monkeypatch)
-    owned = Identity()
-    with patch("miso_client.utils.bootstrap.AzureIdentityProvider", return_value=owned):
-        async with httpx.AsyncClient(
-            transport=httpx.MockTransport(lambda r: httpx.Response(404))
-        ) as client:
-            with pytest.raises(BootstrapError):
-                await init_secrets(http_client=client)
-    assert owned.closed
-
-
-@pytest.mark.asyncio
-async def test_azure_adapter_get_token_and_close():
-    from types import SimpleNamespace
-
-    credential = SimpleNamespace(
-        get_token=AsyncMock(
-            return_value=SimpleNamespace(token="sentinel", expires_on=int(time.time()) + 600)
-        ),
-        close=AsyncMock(),
-    )
-    module = SimpleNamespace(ManagedIdentityCredential=lambda **kw: credential)
-    with patch("miso_client.utils.bootstrap_identity.importlib.import_module", return_value=module):
-        provider = AzureIdentityProvider("selected-id")
-        token = await provider.get_token("api://b/.default")
-        assert token.token.get_secret_value() == "sentinel"
-        assert "sentinel" not in repr(token)
-        await provider.close()
-        credential.close.assert_awaited_once()
+async def test_failed_init_preserves_injected_client(monkeypatch):
+    credential_env(monkeypatch)
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda r: httpx.Response(404)), trust_env=False
+    ) as client:
+        with pytest.raises(BootstrapError):
+            await init_secrets(http_client=client)
+        assert not client.is_closed
 
 
 @pytest.mark.asyncio
 async def test_cleanup_failure_stays_closed_and_is_sanitized():
     runtime = SecretsRuntime({"KEY": "secret-sentinel"})
-    transport = BrokerTransport("https://miso.test/api/v1/auth/bootstrap", "api://b", Identity())
+    transport = BrokerTransport(
+        "https://miso.test/api/v1/auth/bootstrap", "client", "credential-sentinel"
+    )
     transport.close = AsyncMock(side_effect=ValueError("secret-sentinel"))
     runtime.attach_transport(transport)
     for _ in range(2):

@@ -8,38 +8,16 @@ import ssl
 import time
 from email.utils import parsedate_to_datetime
 from typing import Optional
-from urllib.parse import urlsplit
 
 import httpx
+from pydantic import SecretStr
 
-from ..models.bootstrap import BootstrapError, IdentityTokenProvider
-from .bootstrap_snapshot import MAX_BODY
+from ..models.bootstrap import BootstrapError
+from .bootstrap_credentials import parse_minted_token, validate_credentials, validate_http_client
+from .bootstrap_credentials import validate_settings as validate_settings
+from .bootstrap_snapshot import MAX_BODY, SnapshotClock
 
 RETRY_STATUS = {429, 502, 503, 504}
-
-
-def validate_settings(url: str, audience: str) -> str:
-    """Validate trusted deployment settings before identity or network access."""
-    valid = False
-    try:
-        parts = urlsplit(url)
-        valid = bool(
-            parts.scheme == "https"
-            and parts.hostname
-            and not parts.username
-            and not parts.password
-            and not parts.query
-            and not parts.fragment
-            and parts.path in ("", "/")
-            and parts.port != 0
-        )
-    except ValueError:
-        valid = False  # Reject malformed deployment URLs without raw diagnostics.
-    if not valid or not audience or audience.strip() != audience:
-        raise BootstrapError("invalid-azure-settings")
-    if audience.endswith("/.default"):
-        raise BootstrapError("invalid-azure-audience")
-    return url.rstrip("/") + "/api/v1/auth/bootstrap"
 
 
 def _tls_failure(error: BaseException) -> bool:
@@ -79,20 +57,45 @@ class BrokerTransport:
     def __init__(
         self,
         endpoint: str,
-        audience: str,
-        provider: IdentityTokenProvider,
+        client_id: str,
+        client_secret: str,
         http_client: Optional[httpx.AsyncClient] = None,
-    ):
+    ) -> None:
+        validate_credentials(client_id, client_secret)
+        if http_client is not None:
+            validate_http_client(http_client)
         self.endpoint = endpoint
-        self.scope = audience + "/.default"
-        self.provider = provider
+        self._mint_endpoint = endpoint.removesuffix("bootstrap") + "token"
+        self._credentials: Optional[tuple[SecretStr, SecretStr]] = (
+            SecretStr(client_id),
+            SecretStr(client_secret),
+        )
+        self._token: Optional[SecretStr] = None
+        self._mint_deadline = 0.0
+        self._snapshot_clock: Optional[SnapshotClock] = None
+        self._closed = False
         self._owned = http_client is None
         self.client = http_client or httpx.AsyncClient(
             timeout=5, follow_redirects=False, trust_env=False
         )
 
+    def install_token(self, token: SecretStr, clock: SnapshotClock) -> None:
+        """Accept only a runtime-validated token; discard startup credentials."""
+        if self._closed:
+            raise BootstrapError("closed")
+        self._token = token
+        self._snapshot_clock = clock
+        self._credentials = None
+
+    def invalidate(self) -> None:
+        """Erase retained credentials synchronously and prevent further exchanges."""
+        self._closed = True
+        self._token = None
+        self._snapshot_clock = None
+        self._credentials = None
+
     async def fetch(self) -> bytes:
-        """Fetch within a total budget, sanitizing every transport/identity error."""
+        """Fetch within a total budget, sanitizing every transport error."""
         failure: Optional[BootstrapError] = None
         try:
             return await asyncio.wait_for(self._fetch(), timeout=30)
@@ -103,21 +106,28 @@ class BrokerTransport:
         raise failure
 
     async def _fetch(self) -> bytes:
-        token = await asyncio.wait_for(self.provider.get_token(self.scope), timeout=5)
-        if not token.token.get_secret_value() or token.expires_at <= time.time():
-            raise BootstrapError("invalid-identity-token")
+        if self._closed:
+            raise BootstrapError("closed")
+        if self._token is None:
+            minted = parse_minted_token(await self._exchange(True))
+            if self._closed:
+                raise BootstrapError("closed")
+            self._token, self._mint_deadline = minted
+        return await self._exchange(False)
+
+    async def _exchange(self, mint: bool) -> bytes:
         for attempt in range(3):
-            body, delay = await self._attempt(token.token.get_secret_value(), attempt)
+            body, delay = await self._attempt(mint, attempt)
             if body is not None:
                 return body
             if attempt < 2:
                 await asyncio.sleep(delay)
         raise BootstrapError("temporarily-unavailable")
 
-    async def _attempt(self, token: str, attempt: int) -> tuple[Optional[bytes], float]:
+    async def _attempt(self, mint: bool, attempt: int) -> tuple[Optional[bytes], float]:
         retry = False
         try:
-            return await asyncio.wait_for(self._request(token, attempt), timeout=5)
+            return await asyncio.wait_for(self._request(mint, attempt), timeout=5)
         except httpx.NetworkError as error:
             retry = not _tls_failure(error)
         except (httpx.TimeoutException, asyncio.TimeoutError):
@@ -126,34 +136,69 @@ class BrokerTransport:
             raise BootstrapError("transport-error")
         return None, retry_delay(None, attempt)
 
-    async def _request(self, token: str, attempt: int) -> tuple[Optional[bytes], float]:
-        async with self.client.stream(
+    def _build_request(self, mint: bool) -> httpx.Request:
+        if self._closed:
+            raise BootstrapError("closed")
+        headers = {"Accept": "application/json", "Accept-Encoding": "identity"}
+        if mint:
+            if self._credentials is None:
+                raise BootstrapError("token-unavailable")
+            headers["x-client-id"], headers["x-client-secret"] = (
+                value.get_secret_value() for value in self._credentials
+            )
+        else:
+            headers["x-client-token"] = self._request_token()
+        return httpx.Request(
             "POST",
-            self.endpoint,
-            json={"protocolVersion": 1},
-            headers={
-                "Authorization": "Bearer " + token,
-                "Accept": "application/json",
-                "Accept-Encoding": "identity",
-            },
-            follow_redirects=False,
-        ) as response:
-            if response.status_code in (401, 403):
-                raise BootstrapError("authorization-denied", response.status_code)
-            if response.status_code in RETRY_STATUS:
-                return None, retry_delay(response.headers.get("Retry-After"), attempt)
-            if response.status_code != 200:
-                raise BootstrapError("protocol-error", response.status_code)
-            if response.headers.get("Content-Encoding", "identity").lower() != "identity":
+            self._mint_endpoint if mint else self.endpoint,
+            headers=headers,
+            json=None if mint else {"protocolVersion": 1},
+            extensions={"timeout": {key: 5.0 for key in ("connect", "read", "write", "pool")}},
+        )
+
+    def _request_token(self) -> str:
+        """Check the appropriate deadline immediately before each snapshot attempt."""
+        if self._token is None:
+            raise BootstrapError("token-unavailable")
+        if self._credentials is not None and time.monotonic() >= self._mint_deadline:
+            raise BootstrapError("token-expired")
+        clock = self._snapshot_clock
+        if clock is not None and clock.now(time.time(), time.monotonic()) >= clock.secrets:
+            self.invalidate()
+            raise BootstrapError("snapshot-expired")
+        return self._token.get_secret_value()
+
+    async def _request(self, mint: bool, attempt: int) -> tuple[Optional[bytes], float]:
+        validate_http_client(self.client)
+        # A standalone Request skips injected defaults, cookies, params and base_url.
+        response = await self.client.send(
+            self._build_request(mint), stream=True, auth=None, follow_redirects=False
+        )
+        try:
+            return await self._read_response(response, 201 if mint else 200, attempt)
+        finally:
+            await response.aclose()
+
+    async def _read_response(
+        self, response: httpx.Response, expected: int, attempt: int
+    ) -> tuple[Optional[bytes], float]:
+        if response.status_code in (401, 403):
+            raise BootstrapError("authorization-denied", response.status_code)
+        if response.status_code in RETRY_STATUS:
+            return None, retry_delay(response.headers.get("Retry-After"), attempt)
+        if response.status_code != expected:
+            raise BootstrapError("protocol-error", response.status_code)
+        if response.headers.get("Content-Encoding", "identity").lower() != "identity":
+            raise BootstrapError("protocol-error")
+        body = bytearray()
+        async for chunk in response.aiter_bytes():
+            if len(body) + len(chunk) > MAX_BODY:
                 raise BootstrapError("protocol-error")
-            body = bytearray()
-            async for chunk in response.aiter_bytes():
-                if len(body) + len(chunk) > MAX_BODY:
-                    raise BootstrapError("protocol-error")
-                body.extend(chunk)
-            return bytes(body), 0
+            body.extend(chunk)
+        return bytes(body), 0
 
     async def close(self) -> None:
-        """Close the owned HTTP transport only."""
+        """Clear credentials and close the owned HTTP transport only."""
+        self.invalidate()
         if self._owned:
             await self.client.aclose()
