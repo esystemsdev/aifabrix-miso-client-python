@@ -14,7 +14,6 @@ from pydantic import SecretStr
 
 from ..models.bootstrap import BootstrapError
 from .bootstrap_credentials import parse_minted_token, validate_credentials, validate_http_client
-from .bootstrap_credentials import validate_settings as validate_settings
 from .bootstrap_snapshot import MAX_BODY, SnapshotClock
 
 RETRY_STATUS = {429, 502, 503, 504}

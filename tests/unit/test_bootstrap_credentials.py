@@ -324,7 +324,7 @@ async def test_initialization_cancellation_cleans_owned_client(monkeypatch):
         await started.wait()
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
-            await task
+            await asyncio.wait_for(task, timeout=1)
     assert owned.is_closed
 
 

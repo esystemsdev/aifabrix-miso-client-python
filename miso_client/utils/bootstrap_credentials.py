@@ -45,7 +45,7 @@ def parse_minted_token(body: bytes) -> tuple[SecretStr, float]:
             raise ValueError("expired token")
         result = token.token, time.monotonic() + lifetime
     except (ValueError, TypeError, RecursionError):
-        pass
+        result = None  # Normalize outside the handler to avoid retaining secret-bearing errors.
     if result is None:
         raise BootstrapError("protocol-error")
     return result
@@ -74,7 +74,7 @@ def validate_settings(url: str) -> str:
             and all(re.fullmatch(r"[A-Za-z0-9_-][A-Za-z0-9_.-]*", part) for part in segments)
         )
     except ValueError:
-        pass
+        valid = False  # Malformed URLs use the same safe settings error as invalid URLs.
     if not valid:
         raise BootstrapError("invalid-bootstrap-settings")
     return url.rstrip("/") + "/api/v1/auth/bootstrap"

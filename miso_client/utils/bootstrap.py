@@ -10,8 +10,9 @@ import httpx
 
 from ..models.bootstrap import BootstrapError
 from ..models.config import MisoClientConfig
+from .bootstrap_credentials import validate_settings
 from .bootstrap_runtime import SecretsRuntime
-from .bootstrap_transport import BrokerTransport, validate_settings
+from .bootstrap_transport import BrokerTransport
 from .config_loader import load_config
 
 

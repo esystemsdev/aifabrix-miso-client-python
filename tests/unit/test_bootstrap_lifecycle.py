@@ -9,9 +9,10 @@ import httpx
 import pytest
 
 from miso_client import BootstrapError, init_secrets
+from miso_client.utils.bootstrap_credentials import validate_settings
 from miso_client.utils.bootstrap_runtime import SecretsRuntime
 from miso_client.utils.bootstrap_snapshot import parse_snapshot
-from miso_client.utils.bootstrap_transport import BrokerTransport, validate_settings
+from miso_client.utils.bootstrap_transport import BrokerTransport
 from tests.unit.test_bootstrap import credential_env, response_data
 
 
