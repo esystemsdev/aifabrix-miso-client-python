@@ -152,3 +152,79 @@ async def test_changed_context_invalidates_and_close_is_idempotent():
         await runtime.close()
         await runtime.close()
     assert reasons == ["protocol-error", "closed"]
+
+
+@pytest.mark.parametrize(
+    "key", ["MISO_WEB_SERVER_URL", "PROVIDER_TENANT_ID", "PROVIDER_CLIENT_SECRET"]
+)
+def test_controller_allowed_configuration_keys_remain_confidential(key):
+    data = response_data(T0)
+    data["data"]["configuration"] = {key: "private-value"}
+    result = parse_snapshot(json.dumps(data).encode(), T0)
+    assert result.configuration[key].get_secret_value() == "private-value"
+    assert "private-value" not in repr(result)
+    assert "configuration" not in result.model_dump()
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "MISO_AUTH_MODE",
+        "MISO_CONTROLLER_URL",
+        "MISO_CLIENTID",
+        "MISO_CLIENT_ID",
+        "MISO_CLIENTSECRET",
+        "MISO_CLIENT_SECRET",
+        "MISO_AUTH_STRATEGY",
+        "MISO_CLIENT_TOKEN_URI",
+    ],
+)
+def test_controller_reserved_configuration_keys_are_rejected(key):
+    data = response_data(T0)
+    data["data"]["configuration"] = {key: "private-value"}
+    with pytest.raises(BootstrapError, match="protocol-error"):
+        parse_snapshot(json.dumps(data).encode(), T0)
+
+
+@pytest.mark.parametrize("field", ["issuedAt", "clientTokenExpiresAt", "refreshAfter", "expiresAt"])
+@pytest.mark.parametrize("fraction", ["1", "12", "1234", "123456", "１２３"])
+def test_all_timestamps_reject_noncanonical_fractions(field, fraction):
+    data = response_data(T0)
+    data["data"][field] = data["data"][field].replace("Z", "." + fraction + "Z")
+    with pytest.raises(BootstrapError, match="protocol-error"):
+        parse_snapshot(json.dumps(data).encode(), T0)
+
+
+@pytest.mark.parametrize("fraction", ["", ".000", ".123", ".999"])
+def test_canonical_timestamp_fractions_keep_exact_offsets(fraction):
+    data = response_data(T0)
+    for field in ("issuedAt", "clientTokenExpiresAt", "refreshAfter", "expiresAt"):
+        data["data"][field] = data["data"][field].replace("Z", fraction + "Z")
+    parse_snapshot(json.dumps(data).encode(), T0)
+
+
+@pytest.mark.parametrize("field", ["issuedAt", "clientTokenExpiresAt", "refreshAfter", "expiresAt"])
+@pytest.mark.parametrize(
+    "value",
+    [
+        "2030-02-30T00:00:00Z",
+        "2030-13-01T00:00:00Z",
+        "2030-01-01T24:00:00Z",
+        "2030-01-01T00:00:00+00:00",
+    ],
+)
+def test_snapshot_rejects_invalid_calendar_dates_and_timezone_offsets(field, value):
+    data = response_data(T0)
+    data["data"][field] = value
+    with pytest.raises(BootstrapError, match="protocol-error") as error:
+        parse_snapshot(json.dumps(data).encode(), T0)
+    assert error.value.__context__ is None
+
+
+@pytest.mark.parametrize("field", ["clientTokenExpiresAt", "refreshAfter", "expiresAt"])
+@pytest.mark.parametrize("offset", [-1, 1])
+def test_snapshot_deadline_offsets_are_exact_not_minimums(field, offset):
+    data = response_data(T0)
+    data["data"][field] = response_data(T0 + offset)["data"][field]
+    with pytest.raises(BootstrapError, match="protocol-error"):
+        parse_snapshot(json.dumps(data).encode(), T0)

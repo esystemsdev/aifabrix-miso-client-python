@@ -4,11 +4,9 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
-from pydantic import SecretStr, ValidationError
 
-from miso_client import BootstrapError, IdentityToken
+from miso_client import BootstrapError
 from miso_client.utils.bootstrap_transport import BrokerTransport
-from tests.unit.test_bootstrap import Identity
 from tests.unit.test_bootstrap_auth import client_for, runtime_with_snapshot
 
 
@@ -78,36 +76,14 @@ async def test_broker_rejects_compressed_body_before_iteration():
 
     def handler(request):
         assert request.headers["Accept-Encoding"] == "identity"
-        return httpx.Response(200, headers={"Content-Encoding": "gzip"}, stream=Body())
+        return httpx.Response(201, headers={"Content-Encoding": "gzip"}, stream=Body())
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler), trust_env=False) as client:
         broker = BrokerTransport(
-            "https://miso.test/api/v1/auth/bootstrap", "api://b", Identity(), client
+            "https://miso.test/api/v1/auth/bootstrap", "client", "credential-sentinel", client
         )
         with pytest.raises(BootstrapError, match="protocol-error"):
             await broker.fetch()
-
-
-@pytest.mark.parametrize("expiry", [float("nan"), float("inf"), float("-inf"), 0, -1])
-def test_identity_token_rejects_nonfinite_or_invalid_expiry(expiry):
-    with pytest.raises(ValidationError):
-        IdentityToken(token=SecretStr("identity-sentinel"), expires_at=expiry)
-
-
-@pytest.mark.asyncio
-async def test_injected_provider_error_cannot_supply_secret_diagnostic_code():
-    provider = Identity()
-    provider.get_token = AsyncMock(side_effect=BootstrapError("private-secret-sentinel"))
-    async with httpx.AsyncClient(
-        transport=httpx.MockTransport(lambda r: httpx.Response(200))
-    ) as client:
-        broker = BrokerTransport(
-            "https://miso.test/api/v1/auth/bootstrap", "api://b", provider, client
-        )
-        with pytest.raises(BootstrapError, match="operation-failed") as error:
-            await broker.fetch()
-    assert "private-secret-sentinel" not in str(error.value)
-    assert error.value.__context__ is None
 
 
 @pytest.mark.asyncio

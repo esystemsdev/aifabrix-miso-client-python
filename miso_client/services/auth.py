@@ -388,7 +388,7 @@ class AuthService:
             return {}
 
     async def exchange_token(self, delegated_token: str) -> TokenExchangeResponse:
-        """Exchange a delegated token (e.g. Entra) for a Keycloak token.
+        """Exchange a delegated token (from an identity provider) for a Keycloak token.
 
         Uses the controller token exchange endpoint. The request is sent with
         x-client-token (automatic) and Authorization: Bearer <delegated_token>.
@@ -396,7 +396,7 @@ class AuthService:
         returned Keycloak token expiration for speed on repeated calls.
 
         Args:
-            delegated_token: Delegated token (e.g. Entra ID token) to exchange
+            delegated_token: Delegated token (from the configured identity provider) to exchange
 
         Returns:
             TokenExchangeResponse with effective Keycloak access token

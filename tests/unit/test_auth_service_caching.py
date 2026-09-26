@@ -351,7 +351,7 @@ class TestAuthServiceUserInfoCaching:
         }
         mock_cache.get = AsyncMock(return_value=cached)
 
-        result = await auth_service.exchange_token("entra-delegated-token")
+        result = await auth_service.exchange_token("external-delegated-token")
 
         assert isinstance(result, TokenExchangeResponse)
         assert result.accessToken == "cached-keycloak-token"
@@ -448,10 +448,10 @@ class TestAuthServiceUserInfoCaching:
             api_client=mock_api_client,
         )
 
-        result = await auth_service.exchange_token("entra-token")
+        result = await auth_service.exchange_token("external-token")
 
         assert result.accessToken == "keycloak-from-api-client"
-        mock_api_client.auth.exchange_token.assert_called_once_with("entra-token")
+        mock_api_client.auth.exchange_token.assert_called_once_with("external-token")
         mock_cache.set.assert_called_once()
         call_args = mock_cache.set.call_args
         assert call_args[0][1]["accessToken"] == "keycloak-from-api-client"

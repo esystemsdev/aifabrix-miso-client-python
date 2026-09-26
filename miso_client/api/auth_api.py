@@ -418,14 +418,14 @@ class AuthApi:
         return RefreshPermissionsResponse(**response)
 
     async def exchange_token(self, delegated_token: str) -> TokenExchangeResponse:
-        """Exchange a delegated token (e.g. Entra) for a Keycloak token.
+        """Exchange a delegated token (from an identity provider) for a Keycloak token.
 
         Calls the controller token exchange endpoint. The request is sent with
         x-client-token (automatic) and Authorization: Bearer <delegated_token>.
         Use the returned access token for subsequent authenticated_request calls.
 
         Args:
-            delegated_token: Delegated token (e.g. Entra ID token) to exchange
+            delegated_token: Delegated token (from the configured identity provider) to exchange
 
         Returns:
             TokenExchangeResponse with effective Keycloak access token

@@ -11,14 +11,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - No unreleased additions.
 
+## [5.0.0] - 2026-09-26
+
+### Breaking changes
+
+- Remote secret initialization now uses `MISO_AUTH_MODE=client-credentials` with
+  `MISO_CONTROLLER_URL`, `MISO_CLIENTID` and `MISO_CLIENTSECRET`. Removed the previous
+  provider adapter, token types, `token_provider` keyword, provider settings and optional extra.
+- Bootstrap test/host HTTP clients must disable environment proxies and event hooks.
+- Moved secret initialization guidance to `docs/client-credential-bootstrap.md`.
+
+### Added
+
+- A bounded HTTP 201 credential exchange followed by HTTP 200 snapshot initialization.
+- Snapshot-token refresh without re-reading startup credentials, terminal invalidation and
+  credential cleanup; HTTPS deployment path prefixes are preserved for both endpoints.
+- Contract, retry, cancellation, rotation, confidentiality and deadline regression tests,
+  plus a repeatable live controller smoke test.
+
+### Changed
+
+- The SDK treats provider configuration as opaque confidential data and reserves only Miso
+  authentication settings. Provider-specific code, dependencies and documentation references
+  have been removed; provisioning and storage implementation remain controller/deployment concerns.
+- Snapshot timestamps accept no fractional seconds or exactly three ASCII digits.
+- Default/local initialization and ordinary client credentials remain compatible.
+
+### Deployment
+
+- Enable bootstrap only after the controller endpoint and credential delivery are deployed.
+  Live smoke/audit verification is required before promotion; local automated validation alone
+  does not certify deployment readiness.
+
 ## [4.21.0] - 2026-09-19
 
 ### Added
 
 - Public `url://` application URL and logical CORS-origin resolution through the existing application-status API.
-- Async `init_secrets()` runtime with local compatibility and opt-in managed-identity bootstrap, optional Azure dependencies, secret accessors, rotation callbacks and bounded shutdown.
+- Async `init_secrets()` runtime with local compatibility and opt-in identity bootstrap, optional provider dependencies, secret accessors, rotation callbacks and bounded shutdown.
 - Strict broker response validation, token-only SDK authentication, shared refresh and independent token/secret expiry.
-- Installed-wheel smoke validation and regression tests for local no-Azure behavior, typed authentication failures, retries, concurrency, clock rollback and secret-safe diagnostics.
+- Installed-wheel smoke validation and regression tests for local provider-independent behavior, typed authentication failures, retries, concurrency, clock rollback and secret-safe diagnostics.
 
 ### Fixed
 
@@ -30,7 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Bound verbose test case IDs to prevent oversized CI logs, and require immutable matching tags plus verified PyPI responses for publication.
 - Correct the package minimum to Python 3.10, matching existing runtime requirements; Python 3.8/3.9 installations are now rejected by pip. Local startup is verified on Python 3.10–3.13.
-- Azure enablement requires compatible controller bootstrap support, canonical contract parity and consumer/live identity proof. This release preparation does not certify Azure rollout.
+- Identity bootstrap enablement requires compatible controller bootstrap support, canonical contract parity and consumer/live identity proof. This release preparation does not certify identity bootstrap rollout.
 - Development-to-release PR and post-merge publication commands separate review from PyPI publication.
 
 ## [4.20.2] - 2026-08-31

@@ -148,7 +148,7 @@ Errors:
 
 ## Token exchange (user tokens)
 
-When your app has a **delegated token** (e.g. from Entra ID or another IdP), you can exchange it for a Keycloak token and use it with the SDK:
+When your app has a **delegated token** (from an external identity provider), you can exchange it for a Keycloak token and use it with the SDK:
 
 ```python
 from miso_client import MisoClient, load_config
@@ -156,8 +156,8 @@ from miso_client import MisoClient, load_config
 client = MisoClient(load_config())
 await client.initialize()
 
-# Exchange Entra (or other delegated) token for Keycloak token
-result = await client.exchange_token(entra_token)
+# Exchange a delegated token for Keycloak token
+result = await client.exchange_token(delegated_token)
 keycloak_token = result.accessToken  # use for validate_token, get_roles, etc.
 
 is_valid = await client.validate_token(keycloak_token)
@@ -228,7 +228,7 @@ Use this `client` when creating the endpoint: `create_fastapi_client_token_endpo
 
 ## Optional runtime initialization
 
-[Secret initialization](managed-identity-bootstrap.md) adds an opt-in managed-identity
-provider without changing normal application-token transport. Unset/local mode uses
-the existing controller token endpoint and credentials, so an SDK upgrade does not
-require a controller upgrade. Explicit Azure mode requires the v1 bootstrap broker.
+[Secret initialization](client-credential-bootstrap.md) adds opt-in client-credential
+bootstrap using `MISO_AUTH_MODE=client-credentials`. It mints once, then renews through
+validated snapshot tokens. Default/local mode retains ordinary configuration and token
+renewal. Bootstrap mode requires the controller's v1 bootstrap endpoint.

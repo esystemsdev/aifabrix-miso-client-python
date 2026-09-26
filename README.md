@@ -8,9 +8,9 @@ The **AI Fabrix Miso Client SDK** provides authentication, authorization, and lo
 ## Optional secret initialization
 
 `await init_secrets()` provides one server-side startup API for local credentials and
-opt-in Azure managed identity. Unset or local mode works with existing controllers
-without Azure calls or packages. See [Secret initialization](docs/managed-identity-bootstrap.md)
-for configuration, rotation and the controller requirements for Azure mode.
+opt-in client-credential bootstrap. Unset or local mode works with existing controllers.
+See [Secret initialization](docs/client-credential-bootstrap.md) for configuration,
+rotation and controller requirements.
 
 ## ✨ Benefits
 
@@ -228,7 +228,7 @@ from miso_client import (
 - Keep strict refresh boundary: `refresh_session_token()` for cookie/session refresh and `refresh_device_code_token(refresh_token)` for device-token refresh.
 - Rollback path (if needed): remove user refresh callback/refresh-token registration and call APIs with `auto_refresh=False` in `authenticated_request(...)` to disable automatic retry while preserving explicit request execution.
 
-**Token exchange (Entra/delegated tokens):** If your app has an external token (e.g. Entra ID), call `exchange_token(delegated_token)` to get a Keycloak token for use with the SDK: `result = await client.exchange_token(entra_token)` then use `result.accessToken` for `validate_token`, `get_roles`, etc.
+**Token exchange (delegated tokens):** If your app has an external token (from an external identity provider), call `exchange_token(delegated_token)` to get a Keycloak token for use with the SDK: `result = await client.exchange_token(delegated_token)` then use `result.accessToken` for `validate_token`, `get_roles`, etc.
 
 **Validate application token (client token):** To verify a controller-issued application token (e.g. `x-client-token` from your backend or dataplane), use `validate_client_token(token)`. Results are cached to avoid extra controller calls. Use for dataplane or services that need to check an app token: `result = await client.validate_client_token(app_token)` then check `result.data.authenticated` and `result.data.application`, `result.data.expiresAt`, etc.
 
@@ -712,7 +712,7 @@ The SDK uses a two-layer HTTP client architecture for ISO 27001 compliance:
    aifabrix app register myapp --environment dev
    ```
 
-4. **Start development** and then deploy to Docker or Azure.
+4. **Start development** and then deploy to your chosen runtime.
 
 → [Full Quick Start Guide](https://github.com/esystemsdev/aifabrix-builder/blob/main/docs/QUICK-START.md)
 

@@ -198,7 +198,7 @@ class ValidateClientTokenResponse(BaseModel):
 
 
 class TokenExchangeResponse(BaseModel):
-    """Token exchange response (delegated/Entra token → Keycloak token).
+    """Token exchange response (delegated token → Keycloak token).
 
     Controller returns the effective Keycloak token in body (accessToken).
     Optionally includes tokenExchanged when controller implements plan 156.
@@ -207,5 +207,5 @@ class TokenExchangeResponse(BaseModel):
     accessToken: str = Field(..., description="Effective Keycloak access token")
     tokenExchanged: Optional[bool] = Field(
         default=None,
-        description="True if the token was exchanged from a delegated token (e.g. Entra)",
+        description="True if the token was exchanged from a delegated token (from an identity provider)",
     )

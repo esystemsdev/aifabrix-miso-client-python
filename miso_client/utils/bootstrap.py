@@ -1,4 +1,4 @@
-"""Opt-in initialization with a legacy-compatible default and isolated Azure mode."""
+"""Opt-in initialization with a legacy-compatible default and client-credential bootstrap."""
 
 from __future__ import annotations
 
@@ -8,11 +8,11 @@ from typing import Optional
 
 import httpx
 
-from ..models.bootstrap import BootstrapError, IdentityTokenProvider
+from ..models.bootstrap import BootstrapError
 from ..models.config import MisoClientConfig
-from .bootstrap_identity import AzureIdentityProvider
+from .bootstrap_credentials import validate_settings
 from .bootstrap_runtime import SecretsRuntime
-from .bootstrap_transport import BrokerTransport, validate_settings
+from .bootstrap_transport import BrokerTransport
 from .config_loader import load_config
 
 
@@ -23,22 +23,20 @@ async def _initialize_local(runtime: SecretsRuntime) -> None:
     await runtime.initialize_client(config, dict(os.environ))
 
 
-async def _initialize_azure(
+async def _initialize_credentials(
     runtime: SecretsRuntime,
-    provider: Optional[IdentityTokenProvider],
     http_client: Optional[httpx.AsyncClient],
 ) -> None:
     """Bootstrap before constructing any normal SDK services."""
     url = os.environ.get("MISO_CONTROLLER_URL", "")
-    audience = os.environ.get("MISO_BOOTSTRAP_AUDIENCE", "")
-    endpoint = validate_settings(url, audience)
-    identity_close = None
-    if provider is None:
-        owned = AzureIdentityProvider(os.environ.get("AZURE_CLIENT_ID") or None)
-        identity_close = owned.close
-        provider = owned
+    endpoint = validate_settings(url)
     runtime.attach_transport(
-        BrokerTransport(endpoint, audience, provider, http_client), identity_close
+        BrokerTransport(
+            endpoint,
+            os.environ.get("MISO_CLIENTID", ""),
+            os.environ.get("MISO_CLIENTSECRET", ""),
+            http_client,
+        )
     )
     await runtime.refresh()
     config = MisoClientConfig(
@@ -53,14 +51,12 @@ async def _initialize_azure(
 
 async def init_secrets(
     *,
-    token_provider: Optional[IdentityTokenProvider] = None,
     http_client: Optional[httpx.AsyncClient] = None,
 ) -> SecretsRuntime:
-    """Initialize local secrets or an explicitly enabled managed-identity runtime.
+    """Initialize local secrets or an explicitly enabled client-credential runtime.
 
     Args:
-        token_provider: Optional Azure test/host provider; remains caller-owned.
-        http_client: Optional isolated broker HTTP client; remains caller-owned.
+        http_client: Optional broker client with trust_env=False and no event hooks; caller-owned.
 
     Returns:
         An initialized client and secret accessors with awaitable close.
@@ -69,14 +65,13 @@ async def init_secrets(
         BootstrapError: Configuration, authentication or initialization failed.
     """
     mode = os.environ.get("MISO_AUTH_MODE", "local")
-    if mode not in ("local", "azure-managed-identity"):
+    if mode not in ("local", "client-credentials"):
         raise BootstrapError("invalid-auth-mode")
-    return await _initialize_runtime(mode, token_provider, http_client)
+    return await _initialize_runtime(mode, http_client)
 
 
 async def _initialize_runtime(
     mode: str,
-    token_provider: Optional[IdentityTokenProvider],
     http_client: Optional[httpx.AsyncClient],
 ) -> SecretsRuntime:
     """Clean up partially initialized runtimes without retaining raw errors."""
@@ -86,7 +81,7 @@ async def _initialize_runtime(
         if mode == "local":
             await _initialize_local(runtime)
         else:
-            await _initialize_azure(runtime, token_provider, http_client)
+            await _initialize_credentials(runtime, http_client)
         return runtime
     except asyncio.CancelledError:
         await runtime.close()

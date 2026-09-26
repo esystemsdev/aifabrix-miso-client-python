@@ -1,7 +1,7 @@
 """Encryption service for security parameter management via miso-controller.
 
 This service provides encryption and decryption functionality by calling
-miso-controller API endpoints. It supports Azure Key Vault and local
+miso-controller API endpoints. It supports controller-managed secret storage and local
 storage modes, with the storage backend determined by server configuration.
 Optional response caching reduces controller calls when the same value
 is encrypted or decrypted repeatedly.

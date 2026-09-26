@@ -339,7 +339,7 @@ class TestAuthApi:
         }
         mock_http_client.authenticated_request.return_value = mock_response
 
-        result = await auth_api.exchange_token("entra-delegated-token")
+        result = await auth_api.exchange_token("external-delegated-token")
 
         assert isinstance(result, TokenExchangeResponse)
         assert result.accessToken == "keycloak-access-token-123"
@@ -348,7 +348,7 @@ class TestAuthApi:
         call_args = mock_http_client.authenticated_request.call_args
         assert call_args[0][0] == "POST"
         assert call_args[0][1] == auth_api.TOKEN_EXCHANGE_ENDPOINT
-        assert call_args[0][2] == "entra-delegated-token"
+        assert call_args[0][2] == "external-delegated-token"
         assert call_args[1].get("auto_refresh") is False
 
     @pytest.mark.asyncio
