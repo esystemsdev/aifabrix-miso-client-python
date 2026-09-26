@@ -1,6 +1,8 @@
 # Manual tests
 
-Tests in this folder are not run by make test. Run them manually when needed:
+Default pytest discovery, CI, release validation, and `make test` run unit tests only.
+Unit tests block network sockets; mock controller HTTP and Redis calls. Live tests
+require an explicit command and configured services. Run manual tests when needed:
 
     pytest tests/manual/ -v
 

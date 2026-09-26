@@ -44,6 +44,7 @@ dev = [
     "pytest-asyncio>=0.21.1",
     "pytest-mock>=3.12.0",
     "pytest-cov>=4.1.0",
+    "pytest-socket>=0.7.0",
     "black>=23.0.0",
     "isort>=5.12.0",
     "mypy>=1.5.0",
@@ -70,7 +71,7 @@ packages = ["miso_client", "miso_client.models", "miso_client.services", "miso_c
 miso_client = ["py.typed"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests/unit"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
@@ -101,4 +102,3 @@ ignore_missing_imports = true
 [tool.ruff]
 line-length = 100
 target-version = "py38"
-
