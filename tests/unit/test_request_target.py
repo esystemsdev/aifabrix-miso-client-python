@@ -107,6 +107,7 @@ class TestLegacyClientRouting:
         controller = _Recorder(httpx.Response(200, json={}))
         external = _Recorder(httpx.Response(200, json={"id": "1"}))
         client = _legacy_client(controller, external)
+        assert client.client is not None
         client.client.headers["x-client-token"] = "cached-token"  # earlier controller call
         token = AsyncMock(return_value="tok")
         with patch.object(client.token_manager, "get_client_token", token):

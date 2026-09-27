@@ -16,7 +16,7 @@ its target origin before any credential is looked up:
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Set, Tuple, Union
+from typing import Any, Dict, Optional, Set, Tuple, Union, cast
 
 import httpx
 
@@ -77,9 +77,10 @@ class RequestTarget:
         headers = kwargs.get("headers")
         if not isinstance(headers, dict):
             return
-        for name in list(headers):
-            if str(name).lower() in SDK_CREDENTIAL_HEADERS:
-                del headers[name]
+        typed: Dict[str, Any] = cast(Dict[str, Any], headers)
+        for name in [str(key) for key in typed]:
+            if name.lower() in SDK_CREDENTIAL_HEADERS:
+                del typed[name]
 
 
 def build_external_client(timeout: Union[float, httpx.Timeout]) -> httpx.AsyncClient:
