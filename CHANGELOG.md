@@ -11,6 +11,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - No unreleased additions.
 
+## [5.1.0] - 2026-09-27
+
+### Added
+
+- Client-credential bootstrap and managed requests support HTTP for local/private IP
+  addresses and internal service hostnames, while public HTTP targets remain rejected.
+
+### Fixed
+
+- Share internal-host validation across bootstrap and managed request policies without
+  private cross-module imports.
+- Align bootstrap URL regression tests and deployment guidance with internal HTTP support.
+
 ## [5.0.0] - 2026-09-26
 
 ### Breaking changes

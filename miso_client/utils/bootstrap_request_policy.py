@@ -7,7 +7,7 @@ from typing import Any, Dict
 import httpx
 
 from ..models.bootstrap import BootstrapError
-from .bootstrap_credentials import _is_internal_http_host
+from .bootstrap_credentials import is_internal_http_host
 
 
 class ManagedRequestPolicy:
@@ -18,7 +18,7 @@ class ManagedRequestPolicy:
         trusted_protocol = self.origin.scheme == "https" or (
             self.origin.scheme == "http"
             and bool(self.origin.host)
-            and _is_internal_http_host(self.origin.host)
+            and is_internal_http_host(self.origin.host)
         )
         if not trusted_protocol or not self.origin.host or self.origin.userinfo:
             raise BootstrapError("invalid-bootstrap-settings")

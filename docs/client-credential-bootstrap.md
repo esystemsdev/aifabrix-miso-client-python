@@ -30,7 +30,10 @@ The deployment system supplies the application's credentials. The client uses on
 endpoints; it does not discover providers or access a secret storage service directly.
 Bootstrap mode requires these canonical names; underscore credential aliases and dotenv
 loading apply only to local mode. Missing or invalid settings fail before network access.
-The controller URL must use HTTPS, with an optional deployment prefix such as `/miso`.
+The controller URL supports HTTPS, with an optional deployment prefix such as `/miso`.
+HTTP is also accepted for local/private IP addresses, single-label service names, and
+`localhost`, `.localhost`, `.internal`, `.local`, or `.svc` hostnames. Public HTTP
+targets are rejected.
 Userinfo, query strings, fragments and ambiguous paths are rejected. The client preserves
 the prefix for both `/api/v1/auth/token` and `/api/v1/auth/bootstrap`.
 
@@ -77,7 +80,7 @@ application request. A new runtime is required after terminal invalidation.
 ## Confidentiality and cleanup
 
 Credentials are sent only to the token endpoint. Bootstrap sends `x-client-token`; ordinary
-API calls use the installed snapshot token. Requests remain pinned to the configured HTTPS
+API calls use the installed snapshot token. Requests remain pinned to the configured
 origin. Redirects and environment proxies are disabled. Responses must be uncompressed and
 fit within 1 MiB. Each exchange has a 30-second total budget and 5-second attempts; transient
 failures retry at most three times per step. HTTP 401/403 are terminal.

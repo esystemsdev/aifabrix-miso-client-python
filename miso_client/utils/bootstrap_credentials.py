@@ -52,7 +52,7 @@ def parse_minted_token(body: bytes) -> tuple[SecretStr, float]:
     return result
 
 
-def _is_internal_http_host(hostname: str) -> bool:
+def is_internal_http_host(hostname: str) -> bool:
     """Return whether a hostname is a local/private service-to-service target."""
     host = hostname.rstrip(".").lower()
     try:
@@ -82,7 +82,7 @@ def validate_settings(url: str) -> str:
             and parts.hostname
             and (
                 parts.scheme == "https"
-                or (parts.scheme == "http" and _is_internal_http_host(parts.hostname))
+                or (parts.scheme == "http" and is_internal_http_host(parts.hostname))
             )
             and not parts.username
             and not parts.password
