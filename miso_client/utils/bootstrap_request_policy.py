@@ -1,4 +1,8 @@
-"""Keep managed application credentials on their configured HTTPS origin."""
+"""Keep managed application credentials on their configured controller origin.
+
+Only controller targets reach this policy: :class:`~.request_target.RequestTarget`
+sends every other origin on a credential-free transport before the pin is consulted.
+"""
 
 from __future__ import annotations
 
