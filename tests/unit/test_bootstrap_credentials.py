@@ -17,6 +17,37 @@ from miso_client.utils.bootstrap_transport import BrokerTransport
 from tests.unit.test_bootstrap import credential_env, mint_data, mint_or_snapshot, response_data
 
 
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://localhost:3000/miso",
+        "http://127.0.0.1:3000/miso",
+        "http://[::1]:3000/miso",
+        "http://10.0.0.8:3000/miso",
+        "http://172.21.0.5:3000/miso",
+        "http://192.168.1.5:3000/miso",
+        "http://miso-controller:3000/miso",
+        "http://miso-controller.platform.internal:3000/miso",
+        "http://miso-controller.platform.svc:3000/miso",
+    ],
+)
+def test_private_or_local_http_bootstrap_url_is_allowed(url):
+    assert validate_settings(url) == url + "/api/v1/auth/bootstrap"
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://miso.example.com/miso",
+        "http://8.8.8.8/miso",
+        "ftp://miso-controller/miso",
+    ],
+)
+def test_public_or_non_http_bootstrap_url_is_rejected(url):
+    with pytest.raises(BootstrapError, match="invalid-bootstrap-settings"):
+        validate_settings(url)
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("prefix", ["", "/", "/miso", "/miso/", "/platform/miso"])
 async def test_mint_then_snapshot_preserves_prefix_and_ignores_client_defaults(prefix):

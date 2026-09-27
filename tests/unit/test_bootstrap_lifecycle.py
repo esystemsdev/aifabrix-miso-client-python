@@ -128,7 +128,7 @@ async def test_http_maximum_three_attempts():
     "url",
     [
         "",
-        "http://host",
+        "http://public.example.com",
         "https://user:pass@host",
         "https://host/../path",
         "https://host/%2fpath",
