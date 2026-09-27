@@ -8,18 +8,19 @@ HttpClient class instead which adds ISO 27001 compliant audit and debug logging.
 import asyncio
 import json
 from types import TracebackType
-from typing import Any, Awaitable, Callable, Dict, Literal, NoReturn, Optional, Tuple, Type, cast
+from typing import Any, Awaitable, Callable, Dict, Literal, Optional, Tuple, Type, cast
 
 import httpx
 
-from ..errors import AuthenticationError, ConnectionError, MisoClientError
-from ..models.config import AuthMethod, AuthStrategy, MisoClientConfig
-from .auth_strategy import AuthStrategyHandler
+from ..errors import ConnectionError, MisoClientError
+from ..models.config import AuthMethod, MisoClientConfig
 from .bootstrap_auth import handle_bootstrap_auth_response
 from .bootstrap_request_policy import ManagedRequestPolicy
 from .client_token_manager import ClientTokenManager
 from .controller_url_resolver import resolve_controller_url
 from .http_error_handler import detect_auth_method_from_headers, parse_error_response
+from .internal_http_auth_strategy import AuthStrategyRequestsMixin
+from .request_target import RequestTarget, build_external_client
 
 
 def _parse_optional_json_response(response: httpx.Response) -> Any:
@@ -33,11 +34,15 @@ def _parse_optional_json_response(response: httpx.Response) -> Any:
         return {}
 
 
-class InternalHttpClient:
+class InternalHttpClient(AuthStrategyRequestsMixin):
     """Internal HTTP client for Miso Controller communication.
 
     Provides automatic client token management. This class contains the core HTTP
     functionality without logging. Wrapped by HttpClient which adds audit logging.
+
+    Requests are routed by target origin (:class:`RequestTarget`): controller
+    targets carry the client token (and the managed origin pin); external
+    targets travel on a plain transport that carries no SDK credential.
     """
 
     def __init__(self, config: MisoClientConfig):
@@ -54,6 +59,8 @@ class InternalHttpClient:
             else None
         )
         self.client: Optional[httpx.AsyncClient] = None
+        self._external: Optional[httpx.AsyncClient] = None
+        self._target = RequestTarget(config)
         self.token_manager = ClientTokenManager(config)
 
     async def _initialize_client(self) -> None:
@@ -79,27 +86,43 @@ class InternalHttpClient:
         if self.client:
             self.client.headers["x-client-token"] = token
 
-    async def _prepare_request(self, url: str, kwargs: Dict[str, Any]) -> None:
-        """Validate the target before retrieving or attaching application credentials."""
+    async def _prepare_request(
+        self, url: str, kwargs: Dict[str, Any]
+    ) -> Tuple[httpx.AsyncClient, bool]:
+        """Pick the transport for ``url`` and attach credentials only for the controller.
+
+        Returns ``(client, is_controller)``. External targets never see the client
+        token: no lookup, no header, no origin pin, no bootstrap response handling.
+        """
         await self._initialize_client()
+        assert self.client is not None
+        if not self._target.is_controller(url):
+            self._target.strip_sdk_credentials(kwargs)
+            return self._external_client(), False
         if self._managed_policy is not None:
-            assert self.client is not None
             self._managed_policy.prepare(self.client.base_url, url, kwargs)
         await self._ensure_client_token()
+        return self.client, True
+
+    def _external_client(self) -> httpx.AsyncClient:
+        if self._external is None:
+            timeout = self.client.timeout if self.client is not None else 30.0
+            self._external = build_external_client(timeout)
+        return self._external
 
     async def close(self) -> None:
-        """Close the HTTP client."""
-        if self.client:
+        """Close both transports."""
+        clients = [c for c in (self.client, self._external) if c is not None]
+        self.client, self._external = None, None
+        for client in clients:
             try:
-                await self.client.aclose()
+                await client.aclose()
             except (RuntimeError, asyncio.CancelledError):
                 # Event loop closed or cancelled - that's okay during teardown
                 return
             except Exception:
                 # Ignore any other errors during cleanup
                 return
-            finally:
-                self.client = None
 
     async def __aenter__(self) -> "InternalHttpClient":
         """Async context manager entry."""
@@ -119,9 +142,14 @@ class InternalHttpClient:
         error: httpx.HTTPStatusError,
         url: str,
         request_headers: Optional[Dict[str, str]] = None,
+        controller: bool = True,
     ) -> MisoClientError:
-        """Create MisoClientError from HTTP status error with auth metadata."""
-        if self.config.application_token_provider is not None:
+        """Create MisoClientError from HTTP status error with auth metadata.
+
+        Managed-runtime masking applies to controller responses only; an external
+        provider's error body carries no runtime secret and stays readable.
+        """
+        if controller and self.config.application_token_provider is not None:
             return MisoClientError(
                 "Managed runtime request failed", status_code=error.response.status_code
             )
@@ -136,9 +164,11 @@ class InternalHttpClient:
             auth_method=auth_method,
         )
 
-    def _connection_error(self, error: httpx.RequestError) -> MisoClientError:
+    def _connection_error(
+        self, error: httpx.RequestError, controller: bool = True
+    ) -> MisoClientError:
         """Omit raw bootstrap runtime request objects and messages from diagnostics."""
-        if self.config.application_token_provider is not None:
+        if controller and self.config.application_token_provider is not None:
             return ConnectionError("Managed runtime request failed")
         return ConnectionError(f"Request failed: {str(error)}")
 
@@ -176,10 +206,14 @@ class InternalHttpClient:
         return detect_auth_method_from_headers(request_headers)
 
     def _request_headers_for_error(
-        self, kwargs: Dict[str, Any], fallback_headers: Optional[Dict[str, str]] = None
+        self,
+        kwargs: Dict[str, Any],
+        fallback_headers: Optional[Dict[str, str]] = None,
+        client: Optional[httpx.AsyncClient] = None,
     ) -> Dict[str, str]:
         """Build merged request headers for downstream error metadata."""
-        request_headers = dict(self.client.headers) if self.client else {}
+        source = client if client is not None else self.client
+        request_headers = dict(source.headers) if source else {}
         if fallback_headers:
             request_headers.update(fallback_headers)
         request_headers.update(kwargs.get("headers", {}))
@@ -205,10 +239,10 @@ class InternalHttpClient:
         data_from_kwargs: Optional[Any],
         files: Optional[Any],
         kwargs: Dict[str, Any],
+        client: httpx.AsyncClient,
     ) -> httpx.Response:
         """Dispatch POST/PUT/PATCH request with one selected body style."""
-        assert self.client is not None
-        caller = cast(Callable[..., Awaitable[httpx.Response]], getattr(self.client, method))
+        caller = cast(Callable[..., Awaitable[httpx.Response]], getattr(client, method))
         if json_body is not None:
             return await caller(url, json=json_body, **kwargs)
         if content is not None:
@@ -243,21 +277,22 @@ class InternalHttpClient:
         kwargs: Dict[str, Any],
     ) -> Any:
         """Execute request with optional body payload and shared error handling."""
-        await self._prepare_request(url, kwargs)
+        client, controller = await self._prepare_request(url, kwargs)
         json_body, content, data_from_kwargs, files = self._extract_body_kwargs(data, kwargs)
         try:
             response = await self._dispatch_with_body(
-                method, url, json_body, content, data_from_kwargs, files, kwargs
+                method, url, json_body, content, data_from_kwargs, files, kwargs, client
             )
-            await self._handle_token_response(response)
+            if controller:
+                await self._handle_token_response(response)
             response.raise_for_status()
             return _parse_optional_json_response(response)
         except httpx.HTTPStatusError as e:
             failure = self._create_error_from_http_status(
-                e, url, self._request_headers_for_error(kwargs)
+                e, url, self._request_headers_for_error(kwargs, client=client), controller
             )
         except httpx.RequestError as e:
-            failure = self._connection_error(e)
+            failure = self._connection_error(e, controller)
         raise failure
 
     async def put(self, url: str, data: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Any:
@@ -276,22 +311,22 @@ class InternalHttpClient:
         self, method: Literal["get", "delete"], url: str, kwargs: Dict[str, Any]
     ) -> Any:
         """Execute GET/DELETE request using shared error-handling flow."""
-        await self._prepare_request(url, kwargs)
+        client, controller = await self._prepare_request(url, kwargs)
         try:
-            assert self.client is not None
-            caller = getattr(self.client, method)
+            caller = getattr(client, method)
             response = await caller(url, **kwargs)
-            await self._handle_token_response(response)
+            if controller:
+                await self._handle_token_response(response)
             response.raise_for_status()
             if method == "delete":
                 return _parse_optional_json_response(response)
             return response.json()
         except httpx.HTTPStatusError as e:
             failure = self._create_error_from_http_status(
-                e, url, self._request_headers_for_error(kwargs)
+                e, url, self._request_headers_for_error(kwargs, client=client), controller
             )
         except httpx.RequestError as e:
-            failure = self._connection_error(e)
+            failure = self._connection_error(e, controller)
         raise failure
 
     async def get_raw(self, url: str, **kwargs: Any) -> httpx.Response:
@@ -300,19 +335,19 @@ class InternalHttpClient:
         Use for binary bodies (file downloads, Graph ``/content`` after redirects) where
         :meth:`get` would raise ``UnicodeDecodeError`` or ``json.JSONDecodeError``.
         """
-        await self._prepare_request(url, kwargs)
+        client, controller = await self._prepare_request(url, kwargs)
         try:
-            assert self.client is not None
-            response = await self.client.get(url, **kwargs)
-            await self._handle_token_response(response)
+            response = await client.get(url, **kwargs)
+            if controller:
+                await self._handle_token_response(response)
             response.raise_for_status()
             return response
         except httpx.HTTPStatusError as e:
             failure = self._create_error_from_http_status(
-                e, url, self._request_headers_for_error(kwargs)
+                e, url, self._request_headers_for_error(kwargs, client=client), controller
             )
         except httpx.RequestError as e:
-            failure = self._connection_error(e)
+            failure = self._connection_error(e, controller)
         raise failure
 
     async def request(
@@ -336,137 +371,6 @@ class InternalHttpClient:
         if handler is None:
             raise ValueError(f"Unsupported HTTP method: {raw_method!r}")
         return await handler()
-
-    async def authenticated_request(
-        self,
-        method: Literal["GET", "POST", "PUT", "PATCH", "DELETE"],
-        url: str,
-        token: str,
-        data: Optional[Dict[str, Any]] = None,
-        auth_strategy: Optional[AuthStrategy] = None,
-        **kwargs: Any,
-    ) -> Any:
-        """Make authenticated request with Bearer token."""
-        auth_strategy = self._resolve_auth_strategy(token, auth_strategy)
-        return await self.request_with_auth_strategy(method, url, auth_strategy, data, **kwargs)
-
-    def _resolve_auth_strategy(
-        self, token: str, auth_strategy: Optional[AuthStrategy]
-    ) -> AuthStrategy:
-        """Resolve or create auth strategy and inject bearer token."""
-        resolved = auth_strategy or AuthStrategyHandler.get_default_strategy()
-        resolved.bearerToken = token
-        return resolved
-
-    async def request_with_auth_strategy(
-        self,
-        method: Literal["GET", "POST", "PUT", "PATCH", "DELETE"],
-        url: str,
-        auth_strategy: AuthStrategy,
-        data: Optional[Dict[str, Any]] = None,
-        **kwargs: Any,
-    ) -> Any:
-        """Make request using auth strategy fallback order."""
-        if self.config.runtime_guard is not None:
-            self.config.runtime_guard()
-        await self._initialize_client()
-        client_token = await self._resolve_client_token_for_auth_strategy(auth_strategy)
-        succeeded, result, last_error = await self._try_auth_methods(
-            method, url, auth_strategy, client_token, data, kwargs
-        )
-        if succeeded:
-            return result
-        self._raise_all_auth_methods_failed(last_error)
-
-    async def _try_auth_methods(
-        self,
-        method: Literal["GET", "POST", "PUT", "PATCH", "DELETE"],
-        url: str,
-        auth_strategy: AuthStrategy,
-        client_token: Optional[str],
-        data: Optional[Dict[str, Any]],
-        request_kwargs: Dict[str, Any],
-    ) -> Tuple[bool, Any, Optional[Exception]]:
-        """Try strategy methods in priority order and capture last auth-related error."""
-        last_error: Optional[Exception] = None
-        for auth_method in auth_strategy.methods:
-            try:
-                result = await self._request_with_single_auth_method(
-                    method, url, auth_strategy, auth_method, client_token, data, request_kwargs
-                )
-                return True, result, None
-            except httpx.HTTPStatusError as error:
-                should_continue = self._handle_auth_method_http_error(error, auth_method)
-                if should_continue:
-                    last_error = error
-                    continue
-                raise
-            except httpx.RequestError as error:
-                raise ConnectionError(f"Request failed: {str(error)}")
-            except ValueError as error:
-                last_error = error
-                continue
-        return False, None, last_error
-
-    def _handle_auth_method_http_error(
-        self, error: httpx.HTTPStatusError, auth_method: AuthMethod
-    ) -> bool:
-        """Handle strategy HTTP errors and return whether fallback should continue."""
-        if error.response.status_code != 401:
-            return False
-        self._clear_client_token_on_401(auth_method)
-        return True
-
-    async def _resolve_client_token_for_auth_strategy(
-        self, auth_strategy: AuthStrategy
-    ) -> Optional[str]:
-        """Resolve client token once when strategy requires client credentials."""
-        if "client-token" in auth_strategy.methods or "client-credentials" in auth_strategy.methods:
-            return await self.token_manager.get_client_token()
-        return None
-
-    def _merge_auth_headers(
-        self, kwargs: Dict[str, Any], auth_headers: Dict[str, str]
-    ) -> Dict[str, Any]:
-        """Merge strategy auth headers with existing request headers."""
-        request_headers = kwargs.get("headers", {}).copy()
-        request_headers.update(auth_headers)
-        return {**kwargs, "headers": request_headers}
-
-    async def _request_with_single_auth_method(
-        self,
-        method: Literal["GET", "POST", "PUT", "PATCH", "DELETE"],
-        url: str,
-        auth_strategy: AuthStrategy,
-        auth_method: AuthMethod,
-        client_token: Optional[str],
-        data: Optional[Dict[str, Any]],
-        request_kwargs: Dict[str, Any],
-    ) -> Any:
-        """Attempt a request using one authentication method."""
-        auth_headers = AuthStrategyHandler.build_auth_headers(
-            auth_method, auth_strategy, client_token
-        )
-        kwargs_with_auth = self._merge_auth_headers(request_kwargs, auth_headers)
-        return await self.request(method, url, data, **kwargs_with_auth)
-
-    def _clear_client_token_on_401(self, auth_method: AuthMethod) -> None:
-        """Clear cached client token when client auth methods receive 401."""
-        if auth_method in ["client-token", "client-credentials"]:
-            self.token_manager.clear_token()
-
-    def _raise_all_auth_methods_failed(self, last_error: Optional[Exception]) -> NoReturn:
-        """Raise final strategy failure when all methods are exhausted."""
-        if last_error is None:
-            raise AuthenticationError("No authentication methods available")
-
-        status_code = getattr(last_error, "status_code", 401)
-        error_response = getattr(last_error, "error_response", None)
-        raise MisoClientError(
-            f"All authentication methods failed. Last error: {str(last_error)}",
-            status_code=status_code,
-            error_response=error_response,
-        )
 
     async def get_environment_token(self) -> str:
         """Get environment token using client credentials.

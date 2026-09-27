@@ -2,6 +2,14 @@
 
 ## Client token policy
 
+The client token is sent **only to the controller origin**. `HttpClient` classifies every
+request by target: a relative path or an absolute URL on `controller_url`,
+`controllerPrivateUrl` or `controllerPublicUrl` is a controller request and carries
+`x-client-token`; any other absolute URL (an LLM provider, a CRM, a webhook) is sent on a
+credential-free transport with exactly the headers the caller passed, minus any SDK
+credential header. A provider's 401 is returned as the provider's error and never touches
+the client token or the managed runtime.
+
 All Miso Controller APIs (except the client token endpoint) require a **client token** sent as the `x-client-token` header. Only the configured client token URI (e.g. `POST /api/v1/auth/token`) may receive `x-client-id` and `x-client-secret`. The SDK never sends client id/secret to any other path; it fetches the client token once and then uses `x-client-token` for all other requests.
 
 ---

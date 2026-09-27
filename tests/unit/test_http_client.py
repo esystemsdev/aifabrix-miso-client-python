@@ -403,8 +403,9 @@ class TestInternalHttpClient:
         http_client.client.post = AsyncMock(return_value=mock_response)
 
         with patch.object(http_client, "_ensure_client_token", new_callable=AsyncMock):
+            # controller-relative path: the test is about kwargs, not routing
             result = await http_client.post(
-                "https://example.com/api/endpoint",
+                "/api/endpoint",
                 json=payload,
                 timeout=60.0,
             )
@@ -437,8 +438,9 @@ class TestInternalHttpClient:
         http_client.client.put = AsyncMock(return_value=mock_response)
 
         with patch.object(http_client, "_ensure_client_token", new_callable=AsyncMock):
+            # controller-relative path: the test is about kwargs, not routing
             result = await http_client.put(
-                "https://example.com/api/endpoint",
+                "/api/endpoint",
                 json=payload,
                 timeout=60.0,
             )
