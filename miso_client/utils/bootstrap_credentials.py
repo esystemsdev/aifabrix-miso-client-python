@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import math
 import re
@@ -51,8 +52,26 @@ def parse_minted_token(body: bytes) -> tuple[SecretStr, float]:
     return result
 
 
+def _is_internal_http_host(hostname: str) -> bool:
+    """Return whether a hostname is a local/private service-to-service target."""
+    host = hostname.rstrip(".").lower()
+    try:
+        address = ipaddress.ip_address(host)
+        return bool(
+            not address.is_unspecified
+            and not address.is_multicast
+            and (address.is_loopback or address.is_private or address.is_link_local)
+        )
+    except ValueError:
+        return bool(
+            host == "localhost"
+            or "." not in host
+            or host.endswith((".localhost", ".internal", ".local", ".svc"))
+        )
+
+
 def validate_settings(url: str) -> str:
-    """Return a pinned HTTPS bootstrap URL, preserving a safe deployment prefix."""
+    """Return a pinned bootstrap URL; HTTP is limited to local/private targets."""
     valid = False
     try:
         parts = urlsplit(url)
@@ -60,8 +79,11 @@ def validate_settings(url: str) -> str:
         valid = bool(
             url
             and url == url.strip()
-            and parts.scheme == "https"
             and parts.hostname
+            and (
+                parts.scheme == "https"
+                or (parts.scheme == "http" and _is_internal_http_host(parts.hostname))
+            )
             and not parts.username
             and not parts.password
             and not parts.query

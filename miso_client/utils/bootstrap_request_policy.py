@@ -7,6 +7,7 @@ from typing import Any, Dict
 import httpx
 
 from ..models.bootstrap import BootstrapError
+from .bootstrap_credentials import _is_internal_http_host
 
 
 class ManagedRequestPolicy:
@@ -14,7 +15,12 @@ class ManagedRequestPolicy:
 
     def __init__(self, controller_url: str):
         self.origin = httpx.URL(controller_url)
-        if self.origin.scheme != "https" or not self.origin.host or self.origin.userinfo:
+        trusted_protocol = self.origin.scheme == "https" or (
+            self.origin.scheme == "http"
+            and bool(self.origin.host)
+            and _is_internal_http_host(self.origin.host)
+        )
+        if not trusted_protocol or not self.origin.host or self.origin.userinfo:
             raise BootstrapError("invalid-bootstrap-settings")
 
     def prepare(self, base: httpx.URL, url: str, kwargs: Dict[str, Any]) -> None:

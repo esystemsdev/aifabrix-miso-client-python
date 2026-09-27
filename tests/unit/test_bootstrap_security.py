@@ -6,8 +6,25 @@ import httpx
 import pytest
 
 from miso_client import BootstrapError
+from miso_client.utils.bootstrap_request_policy import ManagedRequestPolicy
 from miso_client.utils.bootstrap_transport import BrokerTransport
 from tests.unit.test_bootstrap_auth import client_for, runtime_with_snapshot
+
+
+def test_managed_request_policy_allows_private_http_origin():
+    policy = ManagedRequestPolicy("http://miso-controller:3000/miso")
+    kwargs = {}
+    policy.prepare(
+        httpx.URL("http://miso-controller:3000/miso/"),
+        "/miso/api/v1/health",
+        kwargs,
+    )
+    assert kwargs["follow_redirects"] is False
+
+
+def test_managed_request_policy_rejects_public_http_origin():
+    with pytest.raises(BootstrapError, match="invalid-bootstrap-settings"):
+        ManagedRequestPolicy("http://miso.example.com/miso")
 
 
 @pytest.mark.asyncio
