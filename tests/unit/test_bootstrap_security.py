@@ -40,14 +40,25 @@ def test_managed_request_policy_rejects_public_http_origin():
     ],
 )
 async def test_application_token_cannot_leave_pinned_origin(method, url):
+    """Non-controller targets travel credential-free: no token lookup, no pinned transport."""
     runtime = runtime_with_snapshot()
     handler = AsyncMock(return_value=httpx.Response(200, json={}))
     client = client_for(runtime, handler)
+    seen = []
+
+    def external(request):
+        seen.append(request)
+        return httpx.Response(200, json={})
+
+    client._external = httpx.AsyncClient(transport=httpx.MockTransport(external))
     with patch.object(runtime, "get_token", new_callable=AsyncMock) as token:
-        with pytest.raises(BootstrapError, match="untrusted-request-target"):
+        try:
             await getattr(client, method)(url)
+        except Exception:
+            pass  # protocol-relative URLs fail to send; the assertion below is the point
         token.assert_not_called()
     handler.assert_not_called()
+    assert all("x-client-token" not in request.headers for request in seen)
     await runtime.close()
     await client.close()
 

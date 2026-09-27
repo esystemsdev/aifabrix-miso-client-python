@@ -11,6 +11,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - No unreleased additions.
 
+## [5.0.2] - 2026-09-27
+
+### Changed
+
+- Requests are routed by target origin. Relative paths and URLs on a configured
+  controller origin (`controller_url`, `controllerPrivateUrl`, `controllerPublicUrl`)
+  carry `x-client-token` and, under a managed runtime, the origin pin and bootstrap
+  response handling. Every other absolute URL (LLM providers, CRMs, SharePoint,
+  webhooks) travels on a credential-free transport inside the same `HttpClient`:
+  no token lookup, no `x-client-token`, SDK credential headers copied in by the
+  caller are removed, provider errors are returned unmasked and a provider 401 can
+  neither clear the client token nor invalidate the runtime. Protocol-relative URLs
+  are external. This replaces both the pre-5.0 behaviour (token sent to every host)
+  and the 5.0 behaviour (`untrusted-request-target` for every non-controller host).
+
+### Added
+
+- `miso_client.utils.request_target` (`RequestTarget`, `origin_of`).
+
 ## [5.0.1] - 2026-09-27
 
 ### Added
