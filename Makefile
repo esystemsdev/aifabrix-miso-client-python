@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help install install-dev test test-cov test-integration test-integration-legacy test-manual lint format basedpyright type-check build check clean clean-venv validate validate-api publish test-publish venv all dev format-silent lint-silent basedpyright-silent test-silent test-cov-silent test-integration-silent type-check-silent validate-silent
+.PHONY: test-token-lifecycle-e2e help install install-dev test test-cov test-integration test-integration-legacy test-manual lint format basedpyright type-check build check clean clean-venv validate validate-api publish test-publish venv all dev format-silent lint-silent basedpyright-silent test-silent test-cov-silent test-integration-silent type-check-silent validate-silent
 
 help: ## Show all commands
 	@echo "Usage: make [target]"
@@ -51,6 +51,10 @@ test-cov-silent: ## Run coverage tests in silent mode (writes .temp/validation/0
 
 test-integration: venv ## Run integration tests (requires: aifabrix auth status --validate succeeds; no skips, failures shown as errors)
 	$(VENV_PYTHON) -m pytest tests/integration/ -v --no-cov
+
+test-token-lifecycle-e2e: venv ## Run real controller token lifecycle tests (requires registered test app and valid CLI auth)
+	@mkdir -p .temp/validation
+	$(VENV_PYTHON) -m pytest tests/integration/test_client_token_lifecycle.py -o addopts= -o junit_family=legacy --no-cov --tb=short -v --junitxml=.temp/validation/52-live-e2e.xml
 
 test-integration-silent: ## Run integration tests in silent mode (writes .temp/validation/06-test-integration)
 	@$(call run_silent,test-integration,06-test-integration)

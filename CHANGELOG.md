@@ -7,9 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.3] - 2026-09-29
+
 ### Added
 
-- No unreleased additions.
+- Live controller token-lifecycle integration tests and `make test-token-lifecycle-e2e`
+  for concurrent success/failure, retry, cancellation, invalidation and shutdown.
+
+### Fixed
+
+- Concurrent legacy/local client-token callers now share one in-flight mint even
+  when it fails. Later calls can retry immediately. Waiter cancellation leaves
+  shared work intact; client shutdown settles the mint, and invalidation prevents
+  late responses from restoring cleared token state.
 
 ## [5.0.2] - 2026-09-27
 

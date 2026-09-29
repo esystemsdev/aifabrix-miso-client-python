@@ -112,6 +112,7 @@ class InternalHttpClient(AuthStrategyRequestsMixin):
 
     async def close(self) -> None:
         """Close both transports."""
+        await self.token_manager.close()
         clients = [c for c in (self.client, self._external) if c is not None]
         self.client, self._external = None, None
         for client in clients:

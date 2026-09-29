@@ -30,6 +30,63 @@ Request-driven parity scope for Python SDK runtime:
 
 ---
 
+## Token reuse and concurrent calls
+
+Reuse one SDK client per application identity on its owning event loop. In local
+or legacy credential mode, the client holds a successful token in memory until
+its refresh deadline; Redis is not required. Concurrent callers awaiting the
+same token mint share its result, including an authentication or transport error.
+A later call can retry immediately after a failed attempt completes. The SDK does
+not add a failure cooldown or automatically retry the failed operation.
+
+Cancelling one caller does not cancel the mint for other callers. Closing the
+client cancels and awaits its outstanding mint. Clearing token state prevents a
+late response from restoring or returning that invalidated token; callers waiting
+on that response receive an authentication error and may retry afterward.
+
+Sharing applies to one client instance, not across clients or processes. Creating
+a fresh client for every operation still requires a fresh token mint. Managed
+`init_secrets()` bootstrap mode retains its existing snapshot refresh, cancellation
+and cooldown behavior. Neither mode can make rejected credentials valid.
+
+## Live token lifecycle tests
+
+The repository's `tests/integration/test_client_token_lifecycle.py` exercises real
+controller token issuance and validation. It uses the existing integration-test
+CLI authentication preflight and is also collected by `make test-integration`.
+
+Register the existing test application in your active development environment:
+
+```bash
+af auth status --validate
+af app register miso-test
+```
+
+Use that registration's credentials in the usual `.env` (`MISO_CLIENTID`,
+`MISO_CLIENTSECRET`, `MISO_CONTROLLER_URL`), or supply dedicated environment
+variables `MISO_TOKEN_E2E_CLIENT_ID`, `MISO_TOKEN_E2E_CLIENT_SECRET` and
+`MISO_TOKEN_E2E_CONTROLLER_URL`. The dedicated variables override `.env` and the
+CLI controller selection for this test file. Keep credential values out of source
+control and command history. Register once and reuse the test application.
+
+```bash
+make test-token-lifecycle-e2e
+```
+
+The five tests cover 24 concurrent successful callers sharing one mint, 24 denied
+callers sharing one real 401 followed by successful retry, cancellation of one
+waiter, invalidation of a late response, and shutdown cleanup. Successful tokens
+are checked through the controller's token-validation endpoint. The denial test
+uses an intentionally wrong secret locally, then restores it; it does not rotate
+or modify registered credentials.
+
+HTTP hooks count real traffic and briefly pause delivery of real responses for
+race tests. No response or network transport is mocked. Counts, HTTP statuses and
+correlation IDs are saved in `.temp/validation/52-live-e2e.xml`; tokens and secrets
+are not recorded. Missing credentials or controller failures fail the suite rather
+than skipping tests. These tests validate the local SDK against a live controller;
+they do not constitute a Dataplane worker deployment or operations-flow test.
+
 ## Environment variables
 
 Create a `.env` in your project (or set in your environment):
