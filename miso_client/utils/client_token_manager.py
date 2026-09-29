@@ -44,6 +44,8 @@ class ClientTokenManager:
         self.client_token: Optional[str] = None
         self.token_expires_at: Optional[datetime] = None
         self.token_refresh_lock = asyncio.Lock()
+        self._refresh_task: Optional[asyncio.Task[str]] = None
+        self._generation = 0
 
     def extract_correlation_id(self, response: Optional[httpx.Response] = None) -> Optional[str]:
         """Extract correlation ID from response headers."""
@@ -196,7 +198,8 @@ class ClientTokenManager:
 
         Returns cached token while it is not expired so that the same token
         is reused for all client-credential requests (e.g. logger and application
-        status). Refetches only when token is actually expired (or missing).
+        status). Concurrent callers share one mint, including its failure.
+        A subsequent call may retry immediately after a failed attempt.
 
         Returns:
             Client token string
@@ -209,19 +212,49 @@ class ClientTokenManager:
             self.config.runtime_guard()
         if self.config.application_token_provider is not None:
             return await self.config.application_token_provider.get_token()
-        now = datetime.now()
-        if self._is_token_valid(now):
+        if self._is_token_valid():
             assert self.client_token is not None
             return self.client_token
 
+        generation = self._generation
+        if self._refresh_task is None or self._refresh_task.done():
+            self._refresh_task = asyncio.create_task(self._refresh_client_token(generation))
+            self._refresh_task.add_done_callback(self._settle_refresh)
+        token = await asyncio.shield(self._refresh_task)
+        self._check_generation(generation)
+        return token
+
+    async def _refresh_client_token(self, generation: int) -> str:
+        """Mint once for the current waiters, rechecking state after the lock."""
         async with self.token_refresh_lock:
-            if self._is_token_valid(now):
-                assert self.client_token is not None
-                return self.client_token
-
-            await self.fetch_client_token()
+            self._check_generation(generation)
+            if not self._is_token_valid():
+                await self.fetch_client_token()
+            self._check_generation(generation)
             assert self.client_token is not None
             return self.client_token
+
+    def _check_generation(self, generation: int) -> None:
+        """Reject results belonging to an invalidated token generation."""
+        if generation != self._generation:
+            raise AuthenticationError("Client token refresh invalidated")
+        if self.config.runtime_guard is not None:
+            self.config.runtime_guard()
+
+    def _settle_refresh(self, task: asyncio.Task[str]) -> None:
+        """Release finished work and retrieve errors even if all waiters left."""
+        if self._refresh_task is task:
+            self._refresh_task = None
+        if not task.cancelled():
+            task.exception()
+
+    async def close(self) -> None:
+        """Invalidate cached state and cancel and await the outstanding mint."""
+        self.clear_token()
+        task = self._refresh_task
+        if task is not None:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
 
     async def fetch_client_token(self) -> None:
         """Fetch and cache client token from controller."""
@@ -229,6 +262,7 @@ class ClientTokenManager:
             await self.config.application_token_provider.get_token()
             return
         client_id = self.config.client_id
+        generation = self._generation
         response: Optional[httpx.Response] = None
         correlation_id: Optional[str] = None
 
@@ -239,6 +273,7 @@ class ClientTokenManager:
             data = self._normalize_token_response_data(response.json())
             token_response = ClientTokenResponse(**self._ensure_token_defaults(data))
             self._validate_token_response(token_response, client_id, correlation_id)
+            self._check_generation(generation)
             self._store_token_with_expiration(token_response)
         except httpx.HTTPError as error:
             error_msg = self._build_auth_error_message(
@@ -260,3 +295,4 @@ class ClientTokenManager:
         """
         self.client_token = None
         self.token_expires_at = None
+        self._generation += 1
