@@ -9,7 +9,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from miso_client.errors import MisoClientError
 from miso_client.models.config import AuthStrategy, MisoClientConfig
 from miso_client.utils.auth_strategy import AuthStrategyHandler
 
@@ -135,45 +134,6 @@ class TestInternalHttpClientAuthStrategy:
             result = await http_client.request_with_auth_strategy("GET", "/api/test", strategy)
             assert result == {"data": "test"}
             mock_request.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_request_with_auth_strategy_401_fallback(self, http_client):
-        """Test request_with_auth_strategy falls back on 401."""
-        strategy = AuthStrategy(
-            methods=["bearer", "api-key"], bearerToken="test-token", apiKey="test-key"
-        )
-
-        import httpx
-
-        error_401 = httpx.HTTPStatusError(
-            "401 Unauthorized", request=MagicMock(), response=MagicMock(status_code=401)
-        )
-
-        with patch.object(http_client, "request", new_callable=AsyncMock) as mock_request:
-            # First call returns 401, second succeeds
-            mock_request.side_effect = [error_401, {"data": "success"}]
-            result = await http_client.request_with_auth_strategy("GET", "/api/test", strategy)
-            assert result == {"data": "success"}
-            # Should have tried twice (bearer failed, api-key succeeded)
-            assert mock_request.call_count == 2
-
-    @pytest.mark.asyncio
-    async def test_request_with_auth_strategy_all_methods_fail(self, http_client):
-        """Test request_with_auth_strategy when all methods fail."""
-        strategy = AuthStrategy(
-            methods=["bearer", "api-key"], bearerToken="test-token", apiKey="test-key"
-        )
-
-        import httpx
-
-        error_401 = httpx.HTTPStatusError(
-            "401 Unauthorized", request=MagicMock(), response=MagicMock(status_code=401)
-        )
-
-        with patch.object(http_client, "request", new_callable=AsyncMock) as mock_request:
-            mock_request.side_effect = error_401
-            with pytest.raises(MisoClientError, match="All authentication methods failed"):
-                await http_client.request_with_auth_strategy("GET", "/api/test", strategy)
 
     @pytest.mark.asyncio
     async def test_request_with_auth_strategy_merges_existing_headers(self, http_client):

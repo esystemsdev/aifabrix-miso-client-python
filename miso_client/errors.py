@@ -50,6 +50,9 @@ class MisoClientError(Exception):
         self.error_response = error_response
 
         # Set auth_method from parameter or extract from error_response
+        self.correlation_id = (
+            error_response.correlationId if error_response is not None else None
+        ) or (error_body or {}).get("correlationId")
         self.auth_method: Optional[AuthMethod] = auth_method
         if self.auth_method is None and error_response is not None:
             self.auth_method = error_response.authMethod
@@ -87,9 +90,12 @@ class EncryptionError(MisoClientError):
     def __init__(
         self,
         message: str,
-        code: Optional[EncryptionErrorCode] = None,
+        code: Optional[str] = None,
         parameter_name: Optional[str] = None,
         status_code: Optional[int] = None,
+        error_body: dict[str, Any] | None = None,
+        error_response: "ErrorResponse | None" = None,
+        auth_method: Optional[AuthMethod] = None,
     ):
         """Initialize encryption error.
 
@@ -98,8 +104,17 @@ class EncryptionError(MisoClientError):
             code: Error code for programmatic handling
             parameter_name: The parameter name that caused the error
             status_code: HTTP status code if applicable
+            error_body: Sanitized controller diagnostic payload.
+            error_response: Structured controller error.
+            auth_method: Authentication method reported by the controller.
 
         """
-        super().__init__(message, status_code=status_code)
+        super().__init__(
+            message,
+            status_code=status_code,
+            error_body=error_body,
+            error_response=error_response,
+            auth_method=auth_method,
+        )
         self.code = code
         self.parameter_name = parameter_name

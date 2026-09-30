@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: test-token-lifecycle-e2e help install install-dev test test-cov test-integration test-integration-legacy test-manual lint format basedpyright type-check build check clean clean-venv validate validate-api publish test-publish venv all dev format-silent lint-silent basedpyright-silent test-silent test-cov-silent test-integration-silent type-check-silent validate-silent
+.PHONY: test-encryption-e2e test-token-lifecycle-e2e help install install-dev test test-cov test-integration test-integration-legacy test-manual lint format basedpyright type-check build check clean clean-venv validate validate-api publish test-publish venv all dev format-silent lint-silent basedpyright-silent test-silent test-cov-silent test-integration-silent type-check-silent validate-silent
 
 help: ## Show all commands
 	@echo "Usage: make [target]"
@@ -140,3 +140,8 @@ dev: venv install-dev ## Set up development environment
 	@echo "Development environment set up. Run 'make test' to run tests."
 	@echo "Virtual environment: $(VENV)"
 	@echo "Activate with: source $(VENV)/bin/activate"
+
+
+test-encryption-e2e: venv ## Round-trip a throwaway value through real encrypt/decrypt endpoints
+	@mkdir -p .temp/validation
+	$(VENV_PYTHON) -m pytest tests/manual/test_encryption_roundtrip_live.py -o addopts= -o junit_family=legacy --no-cov --tb=short -v --junitxml=.temp/validation/52-encryption-live.xml

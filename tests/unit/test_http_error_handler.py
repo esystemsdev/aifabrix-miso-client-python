@@ -106,6 +106,8 @@ class TestExtractCorrelationIdFromResponse:
     def test_extract_from_x_correlation_id(self):
         """Test extraction from x-correlation-id header."""
         response = Mock(spec=httpx.Response)
+        response.content = b"{}"
+        response.request = httpx.Request("GET", "https://controller.test/api/test")
         response.headers = {"x-correlation-id": "corr-123"}
         result = extract_correlation_id_from_response(response)
         assert result == "corr-123"
@@ -113,6 +115,8 @@ class TestExtractCorrelationIdFromResponse:
     def test_extract_from_x_request_id(self):
         """Test extraction from x-request-id header."""
         response = Mock(spec=httpx.Response)
+        response.content = b"{}"
+        response.request = httpx.Request("GET", "https://controller.test/api/test")
         response.headers = {"x-request-id": "req-456"}
         result = extract_correlation_id_from_response(response)
         assert result == "req-456"
@@ -120,6 +124,8 @@ class TestExtractCorrelationIdFromResponse:
     def test_extract_from_correlation_id(self):
         """Test extraction from correlation-id header."""
         response = Mock(spec=httpx.Response)
+        response.content = b"{}"
+        response.request = httpx.Request("GET", "https://controller.test/api/test")
         response.headers = {"correlation-id": "corr-789"}
         result = extract_correlation_id_from_response(response)
         assert result == "corr-789"
@@ -132,6 +138,8 @@ class TestExtractCorrelationIdFromResponse:
     def test_returns_none_when_no_correlation_header(self):
         """Test returns None when no correlation headers present."""
         response = Mock(spec=httpx.Response)
+        response.content = b"{}"
+        response.request = httpx.Request("GET", "https://controller.test/api/test")
         # Use a Mock for headers that returns None for any get() call
         mock_headers = Mock()
         mock_headers.get.return_value = None
@@ -146,6 +154,8 @@ class TestParseErrorResponse:
     def test_parse_valid_error_response(self):
         """Test parsing a valid error response."""
         response = Mock(spec=httpx.Response)
+        response.content = b"{}"
+        response.request = httpx.Request("GET", "https://controller.test/api/test")
         response.headers = {"content-type": "application/json"}
         response.json.return_value = {
             "errors": ["Error message"],
@@ -163,6 +173,8 @@ class TestParseErrorResponse:
     def test_parse_error_response_with_auth_method(self):
         """Test parsing error response that includes authMethod."""
         response = Mock(spec=httpx.Response)
+        response.content = b"{}"
+        response.request = httpx.Request("GET", "https://controller.test/api/test")
         response.headers = {"content-type": "application/json"}
         response.json.return_value = {
             "errors": ["Token expired"],
@@ -179,6 +191,8 @@ class TestParseErrorResponse:
     def test_parse_error_response_preserves_instance(self):
         """Test that instance from response is preserved."""
         response = Mock(spec=httpx.Response)
+        response.content = b"{}"
+        response.request = httpx.Request("GET", "https://controller.test/api/test")
         response.headers = {"content-type": "application/json"}
         response.json.return_value = {
             "errors": ["Error"],
@@ -194,6 +208,8 @@ class TestParseErrorResponse:
     def test_parse_error_response_extracts_correlation_id(self):
         """Test that correlation ID is extracted from headers when not in body."""
         response = Mock(spec=httpx.Response)
+        response.content = b"{}"
+        response.request = httpx.Request("GET", "https://controller.test/api/test")
         # Create a dict-like mock for headers
         headers_dict = {
             "content-type": "application/json",
@@ -216,6 +232,8 @@ class TestParseErrorResponse:
     def test_returns_none_for_non_json_response(self):
         """Test returns None for non-JSON response."""
         response = Mock(spec=httpx.Response)
+        response.content = b"{}"
+        response.request = httpx.Request("GET", "https://controller.test/api/test")
         response.headers = {"content-type": "text/html"}
         result = parse_error_response(response, "/api/test")
         assert result is None
@@ -223,6 +241,8 @@ class TestParseErrorResponse:
     def test_returns_none_for_invalid_structure(self):
         """Test returns None when JSON doesn't match ErrorResponse structure."""
         response = Mock(spec=httpx.Response)
+        response.content = b"{}"
+        response.request = httpx.Request("GET", "https://controller.test/api/test")
         response.headers = {"content-type": "application/json"}
         response.json.return_value = {"message": "Just a message"}
         result = parse_error_response(response, "/api/test")
@@ -231,6 +251,8 @@ class TestParseErrorResponse:
     def test_returns_none_for_missing_required_fields(self):
         """Test returns None when required fields are missing."""
         response = Mock(spec=httpx.Response)
+        response.content = b"{}"
+        response.request = httpx.Request("GET", "https://controller.test/api/test")
         response.headers = {"content-type": "application/json"}
         response.json.return_value = {
             "errors": ["Error"],
@@ -243,6 +265,8 @@ class TestParseErrorResponse:
     def test_returns_none_on_json_parse_error(self):
         """Test returns None when JSON parsing fails."""
         response = Mock(spec=httpx.Response)
+        response.content = b"{}"
+        response.request = httpx.Request("GET", "https://controller.test/api/test")
         response.headers = {"content-type": "application/json"}
         response.json.side_effect = ValueError("Invalid JSON")
         result = parse_error_response(response, "/api/test")
@@ -255,6 +279,8 @@ class TestIntegration:
     def test_full_401_error_flow_with_auth_method(self):
         """Test complete flow of parsing 401 error with authMethod."""
         response = Mock(spec=httpx.Response)
+        response.content = b"{}"
+        response.request = httpx.Request("GET", "https://controller.test/api/test")
         # Create a dict-like mock for headers
         headers_dict = {
             "content-type": "application/json",

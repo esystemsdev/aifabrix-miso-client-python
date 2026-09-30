@@ -188,6 +188,14 @@ class EncryptionService:
         except Exception:
             return
 
+    @staticmethod
+    def _controller_error_code(error: MisoClientError) -> Optional[str]:
+        """Prefer a controller diagnostic code over the generic operation fallback."""
+        code = (error.error_body or {}).get("code")
+        if isinstance(code, str) and code:
+            return code
+        return error.error_response.code if error.error_response is not None else None
+
     def _raise_encrypt_error(self, error: MisoClientError, parameter_name: str) -> NoReturn:
         """Raise normalized EncryptionError for encrypt failures."""
         correlation_id = extract_correlation_id_from_error(error)
@@ -199,9 +207,12 @@ class EncryptionService:
         )
         raise EncryptionError(
             str(error),
-            code="ENCRYPTION_FAILED",
+            code=self._controller_error_code(error) or "ENCRYPTION_FAILED",
             parameter_name=parameter_name,
             status_code=error.status_code,
+            error_body=error.error_body,
+            error_response=error.error_response,
+            auth_method=error.auth_method,
         ) from error
 
     def _raise_decrypt_error(self, error: MisoClientError, parameter_name: str) -> NoReturn:
@@ -222,9 +233,12 @@ class EncryptionService:
         )
         raise EncryptionError(
             str(error),
-            code=code,
+            code=self._controller_error_code(error) or code,
             parameter_name=parameter_name,
             status_code=error.status_code,
+            error_body=error.error_body,
+            error_response=error.error_response,
+            auth_method=error.auth_method,
         ) from error
 
     @staticmethod
