@@ -4,7 +4,7 @@ This module provides a generic error response interface that can be used
 across different applications for consistent error handling.
 """
 
-from typing import List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -44,4 +44,10 @@ class ErrorResponse(BaseModel):
     authMethod: Optional[AuthMethod] = Field(
         default=None,
         description="Authentication method that was attempted and failed (401 errors only)",
+    )
+
+    code: Optional[str] = Field(default=None, description="Controller error code")
+    detail: Optional[str] = Field(default=None, description="Sanitized controller explanation")
+    clientIdentity: Optional[Dict[str, Any]] = Field(
+        default=None, description="Controller-disclosed identity"
     )

@@ -183,8 +183,10 @@ class TestEncrypt:
         assert result.storage == "local"
 
     @pytest.mark.asyncio
-    async def test_encrypt_api_error(self, encryption_service, mock_http_client):
-        """Test encryption API error is wrapped in EncryptionError."""
+    async def test_encrypt_api_error_without_controller_code(
+        self, encryption_service, mock_http_client
+    ):
+        """Keep a generic fallback code only when the controller supplied no specific code."""
         mock_http_client.post.side_effect = MisoClientError(
             "Internal server error", status_code=500
         )

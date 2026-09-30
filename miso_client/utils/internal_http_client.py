@@ -19,6 +19,7 @@ from .bootstrap_request_policy import ManagedRequestPolicy
 from .client_token_manager import ClientTokenManager
 from .controller_url_resolver import resolve_controller_url
 from .http_error_handler import detect_auth_method_from_headers, parse_error_response
+from .http_error_sanitizer import safe_error_body, safe_error_text
 from .internal_http_auth_strategy import AuthStrategyRequestsMixin
 from .request_target import RequestTarget, build_external_client
 
@@ -147,18 +148,30 @@ class InternalHttpClient(AuthStrategyRequestsMixin):
     ) -> MisoClientError:
         """Create MisoClientError from HTTP status error with auth metadata.
 
-        Managed-runtime masking applies to controller responses only; an external
-        provider's error body carries no runtime secret and stays readable.
+        Managed errors expose only sanitized controller diagnostics; external
+        provider explanations also mask sensitive fields and known credentials.
         """
-        if controller and self.config.application_token_provider is not None:
-            return MisoClientError(
-                "Managed runtime request failed", status_code=error.response.status_code
-            )
-        error_response = parse_error_response(error.response, url)
-        error_body = self._extract_error_body(error, error_response)
+        managed = controller and self.config.application_token_provider is not None
+        error_body = safe_error_body(
+            error.response,
+            (self.config.client_secret or "", self.config.encryption_key or ""),
+            managed,
+        )
+        error_response = parse_error_response(error.response, url, error_body)
+        if error_response is not None:
+            error_response.statusCode = error.response.status_code
         auth_method = self._detect_auth_method(error, error_response, request_headers)
+        message = (
+            "Managed runtime request failed" if managed else f"HTTP {error.response.status_code}"
+        )
+        if error_body:
+            message += ": " + json.dumps(error_body)
+        elif not managed:
+            message += ": " + safe_error_text(
+                error.response, (self.config.client_secret or "", self.config.encryption_key or "")
+            )
         return MisoClientError(
-            f"HTTP {error.response.status_code}: {error.response.text}",
+            message,
             status_code=error.response.status_code,
             error_body=error_body,
             error_response=error_response,
@@ -172,21 +185,6 @@ class InternalHttpClient(AuthStrategyRequestsMixin):
         if controller and self.config.application_token_provider is not None:
             return ConnectionError("Managed runtime request failed")
         return ConnectionError(f"Request failed: {str(error)}")
-
-    def _extract_error_body(
-        self, error: httpx.HTTPStatusError, error_response: Any
-    ) -> Dict[str, Any]:
-        """Extract JSON body when structured parser returned no response."""
-        if error_response:
-            return {}
-        content_type = error.response.headers.get("content-type", "")
-        if not content_type.startswith("application/json"):
-            return {}
-        try:
-            parsed = error.response.json()
-        except (ValueError, TypeError):
-            return {}
-        return cast(Dict[str, Any], parsed) if isinstance(parsed, dict) else {}
 
     def _detect_auth_method(
         self,

@@ -9,6 +9,7 @@ import httpx
 from ..errors import AuthenticationError, ConnectionError, MisoClientError
 from ..models.config import AuthMethod, AuthStrategy
 from .auth_strategy import AuthStrategyHandler
+from .bootstrap_auth import BOOTSTRAP_AUTH_ERRORS
 
 if TYPE_CHECKING:
     from ..models.config import MisoClientConfig
@@ -88,7 +89,7 @@ class AuthStrategyRequestsMixin:
                     method, url, auth_strategy, auth_method, client_token, data, request_kwargs
                 )
                 return True, result, None
-            except httpx.HTTPStatusError as error:
+            except (MisoClientError, httpx.HTTPStatusError) as error:
                 should_continue = self._handle_auth_method_http_error(error, auth_method)
                 if should_continue:
                     last_error = error
@@ -102,10 +103,18 @@ class AuthStrategyRequestsMixin:
         return False, None, last_error
 
     def _handle_auth_method_http_error(
-        self, error: httpx.HTTPStatusError, auth_method: AuthMethod
+        self, error: MisoClientError | httpx.HTTPStatusError, auth_method: AuthMethod
     ) -> bool:
         """Handle strategy HTTP errors and return whether fallback should continue."""
-        if error.response.status_code != 401:
+        status = (
+            error.status_code if isinstance(error, MisoClientError) else error.response.status_code
+        )
+        if (
+            isinstance(error, MisoClientError)
+            and (error.error_body or {}).get("code") in BOOTSTRAP_AUTH_ERRORS
+        ):
+            return False
+        if status != 401:
             return False
         self._clear_client_token_on_401(auth_method)
         return True
@@ -137,6 +146,8 @@ class AuthStrategyRequestsMixin:
         request_kwargs: Dict[str, Any],
     ) -> Any:
         """Attempt a request using one authentication method."""
+        if auth_method in ("client-token", "client-credentials"):
+            client_token = await self.token_manager.get_client_token()
         auth_headers = AuthStrategyHandler.build_auth_headers(
             auth_method, auth_strategy, client_token
         )
@@ -159,4 +170,6 @@ class AuthStrategyRequestsMixin:
             f"All authentication methods failed. Last error: {str(last_error)}",
             status_code=status_code,
             error_response=error_response,
+            error_body=getattr(last_error, "error_body", None),
+            auth_method=getattr(last_error, "auth_method", None),
         )

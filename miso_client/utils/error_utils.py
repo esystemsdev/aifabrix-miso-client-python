@@ -86,6 +86,8 @@ def extract_correlation_id_from_error(error: Exception) -> Optional[str]:
         correlation_id = error.error_response.correlationId
         if correlation_id is not None:
             return str(correlation_id)
+    if isinstance(error, MisoClientError) and error.correlation_id:
+        return str(error.correlation_id)
     if isinstance(error, ApiErrorException):
         correlation_id = error.correlationId
         if correlation_id is not None:

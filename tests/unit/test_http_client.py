@@ -717,7 +717,7 @@ class TestInternalHttpClient:
         mock_response = MagicMock()
         mock_response.status_code = 500
         mock_response.text = "Internal server error"
-        mock_response.headers.get.return_value = "application/json"
+        mock_response.headers = {"content-type": "application/json"}
         mock_response.json.return_value = {"code": "ERR500", "message": "Internal server error"}
         mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
             "500", request=MagicMock(), response=mock_response
@@ -988,7 +988,7 @@ class TestInternalHttpClient:
         mock_response = MagicMock()
         mock_response.status_code = 500
         mock_response.text = "Internal server error"
-        mock_response.headers.get.return_value = "application/json"
+        mock_response.headers = {"content-type": "application/json"}
         # Response doesn't match ErrorResponse structure
         mock_response.json.return_value = {"code": "ERR500", "message": "Internal error"}
         mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
@@ -1059,7 +1059,7 @@ class TestInternalHttpClient:
         mock_response = MagicMock()
         mock_response.status_code = 422
         mock_response.text = "Validation error"
-        mock_response.headers.get.return_value = "application/json"
+        mock_response.headers = {"content-type": "application/json"}
         mock_response.json.return_value = {"field": "email", "message": "Invalid format"}
         mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
             "422", request=MagicMock(), response=mock_response
@@ -1084,7 +1084,7 @@ class TestInternalHttpClient:
         mock_response = MagicMock()
         mock_response.status_code = 409
         mock_response.text = "Conflict"
-        mock_response.headers.get.return_value = "application/json"
+        mock_response.headers = {"content-type": "application/json"}
         mock_response.json.return_value = {"conflict": "Resource exists"}
         mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
             "409", request=MagicMock(), response=mock_response
@@ -1109,7 +1109,7 @@ class TestInternalHttpClient:
         mock_response = MagicMock()
         mock_response.status_code = 404
         mock_response.text = "Not found"
-        mock_response.headers.get.return_value = "application/json"
+        mock_response.headers = {"content-type": "application/json"}
         mock_response.json.return_value = {"resource": "not found"}
         mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
             "404", request=MagicMock(), response=mock_response

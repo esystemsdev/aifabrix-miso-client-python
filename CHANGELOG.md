@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.4] - 2026-09-30
+
+### Fixed
+
+- Authentication strategies now fall back after ordinary HTTP 401 errors using
+  the SDK's converted exception type. Terminal bootstrap errors are not replayed.
+- Encryption errors preserve sanitized controller codes, details, authentication
+  methods, identity and correlation metadata in local and managed modes.
+- HTTP error diagnostics mask sensitive fields and echoed credentials before
+  exposing them through exception messages or structured payloads.
+
+### Added
+
+- Transport-level auth/encryption regression coverage and `make test-encryption-e2e`
+  for real local and managed encrypt/decrypt round trips.
+
 ## [5.0.3] - 2026-09-29
 
 ### Added

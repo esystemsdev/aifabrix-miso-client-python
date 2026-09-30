@@ -107,7 +107,19 @@ except EncryptionError as e:
     print(f"Status: {e.status_code}")     # None (client-side validation)
 ```
 
+Controller failures retain their specific `code` when supplied. The exception's
+`error_body` and `error_response` carry sanitized diagnostic details, and
+`auth_method` and `correlation_id` let callers identify the attempted authentication
+method and correlate the failure with controller logs. This applies to both local
+and managed clients. Sensitive fields and echoed credentials are masked before
+these diagnostics are exposed. A controller-provided `clientIdentity` is preserved;
+the SDK does not invent identity information when the controller withholds it.
+
 ## Error Codes
+
+The controller's specific code takes precedence over the operation fallback codes
+below. `ENCRYPTION_FAILED`, `DECRYPTION_FAILED`, `ACCESS_DENIED` and
+`PARAMETER_NOT_FOUND` are used only when the controller supplies no specific code.
 
 | Code | Description | HTTP Status |
 |------|-------------|-------------|
@@ -290,3 +302,15 @@ decrypted = await client.decrypt(result.value, "my-param")
 5. Add error handling for `EncryptionError`
 
 **Note:** Existing encrypted values using local Fernet encryption are NOT compatible with the new server-side encryption. You'll need to decrypt existing values with the old method and re-encrypt them with the new method during migration.
+
+
+## Live regression tests
+
+`make test-encryption-e2e` verifies encrypt/decrypt round trips in local and managed
+modes with caching disabled. See [manual test setup](../tests/manual/README.md#encryption-round-trip-plan-520)
+for required settings and test-app storage behavior. The encryption key must match
+the selected controller; a key valid in another environment will be refused.
+
+Authentication strategies try the next method after an ordinary 401. Other HTTP
+statuses, connection failures, and controller bootstrap invalidation/expiry errors
+do not replay the operation. Terminal runtime identity restrictions remain enforced.

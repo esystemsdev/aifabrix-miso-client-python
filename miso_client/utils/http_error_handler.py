@@ -8,6 +8,7 @@ from typing import Any, Dict, Literal, Optional
 import httpx
 
 from ..models.error_response import ErrorResponse
+from .http_error_sanitizer import safe_error_body
 
 # Authentication method type for error tracking
 AuthMethod = Literal["bearer", "client-token", "client-credentials", "api-key"]
@@ -80,7 +81,9 @@ def detect_auth_method_from_headers(
     return None
 
 
-def parse_error_response(response: httpx.Response, url: str) -> Optional[ErrorResponse]:
+def parse_error_response(
+    response: httpx.Response, url: str, sanitized_body: Optional[Dict[str, Any]] = None
+) -> Optional[ErrorResponse]:
     """Parse structured error response from HTTP response.
 
     Extracts correlation ID from response headers if not present in response body.
@@ -89,19 +92,26 @@ def parse_error_response(response: httpx.Response, url: str) -> Optional[ErrorRe
     Args:
         response: HTTP response object
         url: Request URL (used for instance URI if not in response)
+        sanitized_body: Previously sanitized payload, when supplied by the transport.
 
     Returns:
         ErrorResponse if response matches structure, None otherwise
 
     """
-    if not response.headers.get("content-type", "").startswith("application/json"):
-        return None
-
     try:
-        response_data = response.json()
-        if not _is_structured_error_response(response_data):
+        data = (
+            dict(sanitized_body)
+            if sanitized_body is not None
+            else safe_error_body(response, (), False)
+        )
+        if "status" in data and "type" in data:
+            data.setdefault("statusCode", response.status_code)
+            data.setdefault(
+                "errors", [data["detail"]] if isinstance(data.get("detail"), str) else []
+            )
+            data.setdefault("title", None)
+        if not _is_structured_error_response(data):
             return None
-        data = dict(response_data)
         _enrich_error_response(data, response, url)
         return ErrorResponse(**data)
     except (ValueError, TypeError, KeyError):
