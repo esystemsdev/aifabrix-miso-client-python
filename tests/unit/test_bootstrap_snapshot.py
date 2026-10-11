@@ -82,28 +82,34 @@ def test_clock_rollback_never_extends_deadline():
 @pytest.mark.asyncio
 async def test_token_and_secret_deadlines_are_independent():
     runtime = SecretsRuntime()
-    with patch("miso_client.utils.bootstrap_runtime.time.time", return_value=T0), patch(
-        "miso_client.utils.bootstrap_runtime.time.monotonic", return_value=0
+    with (
+        patch("miso_client.utils.bootstrap_runtime.time.time", return_value=T0),
+        patch("miso_client.utils.bootstrap_runtime.time.monotonic", return_value=0),
     ):
         runtime.install(snapshot())
-    with patch("miso_client.utils.bootstrap_runtime.time.time", return_value=T0 + 269), patch(
-        "miso_client.utils.bootstrap_runtime.time.monotonic", return_value=269
+    with (
+        patch("miso_client.utils.bootstrap_runtime.time.time", return_value=T0 + 269),
+        patch("miso_client.utils.bootstrap_runtime.time.monotonic", return_value=269),
     ):
         assert await runtime.get_token() == "application-sentinel"
-    with patch("miso_client.utils.bootstrap_runtime.time.time", return_value=T0 + 270), patch(
-        "miso_client.utils.bootstrap_runtime.time.monotonic", return_value=270
-    ), patch.object(
-        runtime, "refresh", new=AsyncMock(side_effect=BootstrapError("temporarily-unavailable"))
+    with (
+        patch("miso_client.utils.bootstrap_runtime.time.time", return_value=T0 + 270),
+        patch("miso_client.utils.bootstrap_runtime.time.monotonic", return_value=270),
+        patch.object(
+            runtime, "refresh", new=AsyncMock(side_effect=BootstrapError("temporarily-unavailable"))
+        ),
     ):
         with pytest.raises(BootstrapError):
             await runtime.get_token()
         assert runtime.secrets.require("DATABASE_URL") == "secret-sentinel"
-    with patch("miso_client.utils.bootstrap_runtime.time.time", return_value=T0 + 869), patch(
-        "miso_client.utils.bootstrap_runtime.time.monotonic", return_value=869
+    with (
+        patch("miso_client.utils.bootstrap_runtime.time.time", return_value=T0 + 869),
+        patch("miso_client.utils.bootstrap_runtime.time.monotonic", return_value=869),
     ):
         assert runtime.secrets.get("DATABASE_URL") == "secret-sentinel"
-    with patch("miso_client.utils.bootstrap_runtime.time.time", return_value=T0 + 870), patch(
-        "miso_client.utils.bootstrap_runtime.time.monotonic", return_value=870
+    with (
+        patch("miso_client.utils.bootstrap_runtime.time.time", return_value=T0 + 870),
+        patch("miso_client.utils.bootstrap_runtime.time.monotonic", return_value=870),
     ):
         with pytest.raises(BootstrapError, match="snapshot-expired"):
             runtime.secrets.get("DATABASE_URL")

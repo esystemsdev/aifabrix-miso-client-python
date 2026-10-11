@@ -18,6 +18,7 @@ from ..models.bootstrap import (
 )
 from .bootstrap_snapshot import Snapshot, SnapshotClock, parse_snapshot, timestamp
 from .bootstrap_transport import BrokerTransport
+from .shared_task import await_shared
 
 if TYPE_CHECKING:
     from ..client import MisoClient
@@ -236,7 +237,7 @@ class SecretsRuntime(ApplicationTokenProvider):
             if time.monotonic() < self._next_attempt:
                 raise BootstrapError("temporarily-unavailable")
             self._refresh_task = asyncio.create_task(self._refresh())
-        await asyncio.shield(self._refresh_task)
+        await await_shared(self._refresh_task)
 
     async def _refresh(self) -> None:
         if self._transport is None:
@@ -286,7 +287,7 @@ class SecretsRuntime(ApplicationTokenProvider):
         if self._close_task is None:
             self.invalidate("closed")
             self._close_task = asyncio.create_task(self._bounded_cleanup())
-        await asyncio.shield(self._close_task)
+        await await_shared(self._close_task)
 
     async def _bounded_cleanup(self) -> None:
         task = asyncio.create_task(self._cleanup())
