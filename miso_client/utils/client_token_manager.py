@@ -14,6 +14,7 @@ from ..errors import AuthenticationError, ConnectionError
 from ..models.config import ClientTokenResponse, MisoClientConfig
 from .controller_url_resolver import resolve_controller_url
 from .jwt_tools import decode_token
+from .shared_task import await_shared
 
 CORRELATION_HEADERS = [
     "x-correlation-id",
@@ -220,7 +221,7 @@ class ClientTokenManager:
         if self._refresh_task is None or self._refresh_task.done():
             self._refresh_task = asyncio.create_task(self._refresh_client_token(generation))
             self._refresh_task.add_done_callback(self._settle_refresh)
-        token = await asyncio.shield(self._refresh_task)
+        token = await await_shared(self._refresh_task)
         self._check_generation(generation)
         return token
 

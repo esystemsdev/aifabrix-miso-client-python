@@ -94,7 +94,7 @@ rotation and controller requirements.
 
 - Progressive activation (6-step setup)
 - Works with any framework (FastAPI, Django, Flask, Starlette)
-- Python 3.10+ support with full type hints
+- Python 3.11–3.14 support with full type hints
 - Async/await support throughout
 
 ### **Flexible Configuration**

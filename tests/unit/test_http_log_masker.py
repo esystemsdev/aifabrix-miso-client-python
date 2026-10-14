@@ -477,11 +477,10 @@ class TestMaskResponseData:
         # - Is <= max_masking_size (to avoid early return)
         # Then patch DataMasker.mask_sensitive_data to return a dict that, when converted
         # to string, is > 1000 chars. This will trigger the truncation on line 193.
-        with patch(
-            "miso_client.utils.http_log_masker.estimate_object_size"
-        ) as mock_estimate, patch(
-            "miso_client.utils.http_log_masker.DataMasker.mask_sensitive_data"
-        ) as mock_mask:
+        with (
+            patch("miso_client.utils.http_log_masker.estimate_object_size") as mock_estimate,
+            patch("miso_client.utils.http_log_masker.DataMasker.mask_sensitive_data") as mock_mask,
+        ):
             # Return size that's > max_size (100) but <= max_masking_size (50000 default)
             # This will force truncation but not skip masking
             mock_estimate.return_value = 5000

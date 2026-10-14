@@ -184,7 +184,9 @@ async def test_cleanup_timeout_returns_even_when_cleanup_pending():
     runtime._cleanup = cleanup
     original_wait = asyncio.wait
 
-    async def short_wait(tasks, timeout):
+    async def short_wait(tasks, timeout=None):
+        if timeout is None:  # await_shared waits on the close task itself
+            return await original_wait(tasks)
         assert timeout == 5
         await waiting.wait()
         return await original_wait(tasks, timeout=0)
@@ -200,12 +202,15 @@ async def test_background_refresh_uses_elapsed_time_after_wall_clock_rollback():
     runtime = SecretsRuntime()
     wall = time.time()
     monotonic = time.monotonic()
-    with patch("miso_client.utils.bootstrap_runtime.time.time", return_value=wall), patch(
-        "miso_client.utils.bootstrap_runtime.time.monotonic", return_value=monotonic
-    ), patch("miso_client.utils.bootstrap_runtime.random.uniform", return_value=110):
+    with (
+        patch("miso_client.utils.bootstrap_runtime.time.time", return_value=wall),
+        patch("miso_client.utils.bootstrap_runtime.time.monotonic", return_value=monotonic),
+        patch("miso_client.utils.bootstrap_runtime.random.uniform", return_value=110),
+    ):
         runtime.install(parse_snapshot(json.dumps(response_data()).encode(), wall))
-    with patch("miso_client.utils.bootstrap_runtime.time.time", return_value=wall - 3600), patch(
-        "miso_client.utils.bootstrap_runtime.time.monotonic", return_value=monotonic + 115
+    with (
+        patch("miso_client.utils.bootstrap_runtime.time.time", return_value=wall - 3600),
+        patch("miso_client.utils.bootstrap_runtime.time.monotonic", return_value=monotonic + 115),
     ):
         assert runtime._refresh_delay() == 0
         runtime._next_attempt = monotonic + 145
@@ -218,14 +223,16 @@ async def test_background_expiry_notifies_without_consumer_access():
     runtime = SecretsRuntime()
     wall = time.time()
     monotonic = time.monotonic()
-    with patch("miso_client.utils.bootstrap_runtime.time.time", return_value=wall), patch(
-        "miso_client.utils.bootstrap_runtime.time.monotonic", return_value=monotonic
+    with (
+        patch("miso_client.utils.bootstrap_runtime.time.time", return_value=wall),
+        patch("miso_client.utils.bootstrap_runtime.time.monotonic", return_value=monotonic),
     ):
         runtime.install(parse_snapshot(json.dumps(response_data()).encode(), wall))
     reasons = []
     runtime.on_invalidated(reasons.append)
-    with patch("miso_client.utils.bootstrap_runtime.time.time", return_value=wall - 3600), patch(
-        "miso_client.utils.bootstrap_runtime.time.monotonic", return_value=monotonic + 901
+    with (
+        patch("miso_client.utils.bootstrap_runtime.time.time", return_value=wall - 3600),
+        patch("miso_client.utils.bootstrap_runtime.time.monotonic", return_value=monotonic + 901),
     ):
         await runtime._run_refresh()
     assert reasons == ["snapshot-expired"]

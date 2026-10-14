@@ -603,11 +603,12 @@ class TestLoggerServiceEdgeCases:
         """Test that circuit breaker open skips HTTP logging."""
         logger_service.redis.is_connected.return_value = False
 
-        with patch.object(
-            logger_service.circuit_breaker, "is_open", return_value=True
-        ), patch.object(
-            logger_service.internal_http_client, "request", new_callable=AsyncMock
-        ) as mock_request:
+        with (
+            patch.object(logger_service.circuit_breaker, "is_open", return_value=True),
+            patch.object(
+                logger_service.internal_http_client, "request", new_callable=AsyncMock
+            ) as mock_request,
+        ):
             await logger_service.info("Test message")
 
             # HTTP should not be called when circuit breaker is open
@@ -632,13 +633,15 @@ class TestLoggerServiceEdgeCases:
         """Test HTTP failure records in circuit breaker."""
         logger_service.redis.is_connected.return_value = False
 
-        with patch.object(
-            logger_service.circuit_breaker, "is_open", return_value=False
-        ), patch.object(
-            logger_service.circuit_breaker, "record_failure", return_value=None
-        ) as mock_record_failure, patch.object(
-            logger_service.internal_http_client, "request", new_callable=AsyncMock
-        ) as mock_request:
+        with (
+            patch.object(logger_service.circuit_breaker, "is_open", return_value=False),
+            patch.object(
+                logger_service.circuit_breaker, "record_failure", return_value=None
+            ) as mock_record_failure,
+            patch.object(
+                logger_service.internal_http_client, "request", new_callable=AsyncMock
+            ) as mock_request,
+        ):
             mock_request.side_effect = Exception("HTTP error")
 
             await logger_service.info("Test message")
@@ -666,11 +669,12 @@ class TestLoggerServiceEdgeCases:
         logger_service.api_client = None
         logger_service.redis.is_connected.return_value = False
 
-        with patch.object(
-            logger_service.circuit_breaker, "is_open", return_value=False
-        ), patch.object(
-            logger_service.internal_http_client, "request", new_callable=AsyncMock
-        ) as mock_request:
+        with (
+            patch.object(logger_service.circuit_breaker, "is_open", return_value=False),
+            patch.object(
+                logger_service.internal_http_client, "request", new_callable=AsyncMock
+            ) as mock_request,
+        ):
             await logger_service.info("Test message")
 
             # Should use internal_http_client
@@ -697,14 +701,16 @@ class TestLoggerServiceEdgeCases:
             "applicationId": "app-456",
         }
 
-        with patch(
-            "miso_client.services.logger.extract_metadata",
-            return_value={"hostname": "test-host"},
-        ), patch.object(
-            logger_service.circuit_breaker, "is_open", return_value=False
-        ), patch.object(
-            logger_service.internal_http_client, "request", new_callable=AsyncMock
-        ) as mock_request:
+        with (
+            patch(
+                "miso_client.services.logger.extract_metadata",
+                return_value={"hostname": "test-host"},
+            ),
+            patch.object(logger_service.circuit_breaker, "is_open", return_value=False),
+            patch.object(
+                logger_service.internal_http_client, "request", new_callable=AsyncMock
+            ) as mock_request,
+        ):
             await logger_service.info("Payload test", context)
 
         mock_request.assert_called_once()
@@ -734,11 +740,12 @@ class TestLoggerServiceEdgeCases:
             "correlationId": "corr-env-1",
         }
 
-        with patch.object(
-            logger_service.circuit_breaker, "is_open", return_value=False
-        ), patch.object(
-            logger_service.internal_http_client, "request", new_callable=AsyncMock
-        ) as mock_request:
+        with (
+            patch.object(logger_service.circuit_breaker, "is_open", return_value=False),
+            patch.object(
+                logger_service.internal_http_client, "request", new_callable=AsyncMock
+            ) as mock_request,
+        ):
             await logger_service.audit("create", "resource", context)
 
         mock_request.assert_called_once()
@@ -753,11 +760,12 @@ class TestLoggerServiceEdgeCases:
         logger_service.api_client = None
         logger_service.redis.is_connected.return_value = False
 
-        with patch.object(
-            logger_service.circuit_breaker, "is_open", return_value=False
-        ), patch.object(
-            logger_service.internal_http_client, "request", new_callable=AsyncMock
-        ) as mock_request:
+        with (
+            patch.object(logger_service.circuit_breaker, "is_open", return_value=False),
+            patch.object(
+                logger_service.internal_http_client, "request", new_callable=AsyncMock
+            ) as mock_request,
+        ):
             await logger_service.warn("Native warn message")
 
         mock_request.assert_called_once()

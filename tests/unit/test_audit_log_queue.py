@@ -7,6 +7,7 @@ batching, Redis queuing, HTTP fallback, and signal handling.
 
 import asyncio
 import signal
+import warnings
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -429,35 +430,26 @@ class TestAuditLogQueue:
 
     @pytest.mark.asyncio
     async def test_signal_handler(self, audit_queue, log_entry, mock_http_client):
-        """Test signal handler triggers flush."""
-        # Add entry
+        """Signal handler schedules a final flush on the running loop."""
         await audit_queue.add(log_entry)
 
-        # Simulate signal handler
-        # Note: We can't actually send signals in tests, so we test the handler directly
-        with patch("asyncio.get_event_loop") as mock_loop:
-            mock_loop.return_value.is_running.return_value = True
+        before = asyncio.all_tasks()
+        audit_queue._signal_handler(signal.SIGTERM, None)
+        scheduled = asyncio.all_tasks() - before
+        assert len(scheduled) == 1
+        await asyncio.gather(*scheduled)
 
-            def _capture_task(coro):
-                coro.close()
-                return MagicMock()
+        mock_http_client.request.assert_called_once()
+        assert audit_queue.get_queue_size() == 0
 
-            with patch("asyncio.create_task", side_effect=_capture_task) as mock_create_task:
-                audit_queue._signal_handler(signal.SIGTERM, None)
-
-                # Verify create_task was called
-                mock_create_task.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_signal_handler_event_loop_not_running(self, audit_queue, log_entry):
-        """Test signal handler when event loop is not running."""
-        with patch("asyncio.get_event_loop") as mock_loop:
-            mock_loop.return_value.is_running.return_value = False
+    def test_signal_handler_without_running_loop(self, audit_queue):
+        """[EDGE] A signal outside any event loop is ignored without warnings or errors."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
             with patch("asyncio.create_task") as mock_create_task:
                 audit_queue._signal_handler(signal.SIGTERM, None)
 
-                # create_task should not be called
-                mock_create_task.assert_not_called()
+        mock_create_task.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_initialization_with_signal_handlers(self, config, mock_http_client, mock_redis):

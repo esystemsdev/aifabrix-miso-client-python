@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.1.0] - 2026-10-11
+
+### Changed
+
+- Supported Python versions are now 3.11–3.14; `requires-python` is `>=3.11`
+  (Python 3.10 is no longer supported). CI tests every supported version.
+
+### Fixed
+
+- The audit log queue's shutdown signal handler uses the running event loop
+  and does nothing when no loop is running, instead of calling the deprecated
+  `asyncio.get_event_loop()`.
+- Shared token and bootstrap refreshes no longer report an abandoned failure
+  as "exception in shielded future" on Python 3.14 when every waiter was
+  cancelled; waiters still receive the error.
+
 ## [5.0.4] - 2026-09-30
 
 ### Fixed

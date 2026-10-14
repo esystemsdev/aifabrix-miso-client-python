@@ -80,9 +80,12 @@ class AuditLogQueue:
 
     def _signal_handler(self, signum: int, frame: Optional[FrameType]) -> None:
         """Handle shutdown signals."""
-        # Schedule flush on next event loop iteration
-        if asyncio.get_event_loop().is_running():
-            asyncio.create_task(self.flush(True))
+        # Schedule flush on the running loop; signals can arrive with no loop
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        loop.create_task(self.flush(True))
 
     async def add(self, entry: LogEntry) -> None:
         """Add log entry to queue.

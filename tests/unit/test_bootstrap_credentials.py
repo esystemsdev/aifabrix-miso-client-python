@@ -459,9 +459,10 @@ async def test_initial_exchange_total_timeout_cancels_snapshot_and_cleans_state(
         return await original(running, 0)
 
     owned = httpx.AsyncClient(transport=httpx.MockTransport(handler), trust_env=False)
-    with patch(
-        "miso_client.utils.bootstrap_transport.httpx.AsyncClient", return_value=owned
-    ), patch("miso_client.utils.bootstrap_transport.asyncio.wait_for", side_effect=exhaust_budget):
+    with (
+        patch("miso_client.utils.bootstrap_transport.httpx.AsyncClient", return_value=owned),
+        patch("miso_client.utils.bootstrap_transport.asyncio.wait_for", side_effect=exhaust_budget),
+    ):
         with pytest.raises(BootstrapError, match="temporarily-unavailable"):
             await init_secrets()
     assert snapshot_cancelled.is_set()
