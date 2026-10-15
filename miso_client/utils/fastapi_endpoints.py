@@ -5,7 +5,7 @@ that return client token + DataClient configuration to frontend clients.
 """
 
 import importlib
-from typing import Any, Callable, NoReturn, Optional
+from typing import Any, Callable, NoReturn, Optional, Union
 
 from ..errors import AuthenticationError
 from ..models.config import (
@@ -14,6 +14,7 @@ from ..models.config import (
     DataClientConfigResponse,
     MisoClientConfig,
 )
+from ..models.session_cookie import SessionCookieValidation
 from ..utils.environment_token import get_environment_token
 
 
@@ -112,3 +113,27 @@ def _build_fastapi_handler(
             _raise_http_error(500, error_message, "Internal Server Error")
 
     return handler
+
+
+def apply_session_cookie(
+    response: Any, result: Optional[Union[SessionCookieValidation, str]]
+) -> bool:
+    """Add Miso's renewed session ``Set-Cookie`` to a FastAPI/Starlette response.
+
+    The header is appended verbatim so Miso's cookie attributes (path,
+    HttpOnly, SameSite, Secure) are kept.
+
+    Args:
+        response: FastAPI/Starlette response (``headers.append`` is used)
+        result: Result of ``validate_or_refresh_session_cookie`` or a raw
+            Set-Cookie value; None or a result without ``set_cookie`` is a no-op
+
+    Returns:
+        True when a cookie was added
+
+    """
+    set_cookie = result.set_cookie if isinstance(result, SessionCookieValidation) else result
+    if not set_cookie:
+        return False
+    response.headers.append("set-cookie", set_cookie)
+    return True

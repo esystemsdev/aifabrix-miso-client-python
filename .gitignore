@@ -147,3 +147,7 @@ coverage.xml
 .mypy_cache/
 .temp/
 .pre-push/
+
+# Host auto-approve (machine-local; aifabrix agent-kit)
+.claude/settings.local.json
+.codex/config.toml

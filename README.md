@@ -222,6 +222,20 @@ from miso_client import (
 
 **Browser-only activity controls (N/A for Python SDK runtime):** Activity-driven session refresh listener controls are part of browser DataClient behavior (TypeScript SDK / frontend runtime) and are not implemented by `miso-client-python`. Python SDK parity work focuses on shared request-driven auth/session contract semantics.
 
+**Session-cookie refresh for server-side consumers:** When a browser opens your API directly, it sends only the `miso_access_token` cookie, whose access token lives a few minutes. `validate_or_refresh_session_cookie(token)` validates that cookie token and, only when it has expired, renews the browser session through Miso `POST /api/v1/auth/refresh` (once per expired token). Add the returned `set_cookie` to your response so the browser keeps the renewed cookie. Bearer-header tokens are never refreshed this way.
+
+```python
+from miso_client import apply_session_cookie
+
+token = client.get_session_cookie_token(request)
+result = await client.validate_or_refresh_session_cookie(token)
+if not result.valid:
+    raise HTTPException(status_code=401)
+apply_session_cookie(response, result)  # no-op unless the session was renewed
+```
+
+→ [Browser-session cookie refresh](docs/browser-session-refresh.md)
+
 **Request-driven migration and rollback (Python runtime):**
 
 - Keep session recovery request-driven: rely on `authenticated_request(...)` `401` handling and callback/refresh-token flow; do not add browser event listeners in Python runtime.
