@@ -76,12 +76,18 @@ from .models.filter_schema import (
 
 # Pagination models
 from .models.pagination import Meta, PaginatedListResponse
+from .models.session_cookie import BrowserSessionRefresh, SessionCookieValidation
 
 # Sort models
 from .models.sort import SortOption
 
 # Services
 from .services.auth import AuthService
+from .services.browser_session_refresh import (
+    SESSION_COOKIE_NAME,
+    get_session_cookie_token,
+)
+from .services.browser_session_refresh import is_token_expired as is_session_token_expired
 from .services.cache import CacheService
 from .services.encryption import EncryptionService
 from .services.logger import LoggerService
@@ -100,7 +106,7 @@ from .utils.controller_url_resolver import is_browser, resolve_controller_url
 from .utils.data_masker import DataMasker
 from .utils.environment_token import get_environment_token
 from .utils.error_utils import ApiErrorException, handleApiError, transformError
-from .utils.fastapi_endpoints import create_fastapi_client_token_endpoint
+from .utils.fastapi_endpoints import apply_session_cookie, create_fastapi_client_token_endpoint
 from .utils.fastapi_logger_middleware import (
     logger_context_middleware as fastapi_logger_context_middleware,
 )
@@ -161,7 +167,7 @@ from .utils.user_token_refresh import (
     normalize_expires_at,
 )
 
-__version__ = "5.1.0"
+__version__ = "5.2.0"
 __author__ = "AI Fabrix Team"
 __license__ = "MIT"
 
@@ -291,6 +297,13 @@ __all__ = [
     "is_browser",
     "create_flask_client_token_endpoint",
     "create_fastapi_client_token_endpoint",
+    # Browser-session cookie refresh
+    "apply_session_cookie",
+    "get_session_cookie_token",
+    "is_session_token_expired",
+    "SESSION_COOKIE_NAME",
+    "BrowserSessionRefresh",
+    "SessionCookieValidation",
     "DataMasker",
     # Request context utilities
     "extract_request_context",

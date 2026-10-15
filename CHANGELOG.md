@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.2.0] - 2026-10-15
+
+### Added
+
+- `MisoClient.validate_or_refresh_session_cookie(token)` validates a
+  `miso_access_token` cookie token and, when it has expired, renews the browser
+  session through Miso `POST /api/v1/auth/refresh` with the forwarded cookie.
+  It returns the new token, the user and the `Set-Cookie` to pass back to the
+  browser. Requests carrying the same expired cookie share one refresh, and
+  later requests with the old cookie reuse the renewed session. Server-side
+  refresh only: browser activity orchestration stays out of scope for Python,
+  and Bearer-header tokens are never refreshed this way.
+- `apply_session_cookie(response, result)` adds the renewed cookie to a
+  FastAPI/Starlette response; `get_session_cookie_token(request)` reads the
+  cookie token; `MisoClient.refresh_session_cookie(token)` renews without validating,
+  for consumers that validate themselves (check `is_session_token_expired` first);
+  models `SessionCookieValidation` and `BrowserSessionRefresh`.
+
 ## [5.1.0] - 2026-10-11
 
 ### Changed

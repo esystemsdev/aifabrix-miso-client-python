@@ -13,6 +13,7 @@ from .api.types.auth_types import (
 )
 from .models.config import AuthStrategy, MisoClientConfig, UserInfo
 from .services.auth import AuthService
+from .services.browser_session_refresh import SessionCookieMixin
 from .services.cache import CacheService
 from .services.encryption import EncryptionService
 from .services.logger import LoggerService
@@ -38,7 +39,7 @@ if TYPE_CHECKING:
     from .services.application_context import ApplicationContextService
 
 
-class MisoClient:
+class MisoClient(SessionCookieMixin):
     """Main MisoClient SDK class for authentication, authorization, and logging.
 
     This client provides a unified interface for:
