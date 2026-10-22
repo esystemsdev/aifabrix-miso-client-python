@@ -1,0 +1,3 @@
+# Runtime dependencies used by repository-owned development and validation environments.
+# Published consumer dependency ranges remain canonical in pyproject.toml and setup.py.
+-r ../requirements.txt
