@@ -28,7 +28,9 @@ manually, pass `--no-commit --no-tag` because the configuration enables both.
 ### Test Workflow (`.github/workflows/test.yml`)
 
 Runs on pushes and pull requests targeting `main`, `dev`, and
-`release/miso-client-python-*`. It runs basedpyright and pytest on Python 3.11.
+`release/miso-client-python-*`. Required jobs run the ordered formatting, lint,
+basedpyright, mypy and bounded pytest chain on Python 3.11–3.14 using the committed
+hash-checked dependency set. Python 3.15 readiness is visible but non-blocking.
 
 ### Manual CodeQL (`.github/workflows/codeql-manual.yml`)
 
@@ -39,8 +41,8 @@ require zero findings; a green workflow alone does not prove zero findings.
 ### Publish Workflow (`.github/workflows/publish.yml`)
 
 A published GitHub Release triggers package validation, build, package checks and
-PyPI upload using the repository `PYPI_TOKEN` secret. Manual dispatch is available
-for retries pinned to the approved tag, with the matching metadata version.
+PyPI upload on Python 3.14 using the repository `PYPI_TOKEN` secret. Manual dispatch
+is available for retries pinned to the approved tag, with the matching metadata version.
 Branch pushes and tag pushes alone do not publish. There is no automatic version
 bump or standalone build/release workflow. The workflow does not currently bind
 to a GitHub environment; an environment-only secret is insufficient.
@@ -53,14 +55,14 @@ follows the reviewed release process below.
 ### 1. Build the Package
 
 ```bash
-# Install build tools
-pip install build twine
+# Install the committed build toolchain
+make PYTHON=python3 VENV=venv install-build-tools
 
-# Build the package
-python -m build
+# Build with controlled PEP 517 inputs
+make PYTHON=python3 VENV=venv build
 
 # Check the package
-twine check dist/*
+make PYTHON=python3 VENV=venv check
 ```
 
 ### 2. Upload to Test PyPI
@@ -119,14 +121,16 @@ is_valid = await client.validate_token(token)
 Use `make` for development commands (works on Linux, macOS, and Windows with Git Bash/WSL):
 
 ```bash
-# Install with development dependencies
-make install-dev
+# Python 3.14 is selected by .python-version when the version manager supports it.
+# PYTHON can explicitly select any supported Python 3.11–3.14 interpreter.
+make PYTHON=python3 VENV=venv install-dev
+make NODE=node PNPM=pnpm install-node-tools
 
-# Run all checks and build
-make all
+# Run the required ordered validation chain
+make PYTHON=python3 VENV=venv validate-silent
 
-# Run validation (lint + format + test)
-make validate
+# Regenerate all hash-checked locks with the pinned build toolchain
+make PYTHON=python3 VENV=venv lock
 
 # Individual commands
 make test
@@ -135,17 +139,26 @@ make format
 make build
 ```
 
+The Make targets install third-party development and build dependencies from
+`requirements/*.lock` with hash verification, then install the local SDK without
+re-resolving dependencies. A managed virtual environment is refreshed when its
+selected interpreter changes; nonempty unmanaged directories and symlink targets
+are refused. Node 24 and pnpm are used only by repository baseline tooling and are
+not Python package runtime dependencies. `make platform-baseline-check` and
+`pnpm platform-baseline-check` run the same byte-identical canonical checker;
+normal validation includes that check after the ordered Python gates.
+
 ### 1. Clone and Install
 
 ```bash
 git clone https://github.com/your-org/miso-client-python.git
 cd miso-client-python
 
-# Install in development mode
-pip install -e .
+# Install the locked development environment and editable SDK
+make PYTHON=python3 VENV=venv install-dev
 
-# Install with dev dependencies
-pip install -e ".[dev]"
+# Install frozen development-only checker tools
+make NODE=node PNPM=pnpm install-node-tools
 ```
 
 ### 2. Run Tests
@@ -165,7 +178,7 @@ pytest tests/ -v --cov=miso_client --cov-report=html
 make format
 make lint
 make type-check
-make validate  # Runs lint + format + test
+make validate  # Runs format, lint, basedpyright, mypy, then tests
 ```
 
 ## Release Process

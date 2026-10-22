@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Added hash-checked runtime, development and build environments, safe
+  interpreter-aware virtual-environment reuse, and controlled package builds.
+- Kept required CI coverage on Python 3.11–3.14 and added non-blocking Python 3.15
+  readiness using the committed dependency set.
+- Added development-only Node 24/pnpm declarations for the shared platform
+  baseline tooling; installing and using the Python package does not require Node.
+
 ## [5.2.0] - 2026-10-15
 
 ### Added

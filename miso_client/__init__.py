@@ -137,9 +137,7 @@ from .utils.flask_endpoints import create_flask_client_token_endpoint
 from .utils.flask_logger_middleware import (
     logger_context_middleware as flask_logger_context_middleware,
 )
-from .utils.flask_logger_middleware import (
-    register_logger_context_middleware,
-)
+from .utils.flask_logger_middleware import register_logger_context_middleware
 from .utils.http_client import HttpClient
 from .utils.http_error_handler import detect_auth_method_from_headers
 from .utils.jwt_tools import extract_user_id

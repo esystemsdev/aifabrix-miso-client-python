@@ -1,0 +1,15 @@
+{
+  "name": "@aifabrix/miso-client-python-tooling",
+  "private": true,
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@12.11.2",
+  "scripts": {
+    "platform-baseline-check": "node scripts/platform-baseline-check.mjs --profile python-sdk"
+  },
+  "devDependencies": {
+    "js-yaml": "^4.3.2",
+    "smol-toml": "1.9.1"
+  }
+}

@@ -1148,12 +1148,20 @@ API_KEY=your-test-api-key  # Optional: For testing (bypasses OAuth2)
 # pip
 pip install miso-client
 
-# Development mode
-pip install -e .
-
-# With dev dependencies
-pip install "miso-client[dev]"
+# Repository development (Python 3.11–3.14)
+make PYTHON=python3 VENV=venv install-dev
+make NODE=node PNPM=pnpm install-node-tools
+make PYTHON=python3 VENV=venv validate-silent
 ```
+
+Development and build dependencies come from the committed, hash-checked files in
+`requirements/`; `make lock` regenerates them with the pinned build toolchain. The
+`.python-version` file selects Python 3.14 for compatible version managers, while an
+explicit `PYTHON` value continues to select supported matrix interpreters. Node 24
+and pnpm are development-only baseline-checker tools and are not required to install
+or use the Python package. `make platform-baseline-check` and
+`pnpm platform-baseline-check` invoke the same accepted canonical checker; direct
+validation fails with an actionable message when its frozen Node tools are absent.
 
 ---
 

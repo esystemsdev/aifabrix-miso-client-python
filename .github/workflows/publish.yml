@@ -19,9 +19,22 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.14'
+          cache: pip
+          cache-dependency-path: |
+            requirements/*.lock
+            requirements/*.in
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.11.2
+          run_install: false
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
       - name: Verify immutable release version
         id: version
         env:
@@ -55,22 +68,18 @@ jobs:
             404) echo 'exists=false' >> "$GITHUB_OUTPUT" ;;
             *) echo "Unexpected PyPI response: $status"; exit 1 ;;
           esac
-      - name: Install build and validation dependencies
+      - name: Install locked build and validation dependencies
         if: steps.pypi.outputs.exists == 'false'
-        run: |
-          python3 -m venv venv
-          venv/bin/python -m pip install --upgrade pip
-          venv/bin/python -m pip install -r requirements.txt -r requirements-test.txt build twine
+        run: make PYTHON=python3 VENV=venv install-dev
+      - name: Install frozen platform checker tools
+        if: steps.pypi.outputs.exists == 'false'
+        run: make NODE=node PNPM=pnpm install-node-tools
       - name: Validate release
         if: steps.pypi.outputs.exists == 'false'
-        run: |
-          venv/bin/python -m basedpyright
-          timeout --signal=TERM --kill-after=10s 180s venv/bin/python -m pytest tests/unit/ -q -o faulthandler_timeout=45
+        run: timeout --signal=TERM --kill-after=10s 240s make PYTHON=python3 VENV=venv validate-silent
       - name: Build and check distributions
         if: steps.pypi.outputs.exists == 'false'
-        run: |
-          venv/bin/python -m build
-          venv/bin/python -m twine check dist/*
+        run: make PYTHON=python3 VENV=venv build check
       - name: Publish distributions
         if: steps.pypi.outputs.exists == 'false'
         env:
