@@ -1,0 +1,353 @@
+schemaVersion: 1
+phase: 1
+status: accepted
+acceptedAt: "2026-10-21"
+canonicalOwner: aifabrix-miso
+
+platform:
+  node:
+    current: "24"
+    localToolingExact: "24.22.1"
+    imageRuntimeExact: "24.22.0"
+    next: "26"
+    applicationFloor: ">=24.0.0"
+    applicationFloorShort: ">=24"
+    applicationLine: "24.x"
+    packageFloor: ">=22.0.0"
+    packageFloorShort: ">=22"
+    typesCurrent: "^24"
+    typesPackageFloor: "^22"
+  python:
+    applicationCurrent: "3.14"
+    applicationRange: ">=3.14,<3.15"
+    next: "3.15"
+    packageFloor: ">=3.11"
+    supported: ["3.11", "3.12", "3.13", "3.14"]
+  packageManager: "pnpm@12.11.2"
+  pnpmVersion: "12.11.2"
+  lockfileVersion: "9.0"
+  minimumReleaseAge: 4320
+  parsers:
+    yamlDefault: "^4.3.2"
+    yamlMori: "^5.4.2"
+    toml: "1.9.1"
+  dependencies:
+    axios: "^1.20.0"
+    axiosOverride: "1.20.0"
+    azureIdentity: "^4.13.0"
+  actions:
+    checkout: "v6"
+    setupNode: "v6"
+    setupPython: "v6"
+
+images:
+  node24Alpine:
+    status: verified
+    runtimeExact: "24.22.0"
+    reference: "node:24.22.0-alpine@sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f"
+    indexDigest: "sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f"
+  node24BookwormSlim:
+    status: verified
+    runtimeExact: "24.22.0"
+    reference: "node:24.22.0-bookworm-slim@sha256:91acba91b842bec0bf7ea6f5e09c644c7ccad72c4996ed9616d861d1c7cd60d4"
+    slimReference: "node:24.22.0-slim@sha256:91acba91b842bec0bf7ea6f5e09c644c7ccad72c4996ed9616d861d1c7cd60d4"
+    indexDigest: "sha256:91acba91b842bec0bf7ea6f5e09c644c7ccad72c4996ed9616d861d1c7cd60d4"
+  node24Default:
+    status: verified
+    runtimeExact: "24.22.0"
+    reference: "node:24.22.0@sha256:925de64a85319052d6971ae81ef2417da956e8a3a2c4a0fac732327970f017f5"
+    indexDigest: "sha256:925de64a85319052d6971ae81ef2417da956e8a3a2c4a0fac732327970f017f5"
+  python314Alpine:
+    status: candidate-owner-feasibility-required
+    observedRuntimeExact: "3.14.8"
+    reference: "python:3.14-alpine@sha256:f6a589d43c42b9e7f7dc67a12d37132491f362859a5d750607710cc56da3bc72"
+    indexDigest: "sha256:f6a589d43c42b9e7f7dc67a12d37132491f362859a5d750607710cc56da3bc72"
+  python314BookwormSlim:
+    status: candidate-owner-feasibility-required
+    observedRuntimeExact: "3.14.8"
+    reference: "python:3.14-slim-bookworm@sha256:44e000a07b48bef1517a2b14adc93c17af728ca98858b5e24c6e1b18de1b2ef2"
+    indexDigest: "sha256:44e000a07b48bef1517a2b14adc93c17af728ca98858b5e24c6e1b18de1b2ef2"
+
+profiles:
+  miso:
+    role: node-application-workspace-with-published-package
+    requiredFiles: [.nvmrc, package.json, pnpm-lock.yaml, pnpm-workspace.yaml, packages/miso-controller/package.json, packages/miso-ui/package.json, packages/miso-openapi-tests/package.json, packages/miso-observability/package.json, builder/miso-controller/Dockerfile, builder/test-fd/Dockerfile, builder/test-probe/Dockerfile, .github/dependabot.yml]
+    ownerEvidence: [full repository gate and dev-reload proof, Node 22 packed observability import/type proof, Node 26 non-blocking readiness execution, Prisma engine image proof]
+    checks:
+      - { id: node-current, file: .nvmrc, format: text, operator: matches, expected: "^24\\.22\\.1\\s*$" }
+      - { id: root-application-floor, file: package.json, format: json, path: engines.node, expectedFrom: platform.node.applicationFloor }
+      - { id: package-manager, file: package.json, format: json, path: packageManager, expectedFrom: platform.packageManager }
+      - { id: root-yaml-parser, file: package.json, format: json, path: devDependencies.js-yaml, expectedFrom: platform.parsers.yamlDefault }
+      - { id: root-toml-parser, file: package.json, format: json, path: devDependencies.smol-toml, expectedFrom: platform.parsers.toml }
+      - { id: axios-override, file: pnpm-workspace.yaml, format: yaml, path: "overrides.axios@>=1", expectedFrom: platform.dependencies.axiosOverride }
+      - { id: controller-floor, file: packages/miso-controller/package.json, format: json, path: engines.node, expectedFrom: platform.node.applicationFloor }
+      - { id: controller-types, file: packages/miso-controller/package.json, format: json, path: devDependencies.@types/node, operator: sameMajorFloor, expectedFrom: platform.node.typesCurrent }
+      - { id: controller-axios, file: packages/miso-controller/package.json, format: json, path: dependencies.axios, expectedFrom: platform.dependencies.axios }
+      - { id: controller-identity, file: packages/miso-controller/package.json, format: json, path: dependencies.@azure/identity, operator: versionFloor, expectedFrom: platform.dependencies.azureIdentity }
+      - { id: ui-floor, file: packages/miso-ui/package.json, format: json, path: engines.node, expectedFrom: platform.node.applicationFloor }
+      - { id: ui-axios, file: packages/miso-ui/package.json, format: json, path: dependencies.axios, expectedFrom: platform.dependencies.axios }
+      - { id: openapi-floor, file: packages/miso-openapi-tests/package.json, format: json, path: engines.node, expectedFrom: platform.node.applicationFloor }
+      - { id: openapi-types, file: packages/miso-openapi-tests/package.json, format: json, path: devDependencies.@types/node, operator: sameMajorFloor, expectedFrom: platform.node.typesCurrent }
+      - { id: openapi-axios, file: packages/miso-openapi-tests/package.json, format: json, path: dependencies.axios, expectedFrom: platform.dependencies.axios }
+      - { id: observability-package-floor, file: packages/miso-observability/package.json, format: json, path: engines.node, expectedFrom: platform.node.packageFloor }
+      - { id: observability-types, file: packages/miso-observability/package.json, format: json, path: devDependencies.@types/node, operator: sameMajorFloor, expectedFrom: platform.node.typesCurrent }
+      - { id: controller-image, file: builder/miso-controller/Dockerfile, format: dockerfile, operator: includes, expectedFrom: images.node24Alpine.reference }
+      - { id: test-fd-image, file: builder/test-fd/Dockerfile, format: dockerfile, operator: includes, expectedFrom: images.node24Alpine.reference }
+      - { id: test-probe-image, file: builder/test-probe/Dockerfile, format: dockerfile, operator: includes, expectedFrom: images.node24Alpine.reference }
+      - { id: release-age, file: pnpm-workspace.yaml, format: yaml, path: minimumReleaseAge, expectedFrom: platform.minimumReleaseAge }
+      - { id: reviewed-build-policy, file: pnpm-workspace.yaml, format: yaml, path: allowBuilds, operator: exists }
+      - { id: no-legacy-ignored-build-policy, file: pnpm-workspace.yaml, format: yaml, path: ignoredBuiltDependencies, operator: absent }
+      - { id: no-legacy-only-build-policy, file: pnpm-workspace.yaml, format: yaml, path: onlyBuiltDependencies, operator: absent }
+      - { id: lock-v9, file: pnpm-lock.yaml, format: pnpmLock, path: lockfileVersion, expectedFrom: platform.lockfileVersion }
+      - { id: dependabot-root-lock, file: .github/dependabot.yml, format: yaml, path: "updates[0].package-ecosystem", expected: npm }
+      - { id: dependabot-root-directory, file: .github/dependabot.yml, format: yaml, path: "updates[0].directory", expected: "/" }
+      - { id: ci-node22, file: .github/workflows, format: globText, operator: matches, expected: "(?:node-version|node):\\s*['\"]?22" }
+      - { id: ci-node24, file: .github/workflows, format: globText, operator: matches, expected: "(?:node-version|node):\\s*['\"]?24" }
+      - { id: ci-node26, file: .github/workflows, format: globText, operator: matches, expected: "(?:node-version|node):\\s*['\"]?26" }
+      - { id: ci-next-nonblocking, file: .github/workflows, format: globText, operator: matches, expected: "continue-on-error:\\s*true" }
+
+  miso-client:
+    role: published-node-package-with-private-demos
+    canonicalSiblingRoot: ../aifabrix-miso
+    forbiddenFiles: [Dockerfile]
+    requiredFiles: [.nvmrc, package.json, pnpm-lock.yaml, pnpm-workspace.yaml, server/package.json, server/pnpm-lock.yaml, server/pnpm-workspace.yaml, server/frontend/package.json, server/frontend/pnpm-lock.yaml, server/frontend/pnpm-workspace.yaml, .github/dependabot.yml]
+    ownerEvidence: [packed CJS/ESM/type consumers on Node 22 and Node 24, browser-condition and Express 4/5 consumers, Node 26 non-blocking readiness execution]
+    checks:
+      - { id: node-current, file: .nvmrc, format: text, operator: matches, expected: "^24\\.22\\.1\\s*$" }
+      - { id: sdk-package-floor, file: package.json, format: json, path: engines.node, expectedFrom: platform.node.packageFloor }
+      - { id: server-application-floor, file: server/package.json, format: json, path: engines.node, expectedFrom: platform.node.applicationFloor }
+      - { id: frontend-application-floor, file: server/frontend/package.json, format: json, path: engines.node, expectedFrom: platform.node.applicationFloor }
+      - { id: root-package-manager, file: package.json, format: json, path: packageManager, expectedFrom: platform.packageManager }
+      - { id: server-package-manager, file: server/package.json, format: json, path: packageManager, expectedFrom: platform.packageManager }
+      - { id: frontend-package-manager, file: server/frontend/package.json, format: json, path: packageManager, expectedFrom: platform.packageManager }
+      - { id: root-types, file: package.json, format: json, path: devDependencies.@types/node, operator: sameMajorFloor, expectedFrom: platform.node.typesCurrent }
+      - { id: server-types, file: server/package.json, format: json, path: devDependencies.@types/node, operator: sameMajorFloor, expectedFrom: platform.node.typesCurrent }
+      - { id: sdk-axios, file: package.json, format: json, path: dependencies.axios, expectedFrom: platform.dependencies.axios }
+      - { id: root-minimatch-override, file: pnpm-workspace.yaml, format: yaml, path: overrides.minimatch, expected: "9.0.7" }
+      - { id: server-minimatch-override, file: server/pnpm-workspace.yaml, format: yaml, path: overrides.minimatch, expected: "9.0.7" }
+      - { id: yaml-parser, file: package.json, format: json, path: devDependencies.js-yaml, expectedFrom: platform.parsers.yamlDefault }
+      - { id: release-age, file: pnpm-workspace.yaml, format: yaml, path: minimumReleaseAge, expectedFrom: platform.minimumReleaseAge }
+      - { id: reviewed-build-policy, file: pnpm-workspace.yaml, format: yaml, path: allowBuilds, operator: exists }
+      - { id: server-release-age, file: server/pnpm-workspace.yaml, format: yaml, path: minimumReleaseAge, expectedFrom: platform.minimumReleaseAge }
+      - { id: server-build-policy, file: server/pnpm-workspace.yaml, format: yaml, path: allowBuilds, operator: exists }
+      - { id: frontend-release-age, file: server/frontend/pnpm-workspace.yaml, format: yaml, path: minimumReleaseAge, expectedFrom: platform.minimumReleaseAge }
+      - { id: frontend-build-policy, file: server/frontend/pnpm-workspace.yaml, format: yaml, path: allowBuilds, operator: exists }
+      - { id: root-lock-v9, file: pnpm-lock.yaml, format: pnpmLock, path: lockfileVersion, expectedFrom: platform.lockfileVersion }
+      - { id: server-lock-v9, file: server/pnpm-lock.yaml, format: pnpmLock, path: lockfileVersion, expectedFrom: platform.lockfileVersion }
+      - { id: frontend-lock-v9, file: server/frontend/pnpm-lock.yaml, format: pnpmLock, path: lockfileVersion, expectedFrom: platform.lockfileVersion }
+      - { id: dependabot-root-directory, file: .github/dependabot.yml, format: yaml, path: "updates[0].directory", expected: "/" }
+      - { id: dependabot-server-directory, file: .github/dependabot.yml, format: yaml, path: "updates[1].directory", expected: "/server" }
+      - { id: dependabot-frontend-directory, file: .github/dependabot.yml, format: yaml, path: "updates[2].directory", expected: "/server/frontend" }
+      - { id: ci-sdk-floor-node22, file: .github/workflows/platform.yml, format: yaml, path: "jobs.sdk-supported-runtimes.strategy.matrix.include[0].node-version", expected: "22.0.0" }
+      - { id: ci-sdk-floor-required, file: .github/workflows/platform.yml, format: yaml, path: jobs.sdk-supported-runtimes.continue-on-error, operator: absent }
+      - { id: ci-sdk-current-node24, file: .github/workflows/platform.yml, format: yaml, path: "jobs.sdk-supported-runtimes.strategy.matrix.include[1].node-version", expected: 24 }
+      - { id: ci-demo-current-node24, file: .github/workflows/platform.yml, format: yaml, path: "jobs.demo-node-24.steps[2].with.node-version", expected: 24 }
+      - { id: ci-demo-current-required, file: .github/workflows/platform.yml, format: yaml, path: jobs.demo-node-24.continue-on-error, operator: absent }
+      - { id: ci-next-node26, file: .github/workflows/platform.yml, format: yaml, path: "jobs.sdk-next-runtime.steps[2].with.node-version", expected: 26 }
+      - { id: ci-next-nonblocking, file: .github/workflows/platform.yml, format: yaml, path: jobs.sdk-next-runtime.continue-on-error, expected: true }
+
+  miso-backend:
+    role: published-node-package-with-verification-application
+    canonicalSiblingRoot: ../aifabrix-miso
+    requiredFiles: [.nvmrc, package.json, pnpm-lock.yaml, pnpm-workspace.yaml, apps/backend-logging-verify/package.json, apps/backend-logging-verify/Dockerfile, .github/dependabot.yml]
+    ownerEvidence: [packed SDK and Prisma peer consumers on Node 22 and Node 24, verification application image/runtime proof, Node 26 non-blocking readiness execution]
+    checks:
+      - { id: node-current, file: .nvmrc, format: text, operator: matches, expected: "^24\\.22\\.1\\s*$" }
+      - { id: sdk-package-floor, file: package.json, format: json, path: engines.node, expectedFrom: platform.node.packageFloor }
+      - { id: package-manager, file: package.json, format: json, path: packageManager, expectedFrom: platform.packageManager }
+      - { id: sdk-types, file: package.json, format: json, path: devDependencies.@types/node, operator: sameMajorFloor, expectedFrom: platform.node.typesCurrent }
+      - { id: sdk-axios, file: package.json, format: json, path: dependencies.axios, expectedFrom: platform.dependencies.axios }
+      - { id: app-floor, file: apps/backend-logging-verify/package.json, format: json, path: engines.node, expectedFrom: platform.node.applicationFloor }
+      - { id: app-types, file: apps/backend-logging-verify/package.json, format: json, path: devDependencies.@types/node, operator: sameMajorFloor, expectedFrom: platform.node.typesCurrent }
+      - { id: app-axios, file: apps/backend-logging-verify/package.json, format: json, path: dependencies.axios, expectedFrom: platform.dependencies.axios }
+      - { id: yaml-parser, file: package.json, format: json, path: devDependencies.js-yaml, expectedFrom: platform.parsers.yamlDefault }
+      - { id: app-image, file: apps/backend-logging-verify/Dockerfile, format: dockerfile, operator: includes, expectedFrom: images.node24Default.reference }
+      - { id: release-age, file: pnpm-workspace.yaml, format: yaml, path: minimumReleaseAge, expectedFrom: platform.minimumReleaseAge }
+      - { id: reviewed-build-policy, file: pnpm-workspace.yaml, format: yaml, path: allowBuilds, operator: exists }
+      - { id: lock-v9, file: pnpm-lock.yaml, format: pnpmLock, path: lockfileVersion, expectedFrom: platform.lockfileVersion }
+      - { id: dependabot-root-lock, file: .github/dependabot.yml, format: yaml, path: "updates[0].package-ecosystem", expected: npm }
+      - { id: dependabot-root-directory, file: .github/dependabot.yml, format: yaml, path: "updates[0].directory", expected: "/" }
+      - { id: ci-node22, file: .github/workflows, format: globText, operator: matches, expected: "(?:node-version|node):\\s*['\"]?22" }
+      - { id: ci-node24, file: .github/workflows, format: globText, operator: matches, expected: "(?:node-version|node):\\s*['\"]?24" }
+      - { id: ci-node26, file: .github/workflows, format: globText, operator: matches, expected: "(?:node-version|node):\\s*['\"]?26" }
+      - { id: ci-next-nonblocking, file: .github/workflows, format: globText, operator: matches, expected: "continue-on-error:\\s*true" }
+
+  miso-azure:
+    role: published-node-package
+    canonicalSiblingRoot: ../aifabrix-miso
+    forbiddenFiles: [Dockerfile]
+    requiredFiles: [.nvmrc, package.json, pnpm-lock.yaml, pnpm-workspace.yaml, .github/dependabot.yml]
+    ownerEvidence: [packed import/type/schema consumers on Node 22 and Node 24, mocked Azure Identity regressions, Node 26 non-blocking readiness execution, restricted provenance applicability decision]
+    checks:
+      - { id: node-current, file: .nvmrc, format: text, operator: matches, expected: "^24\\.22\\.1\\s*$" }
+      - { id: package-floor, file: package.json, format: json, path: engines.node, expectedFrom: platform.node.packageFloor }
+      - { id: package-manager, file: package.json, format: json, path: packageManager, expectedFrom: platform.packageManager }
+      - { id: node-types, file: package.json, format: json, path: devDependencies.@types/node, operator: sameMajorFloor, expectedFrom: platform.node.typesCurrent }
+      - { id: azure-identity-floor, file: package.json, format: json, path: dependencies.@azure/identity, operator: versionFloor, expectedFrom: platform.dependencies.azureIdentity }
+      - { id: minimatch-override, file: pnpm-workspace.yaml, format: yaml, path: "overrides.@typescript-eslint/typescript-estree>minimatch", expected: "9.0.9" }
+      - { id: yaml-parser, file: package.json, format: json, path: devDependencies.js-yaml, expectedFrom: platform.parsers.yamlDefault }
+      - { id: release-age, file: pnpm-workspace.yaml, format: yaml, path: minimumReleaseAge, expectedFrom: platform.minimumReleaseAge }
+      - { id: reviewed-build-policy, file: pnpm-workspace.yaml, format: yaml, path: allowBuilds, operator: exists }
+      - { id: lock-v9, file: pnpm-lock.yaml, format: pnpmLock, path: lockfileVersion, expectedFrom: platform.lockfileVersion }
+      - { id: dependabot-root-lock, file: .github/dependabot.yml, format: yaml, path: "updates[0].package-ecosystem", expected: npm }
+      - { id: dependabot-root-directory, file: .github/dependabot.yml, format: yaml, path: "updates[0].directory", expected: "/" }
+      - { id: ci-node22, file: .github/workflows, format: globText, operator: matches, expected: "(?:node-version|node):\\s*['\"]?22" }
+      - { id: ci-node24, file: .github/workflows, format: globText, operator: matches, expected: "(?:node-version|node):\\s*['\"]?24" }
+      - { id: ci-node26, file: .github/workflows, format: globText, operator: matches, expected: "(?:node-version|node):\\s*['\"]?26" }
+      - { id: ci-next-nonblocking, file: .github/workflows, format: globText, operator: matches, expected: "continue-on-error:\\s*true" }
+
+  builder:
+    role: mixed-node-package-and-application
+    canonicalSiblingRoot: ../aifabrix-miso
+    requiredFiles: [.nvmrc, package.json, pnpm-lock.yaml, pnpm-workspace.yaml, packages/builder-api/package.json, builder/builder-api/Dockerfile, templates/applications/builder-api/Dockerfile, templates/typescript/Dockerfile.hbs, templates/python/Dockerfile.hbs, .github/workflows/ci.yml, .github/dependabot.yml]
+    ownerEvidence: [packed CLI proof on Node 22 and Node 24, builder-api staged-content and runtime tests, generated customer template tests, Node 26 non-blocking readiness execution]
+    checks:
+      - { id: node-current, file: .nvmrc, format: text, operator: matches, expected: "^24\\.22\\.1\\s*$" }
+      - { id: root-package-floor, file: package.json, format: json, path: engines.node, expectedFrom: platform.node.packageFloor }
+      - { id: builder-api-floor, file: packages/builder-api/package.json, format: json, path: engines.node, expectedFrom: platform.node.applicationFloor }
+      - { id: package-manager, file: package.json, format: json, path: packageManager, expectedFrom: platform.packageManager }
+      - { id: node-types, file: package.json, format: json, path: devDependencies.@types/node, operator: sameMajorFloor, expectedFrom: platform.node.typesCurrent }
+      - { id: axios-floor, file: package.json, format: json, path: dependencies.axios, expectedFrom: platform.dependencies.axios }
+      - { id: remove-unused-identity, file: package.json, format: json, path: dependencies.@azure/identity, operator: absent }
+      - { id: yaml-parser, file: package.json, format: json, path: dependencies.js-yaml, expectedFrom: platform.parsers.yamlDefault }
+      - { id: toml-parser, file: package.json, format: json, path: dependencies.smol-toml, expectedFrom: platform.parsers.toml }
+      - { id: builder-api-image, file: builder/builder-api/Dockerfile, format: dockerfile, operator: includes, expectedFrom: images.node24BookwormSlim.reference }
+      - { id: generated-builder-api-image, file: templates/applications/builder-api/Dockerfile, format: dockerfile, operator: includes, expectedFrom: images.node24BookwormSlim.reference }
+      - { id: generated-typescript-image, file: templates/typescript/Dockerfile.hbs, format: text, operator: matches, expected: "FROM node:24-alpine" }
+      - { id: generated-python-image, file: templates/python/Dockerfile.hbs, format: text, operator: matches, expected: "FROM python:3\\.14-alpine" }
+      - { id: release-age, file: pnpm-workspace.yaml, format: yaml, path: minimumReleaseAge, expectedFrom: platform.minimumReleaseAge }
+      - { id: reviewed-build-policy, file: pnpm-workspace.yaml, format: yaml, path: allowBuilds, operator: exists }
+      - { id: lock-v9, file: pnpm-lock.yaml, format: pnpmLock, path: lockfileVersion, expectedFrom: platform.lockfileVersion }
+      - { id: dependabot-root-lock, file: .github/dependabot.yml, format: yaml, path: "updates[0].package-ecosystem", expected: npm }
+      - { id: dependabot-root-directory, file: .github/dependabot.yml, format: yaml, path: "updates[0].directory", expected: "/" }
+      - { id: ci-current-uses-nvmrc, file: .github/workflows/ci.yml, format: text, operator: matches, expected: "node-version-file:\\s*['\"]?\\.nvmrc" }
+      - { id: ci-package-matrix, file: .github/workflows/ci.yml, format: yaml, path: jobs.package-compatibility.strategy.matrix.node, operator: containsAll, expected: ["22.0.0", "24.22.1"] }
+      - { id: ci-node26, file: .github/workflows, format: globText, operator: matches, expected: "(?:node-version|node):\\s*['\"]?26" }
+      - { id: ci-next-nonblocking, file: .github/workflows, format: globText, operator: matches, expected: "continue-on-error:\\s*true" }
+
+  dataplane:
+    role: python-application-with-separate-node-projects
+    canonicalSiblingRoot: ../aifabrix-miso
+    requiredFiles: [.nvmrc, .python-version, pyproject.toml, pyrightconfig.json, scripts/pyrightconfig.json, .cursor/scripts/pyrightconfig.json, builder/dataplane/Dockerfile, .github/workflows/enterprise-deployment.yml, package.json, pnpm-lock.yaml, app-ui/package.json, app-ui/pnpm-lock.yaml, pnpm-workspace.yaml, .github/dependabot.yml]
+    ownerEvidence: [full Python UI OpenAPI and ABAC gates, Python 3.14 application image and health proof, Python 3.15 and Node 26 non-blocking readiness execution]
+    checks:
+      - { id: node-current, file: .nvmrc, format: text, operator: matches, expected: "^24\\.22\\.1\\s*$" }
+      - { id: root-node-line, file: package.json, format: json, path: engines.node, expectedFrom: platform.node.applicationLine }
+      - { id: ui-node-line, file: app-ui/package.json, format: json, path: engines.node, expectedFrom: platform.node.applicationLine }
+      - { id: root-package-manager, file: package.json, format: json, path: packageManager, expectedFrom: platform.packageManager }
+      - { id: ui-package-manager, file: app-ui/package.json, format: json, path: packageManager, expectedFrom: platform.packageManager }
+      - { id: python-current, file: .python-version, format: text, operator: matches, expected: "^3\\.14\\s*$" }
+      - { id: python-application-range, file: pyproject.toml, format: toml, path: project.requires-python, expectedFrom: platform.python.applicationRange }
+      - { id: pyright-current, file: pyrightconfig.json, format: json, path: pythonVersion, expectedFrom: platform.python.applicationCurrent }
+      - { id: pyright-environments, file: pyrightconfig.json, format: json, path: executionEnvironments, memberPath: pythonVersion, operator: everyEquals, expectedFrom: platform.python.applicationCurrent }
+      - { id: scripts-pyright-current, file: scripts/pyrightconfig.json, format: json, path: pythonVersion, expectedFrom: platform.python.applicationCurrent }
+      - { id: cursor-pyright-current, file: .cursor/scripts/pyrightconfig.json, format: json, path: pythonVersion, expectedFrom: platform.python.applicationCurrent }
+      - { id: yaml-parser, file: package.json, format: json, path: devDependencies.js-yaml, expectedFrom: platform.parsers.yamlDefault }
+      - { id: toml-parser, file: package.json, format: json, path: devDependencies.smol-toml, expectedFrom: platform.parsers.toml }
+      - { id: python-image-arg, file: builder/dataplane/Dockerfile, format: dockerfile, operator: matches, expected: "ARG PYTHON_IMAGE=python:3\\.14-alpine@sha256:[a-f0-9]{64}" }
+      - { id: python-image-from-arg, file: builder/dataplane/Dockerfile, format: dockerfile, operator: matches, expected: "FROM \\${PYTHON_IMAGE}" }
+      - { id: release-age, file: pnpm-workspace.yaml, format: yaml, path: minimumReleaseAge, expectedFrom: platform.minimumReleaseAge }
+      - { id: reviewed-build-policy, file: pnpm-workspace.yaml, format: yaml, path: allowBuilds, operator: exists }
+      - { id: root-lock-v9, file: pnpm-lock.yaml, format: pnpmLock, path: lockfileVersion, expectedFrom: platform.lockfileVersion }
+      - { id: ui-lock-v9, file: app-ui/pnpm-lock.yaml, format: pnpmLock, path: lockfileVersion, expectedFrom: platform.lockfileVersion }
+      - { id: dependabot-python-directory, file: .github/dependabot.yml, format: yaml, path: "updates[0].directory", expected: "/" }
+      - { id: dependabot-root-directory, file: .github/dependabot.yml, format: yaml, path: "updates[1].directory", expected: "/" }
+      - { id: dependabot-ui-directory, file: .github/dependabot.yml, format: yaml, path: "updates[2].directory", expected: "/app-ui" }
+      - { id: ci-python-current, file: .github/workflows, format: globText, operator: matches, expected: "python-version:\\s*['\"]?3\\.14" }
+      - { id: ci-python-next, file: .github/workflows, format: globText, operator: matches, expected: "python-version:\\s*['\"]?3\\.15" }
+      - { id: ci-next-nonblocking, file: .github/workflows, format: globText, operator: matches, expected: "continue-on-error:\\s*true" }
+
+  python-sdk:
+    role: published-python-package-with-node-checker-tooling
+    canonicalSiblingRoot: ../aifabrix-miso
+    forbiddenFiles: [Dockerfile]
+    requiredFiles: [.python-version, .nvmrc, pyproject.toml, setup.py, package.json, pnpm-lock.yaml, pnpm-workspace.yaml, .github/workflows/test.yml, .github/dependabot.yml]
+    ownerEvidence: [package import matrix on Python 3.11 through 3.14, Python 3.15 non-blocking readiness execution, published Python artifact has no Node runtime dependency]
+    checks:
+      - { id: python-current, file: .python-version, format: text, operator: matches, expected: "^3\\.14\\s*$" }
+      - { id: python-package-floor, file: pyproject.toml, format: toml, path: project.requires-python, expectedFrom: platform.python.packageFloor }
+      - id: python-classifiers
+        file: pyproject.toml
+        format: toml
+        path: project.classifiers
+        operator: containsAll
+        expected: ["Programming Language :: Python :: 3.11", "Programming Language :: Python :: 3.12", "Programming Language :: Python :: 3.13", "Programming Language :: Python :: 3.14"]
+      - { id: mypy-floor, file: pyproject.toml, format: toml, path: tool.mypy.python_version, expected: "3.11" }
+      - { id: ruff-floor, file: pyproject.toml, format: toml, path: tool.ruff.target-version, expected: py311 }
+      - { id: black-targets, file: pyproject.toml, format: toml, path: tool.black.target-version, operator: containsAll, expected: [py311, py312, py313, py314] }
+      - { id: no-node-runtime-dependencies, file: pyproject.toml, format: toml, path: project.dependencies, operator: noneMatch, expected: "^(js-yaml|smol-toml)([<=>~!]|$)" }
+      - { id: setup-floor-static, file: setup.py, format: python, operator: matches, expected: 'python_requires\s*=\s*["'']>=3\.11["'']' }
+      - { id: setup-classifiers-static, file: setup.py, format: python, operator: matches, flags: s, expected: 'Python :: 3\.11.*Python :: 3\.12.*Python :: 3\.13.*Python :: 3\.14' }
+      - { id: required-python-workflow-matrix, file: .github/workflows/test.yml, format: text, operator: matches, flags: s, expected: 'python-version:.*3\.11.*3\.12.*3\.13.*3\.14' }
+      - { id: next-python-readiness, file: .github/workflows/test.yml, format: text, operator: matches, flags: s, expected: 'continue-on-error:.*3\.15' }
+      - { id: node-current, file: .nvmrc, format: text, operator: matches, expected: "^24\\.22\\.1\\s*$" }
+      - { id: private-tooling, file: package.json, format: json, path: private, expected: true }
+      - { id: package-manager, file: package.json, format: json, path: packageManager, expectedFrom: platform.packageManager }
+      - { id: yaml-parser, file: package.json, format: json, path: devDependencies.js-yaml, expectedFrom: platform.parsers.yamlDefault }
+      - { id: toml-parser, file: package.json, format: json, path: devDependencies.smol-toml, expectedFrom: platform.parsers.toml }
+      - { id: release-age, file: pnpm-workspace.yaml, format: yaml, path: minimumReleaseAge, expectedFrom: platform.minimumReleaseAge }
+      - { id: reviewed-build-policy, file: pnpm-workspace.yaml, format: yaml, path: allowBuilds, operator: exists }
+      - { id: lock-v9, file: pnpm-lock.yaml, format: pnpmLock, path: lockfileVersion, expectedFrom: platform.lockfileVersion }
+      - { id: dependabot-python-directory, file: .github/dependabot.yml, format: yaml, path: "updates[0].directory", expected: "/" }
+      - { id: dependabot-root-directory, file: .github/dependabot.yml, format: yaml, path: "updates[1].directory", expected: "/" }
+
+  mori:
+    role: mixed-node-application-and-package
+    canonicalSiblingRoot: ../aifabrix-miso
+    requiredFiles: [.nvmrc, package.json, pnpm-lock.yaml, pnpm-workspace.yaml, apps/ui/package.json, sdk/ts/package.json, builder/mori-controller/Dockerfile, .github/workflows/mori-pr.yml, .github/dependabot.yml]
+    ownerEvidence: [application full gate and image runtime proof on Node 24, SDK packed import/type proof on Node 22 and Node 24, Node 26 non-blocking readiness execution]
+    checks:
+      - { id: node-current, file: .nvmrc, format: text, operator: matches, expected: "^24\\.22\\.1\\s*$" }
+      - { id: root-application-floor, file: package.json, format: json, path: engines.node, expectedFrom: platform.node.applicationFloor }
+      - { id: ui-application-floor, file: apps/ui/package.json, format: json, path: engines.node, expectedFrom: platform.node.applicationFloor }
+      - { id: sdk-package-floor, file: sdk/ts/package.json, format: json, path: engines.node, expectedFrom: platform.node.packageFloor }
+      - { id: package-manager, file: package.json, format: json, path: packageManager, expectedFrom: platform.packageManager }
+      - { id: root-types, file: package.json, format: json, path: devDependencies.@types/node, operator: sameMajorFloor, expectedFrom: platform.node.typesCurrent }
+      - { id: ui-types, file: apps/ui/package.json, format: json, path: devDependencies.@types/node, operator: sameMajorFloor, expectedFrom: platform.node.typesCurrent }
+      - { id: sdk-types, file: sdk/ts/package.json, format: json, path: devDependencies.@types/node, operator: sameMajorFloor, expectedFrom: platform.node.typesPackageFloor }
+      - { id: ui-axios, file: apps/ui/package.json, format: json, path: dependencies.axios, expectedFrom: platform.dependencies.axios }
+      - { id: sdk-axios, file: sdk/ts/package.json, format: json, path: dependencies.axios, expectedFrom: platform.dependencies.axios }
+      - { id: azure-identity-floor, file: package.json, format: json, path: dependencies.@azure/identity, operator: versionFloor, expectedFrom: platform.dependencies.azureIdentity }
+      - { id: nest-event-emitter, file: package.json, format: json, path: dependencies.@nestjs/event-emitter, expected: "3.0.1" }
+      - { id: yaml-parser, file: package.json, format: json, path: devDependencies.js-yaml, expectedFrom: platform.parsers.yamlMori }
+      - { id: application-image, file: builder/mori-controller/Dockerfile, format: dockerfile, operator: includes, expectedFrom: images.node24BookwormSlim.slimReference }
+      - { id: release-age, file: pnpm-workspace.yaml, format: yaml, path: minimumReleaseAge, expectedFrom: platform.minimumReleaseAge }
+      - { id: reviewed-build-policy, file: pnpm-workspace.yaml, format: yaml, path: allowBuilds, operator: exists }
+      - { id: lock-v9, file: pnpm-lock.yaml, format: pnpmLock, path: lockfileVersion, expectedFrom: platform.lockfileVersion }
+      - { id: dependabot-root-lock, file: .github/dependabot.yml, format: yaml, path: "updates[0].package-ecosystem", expected: npm }
+      - { id: dependabot-root-directory, file: .github/dependabot.yml, format: yaml, path: "updates[0].directory", expected: "/" }
+      - { id: ci-current-uses-nvmrc, file: .github/workflows, format: globText, operator: matches, expected: "node-version-file:\\s*['\"]?\\.nvmrc" }
+      - { id: ci-sdk-node22, file: .github/workflows/mori-pr.yml, format: yaml, path: "jobs.sdk-compatibility.strategy.matrix.include[0].node", expected: "22.0.0" }
+      - { id: ci-sdk-node24, file: .github/workflows/mori-pr.yml, format: yaml, path: "jobs.sdk-compatibility.strategy.matrix.include[1].node", expected: "24.22.1" }
+      - { id: ci-node26, file: .github/workflows, format: globText, operator: matches, expected: "(?:node-version|node):\\s*['\"]?26" }
+      - { id: ci-next-nonblocking, file: .github/workflows, format: globText, operator: matches, expected: "continue-on-error:\\s*true" }
+
+  setup:
+    role: mixed-node-applications-and-package
+    canonicalSiblingRoot: ../aifabrix-miso
+    requiredFiles: [.nvmrc, package.json, pnpm-lock.yaml, pnpm-workspace.yaml, builder-server/package.json, server-setup/package.json, builder/builder-server/Dockerfile, server-setup/assets/setup-install-init.sh, server-setup/assets/setup-dev-server-no-node.sh, .github/dependabot.yml]
+    ownerEvidence: [full repository gate on Node 24, server-setup packed proof on Node 22, unsupported-host rejection ordering regression tests, Node 26 non-blocking readiness execution, private-source provenance applicability decision]
+    checks:
+      - { id: node-current, file: .nvmrc, format: text, operator: matches, expected: "^24\\.22\\.1\\s*$" }
+      - { id: root-application-floor, file: package.json, format: json, path: engines.node, expectedFrom: platform.node.applicationFloor }
+      - { id: builder-server-floor, file: builder-server/package.json, format: json, path: engines.node, expectedFrom: platform.node.applicationFloor }
+      - { id: server-setup-package-floor, file: server-setup/package.json, format: json, path: engines.node, expectedFrom: platform.node.packageFloor }
+      - { id: root-package-manager, file: package.json, format: json, path: packageManager, expectedFrom: platform.packageManager }
+      - { id: builder-server-types, file: builder-server/package.json, format: json, path: devDependencies.@types/node, operator: sameMajorFloor, expectedFrom: platform.node.typesCurrent }
+      - { id: server-setup-types, file: server-setup/package.json, format: json, path: devDependencies.@types/node, operator: sameMajorFloor, expectedFrom: platform.node.typesPackageFloor }
+      - { id: yaml-parser, file: package.json, format: json, path: devDependencies.js-yaml, expectedFrom: platform.parsers.yamlDefault }
+      - { id: docker-cli-runtime, file: builder/builder-server/Dockerfile, format: dockerfile, operator: matches, expected: "FROM node:24\\.22\\.0-slim@sha256:91acba91b842bec0bf7ea6f5e09c644c7ccad72c4996ed9616d861d1c7cd60d4 AS cli-runtime" }
+      - { id: docker-build, file: builder/builder-server/Dockerfile, format: dockerfile, operator: matches, expected: "FROM node:24\\.22\\.0-slim@sha256:91acba91b842bec0bf7ea6f5e09c644c7ccad72c4996ed9616d861d1c7cd60d4 AS build" }
+      - { id: docker-runtime, file: builder/builder-server/Dockerfile, format: dockerfile, operator: matches, expected: "FROM node:24\\.22\\.0-slim@sha256:91acba91b842bec0bf7ea6f5e09c644c7ccad72c4996ed9616d861d1c7cd60d4 AS runtime" }
+      - { id: fresh-host-node24, file: server-setup/assets/setup-install-init.sh, format: text, operator: includes, expected: setup_24.x }
+      - { id: dev-host-node24, file: server-setup/assets/setup-dev-server-no-node.sh, format: text, operator: includes, expected: setup_24.x }
+      - { id: release-age, file: pnpm-workspace.yaml, format: yaml, path: minimumReleaseAge, expectedFrom: platform.minimumReleaseAge }
+      - { id: reviewed-build-policy, file: pnpm-workspace.yaml, format: yaml, path: allowBuilds, operator: exists }
+      - { id: root-lock-v9, file: pnpm-lock.yaml, format: pnpmLock, path: lockfileVersion, expectedFrom: platform.lockfileVersion }
+      - { id: server-setup-root-importer, file: pnpm-lock.yaml, format: pnpmLock, path: importers.server-setup, operator: exists }
+      - { id: dependabot-root-lock, file: .github/dependabot.yml, format: yaml, path: "updates[0].package-ecosystem", expected: npm }
+      - { id: dependabot-root-directory, file: .github/dependabot.yml, format: yaml, path: "updates[0].directory", expected: "/" }
+      - { id: ci-node22, file: .github/workflows, format: globText, operator: matches, expected: "(?:node-version|node):\\s*['\"]?22" }
+      - { id: ci-node24, file: .github/workflows, format: globText, operator: matches, expected: "(?:node-version|node):\\s*['\"]?24" }
+      - { id: ci-node26, file: .github/workflows, format: globText, operator: matches, expected: "(?:node-version|node):\\s*['\"]?26" }
+      - { id: ci-next-nonblocking, file: .github/workflows, format: globText, operator: matches, expected: "continue-on-error:\\s*true" }
