@@ -9,7 +9,7 @@
     "platform-baseline-check": "node scripts/platform-baseline-check.mjs --profile python-sdk"
   },
   "devDependencies": {
-    "js-yaml": "^4.3.2",
+    "js-yaml": "^5.5.0",
     "smol-toml": "1.9.1"
   }
 }
