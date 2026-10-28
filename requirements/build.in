@@ -11,5 +11,5 @@ twine==7.0.0
 # jaraco-context requires this only below Python 3.12; keep it explicit so one
 # hash lock remains installable across the supported Python 3.11–3.14 matrix.
 backports.tarfile==1.2.0
-importlib-metadata==9.0.1
+importlib-metadata==10.1.0
 zipp==4.1.1
