@@ -30,7 +30,9 @@ manually, pass `--no-commit --no-tag` because the configuration enables both.
 Runs on pushes and pull requests targeting `main`, `dev`, and
 `release/miso-client-python-*`. Required jobs run the ordered formatting, lint,
 basedpyright, mypy and bounded pytest chain on Python 3.11–3.14 using the committed
-hash-checked dependency set. Python 3.15 readiness is visible but non-blocking.
+hash-checked dependency set. Superseded runs are cancelled only within the same pull
+request; push and manual runs remain isolated. Python 3.15 readiness is visible,
+non-blocking and runs only when the Test workflow is manually dispatched.
 
 ### Manual CodeQL (`.github/workflows/codeql-manual.yml`)
 
