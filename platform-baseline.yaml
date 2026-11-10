@@ -9,12 +9,11 @@ platform:
     current: "24"
     localToolingExact: "24.22.1"
     imageRuntimeExact: "24.22.0"
-    next: "26"
     applicationFloor: ">=24.0.0"
     applicationFloorShort: ">=24"
     applicationLine: "24.x"
-    packageFloor: ">=22.0.0"
-    packageFloorShort: ">=22"
+    packageFloor: ">=24.0.0"
+    packageFloorShort: ">=24"
     typesCurrent: "^24"
     typesPackageFloor: "^22"
   python:
@@ -71,8 +70,8 @@ images:
 profiles:
   miso:
     role: node-application-workspace-with-published-package
-    requiredFiles: [.nvmrc, package.json, pnpm-lock.yaml, pnpm-workspace.yaml, packages/miso-controller/package.json, packages/miso-ui/package.json, packages/miso-openapi-tests/package.json, packages/miso-observability/package.json, builder/miso-controller/Dockerfile, builder/test-fd/Dockerfile, builder/test-probe/Dockerfile, .github/dependabot.yml]
-    ownerEvidence: [full repository gate and dev-reload proof, Node 22 packed observability import/type proof, Node 26 non-blocking readiness execution, Prisma engine image proof]
+    requiredFiles: [.nvmrc, package.json, pnpm-lock.yaml, pnpm-workspace.yaml, packages/miso-controller/package.json, packages/miso-ui/package.json, packages/miso-openapi-tests/package.json, packages/miso-observability/package.json, builder/miso-controller/Dockerfile, builder/test-fd/Dockerfile, builder/test-probe/Dockerfile, .github/workflows/platform.yml, .github/dependabot.yml]
+    ownerEvidence: [full repository gate and dev-reload proof, Node 24 packed observability import/type proof, Prisma engine image proof]
     checks:
       - { id: node-current, file: .nvmrc, format: text, operator: matches, expected: "^24\\.22\\.1\\s*$" }
       - { id: root-application-floor, file: package.json, format: json, path: engines.node, expectedFrom: platform.node.applicationFloor }
@@ -89,7 +88,7 @@ profiles:
       - { id: openapi-floor, file: packages/miso-openapi-tests/package.json, format: json, path: engines.node, expectedFrom: platform.node.applicationFloor }
       - { id: openapi-types, file: packages/miso-openapi-tests/package.json, format: json, path: devDependencies.@types/node, operator: sameMajorFloor, expectedFrom: platform.node.typesCurrent }
       - { id: openapi-axios, file: packages/miso-openapi-tests/package.json, format: json, path: dependencies.axios, expectedFrom: platform.dependencies.axios }
-      - { id: observability-package-floor, file: packages/miso-observability/package.json, format: json, path: engines.node, expectedFrom: platform.node.packageFloor }
+      - { id: observability-package-floor, file: packages/miso-observability/package.json, format: json, path: engines.node, expectedFrom: platform.node.applicationFloor }
       - { id: observability-types, file: packages/miso-observability/package.json, format: json, path: devDependencies.@types/node, operator: sameMajorFloor, expectedFrom: platform.node.typesCurrent }
       - { id: controller-image, file: builder/miso-controller/Dockerfile, format: dockerfile, operator: includes, expectedFrom: images.node24Alpine.reference }
       - { id: test-fd-image, file: builder/test-fd/Dockerfile, format: dockerfile, operator: includes, expectedFrom: images.node24Alpine.reference }
@@ -101,17 +100,25 @@ profiles:
       - { id: lock-v9, file: pnpm-lock.yaml, format: pnpmLock, path: lockfileVersion, expectedFrom: platform.lockfileVersion }
       - { id: dependabot-root-lock, file: .github/dependabot.yml, format: yaml, path: "updates[0].package-ecosystem", expected: npm }
       - { id: dependabot-root-directory, file: .github/dependabot.yml, format: yaml, path: "updates[0].directory", expected: "/" }
-      - { id: ci-node22, file: .github/workflows, format: globText, operator: matches, expected: "(?:node-version|node):\\s*['\"]?22" }
+      - { id: ci-dispatch, file: .github/workflows/platform.yml, format: yaml, path: on.workflow_dispatch, operator: exists }
+      - { id: ci-current-job, file: .github/workflows/platform.yml, format: yaml, path: jobs.node-24-required, operator: exists }
+      - { id: ci-current-always, file: .github/workflows/platform.yml, format: yaml, path: jobs.node-24-required.if, operator: absent }
+      - { id: ci-current-required, file: .github/workflows/platform.yml, format: yaml, path: jobs.node-24-required.continue-on-error, operator: absent }
+      - { id: ci-observability-job, file: .github/workflows/platform.yml, format: yaml, path: jobs.observability-node-24-floor, operator: exists }
+      - { id: ci-observability-always, file: .github/workflows/platform.yml, format: yaml, path: jobs.observability-node-24-floor.if, operator: absent }
+      - { id: ci-observability-node24, file: .github/workflows/platform.yml, format: yaml, path: "jobs.observability-node-24-floor.steps[8].with.node-version", expected: "24.0.0" }
+      - { id: ci-observability-required, file: .github/workflows/platform.yml, format: yaml, path: jobs.observability-node-24-floor.continue-on-error, operator: absent }
+      - { id: ci-no-next-runtime, file: .github/workflows/platform.yml, format: yaml, path: jobs.node-26-readiness, operator: absent }
+      - { id: ci-concurrency-group, file: .github/workflows/platform.yml, format: yaml, path: concurrency.group, expected: "${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}" }
+      - { id: ci-concurrency-cancel, file: .github/workflows/platform.yml, format: yaml, path: concurrency.cancel-in-progress, expected: "${{ github.event_name == 'pull_request' }}" }
       - { id: ci-node24, file: .github/workflows, format: globText, operator: matches, expected: "(?:node-version|node):\\s*['\"]?24" }
-      - { id: ci-node26, file: .github/workflows, format: globText, operator: matches, expected: "(?:node-version|node):\\s*['\"]?26" }
-      - { id: ci-next-nonblocking, file: .github/workflows, format: globText, operator: matches, expected: "continue-on-error:\\s*true" }
 
   miso-client:
     role: published-node-package-with-private-demos
     canonicalSiblingRoot: ../aifabrix-miso
     forbiddenFiles: [Dockerfile]
     requiredFiles: [.nvmrc, package.json, pnpm-lock.yaml, pnpm-workspace.yaml, server/package.json, server/pnpm-lock.yaml, server/pnpm-workspace.yaml, server/frontend/package.json, server/frontend/pnpm-lock.yaml, server/frontend/pnpm-workspace.yaml, .github/dependabot.yml]
-    ownerEvidence: [packed CJS/ESM/type consumers on Node 22 and Node 24, browser-condition and Express 4/5 consumers, Node 26 non-blocking readiness execution]
+    ownerEvidence: [packed CJS/ESM/type consumers on Node 24, browser-condition and Express 4/5 consumers]
     checks:
       - { id: node-current, file: .nvmrc, format: text, operator: matches, expected: "^24\\.22\\.1\\s*$" }
       - { id: sdk-package-floor, file: package.json, format: json, path: engines.node, expectedFrom: platform.node.packageFloor }
@@ -138,19 +145,25 @@ profiles:
       - { id: dependabot-root-directory, file: .github/dependabot.yml, format: yaml, path: "updates[0].directory", expected: "/" }
       - { id: dependabot-server-directory, file: .github/dependabot.yml, format: yaml, path: "updates[1].directory", expected: "/server" }
       - { id: dependabot-frontend-directory, file: .github/dependabot.yml, format: yaml, path: "updates[2].directory", expected: "/server/frontend" }
-      - { id: ci-sdk-floor-node22, file: .github/workflows/platform.yml, format: yaml, path: "jobs.sdk-supported-runtimes.strategy.matrix.include[0].node-version", expected: "22.0.0" }
+      - { id: ci-dispatch, file: .github/workflows/platform.yml, format: yaml, path: on.workflow_dispatch, operator: exists }
+      - { id: ci-supported-job, file: .github/workflows/platform.yml, format: yaml, path: jobs.sdk-supported-runtimes, operator: exists }
+      - { id: ci-supported-always, file: .github/workflows/platform.yml, format: yaml, path: jobs.sdk-supported-runtimes.if, operator: absent }
+      - { id: ci-sdk-current-node24, file: .github/workflows/platform.yml, format: yaml, path: "jobs.sdk-supported-runtimes.steps[2].with.node-version", expected: 24 }
+      - { id: ci-sdk-packed-proof, file: .github/workflows/platform.yml, format: yaml, path: "jobs.sdk-supported-runtimes.steps[10].run", operator: matches, expected: "pnpm run test:package:packed" }
       - { id: ci-sdk-floor-required, file: .github/workflows/platform.yml, format: yaml, path: jobs.sdk-supported-runtimes.continue-on-error, operator: absent }
-      - { id: ci-sdk-current-node24, file: .github/workflows/platform.yml, format: yaml, path: "jobs.sdk-supported-runtimes.strategy.matrix.include[1].node-version", expected: 24 }
       - { id: ci-demo-current-node24, file: .github/workflows/platform.yml, format: yaml, path: "jobs.demo-node-24.steps[2].with.node-version", expected: 24 }
+      - { id: ci-demo-current-job, file: .github/workflows/platform.yml, format: yaml, path: jobs.demo-node-24, operator: exists }
+      - { id: ci-demo-current-always, file: .github/workflows/platform.yml, format: yaml, path: jobs.demo-node-24.if, operator: absent }
       - { id: ci-demo-current-required, file: .github/workflows/platform.yml, format: yaml, path: jobs.demo-node-24.continue-on-error, operator: absent }
-      - { id: ci-next-node26, file: .github/workflows/platform.yml, format: yaml, path: "jobs.sdk-next-runtime.steps[2].with.node-version", expected: 26 }
-      - { id: ci-next-nonblocking, file: .github/workflows/platform.yml, format: yaml, path: jobs.sdk-next-runtime.continue-on-error, expected: true }
+      - { id: ci-no-next-runtime, file: .github/workflows/platform.yml, format: yaml, path: jobs.sdk-next-runtime, operator: absent }
+      - { id: ci-concurrency-group, file: .github/workflows/platform.yml, format: yaml, path: concurrency.group, expected: "${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}" }
+      - { id: ci-concurrency-cancel, file: .github/workflows/platform.yml, format: yaml, path: concurrency.cancel-in-progress, expected: "${{ github.event_name == 'pull_request' }}" }
 
   miso-backend:
     role: published-node-package-with-verification-application
     canonicalSiblingRoot: ../aifabrix-miso
-    requiredFiles: [.nvmrc, package.json, pnpm-lock.yaml, pnpm-workspace.yaml, apps/backend-logging-verify/package.json, apps/backend-logging-verify/Dockerfile, .github/dependabot.yml]
-    ownerEvidence: [packed SDK and Prisma peer consumers on Node 22 and Node 24, verification application image/runtime proof, Node 26 non-blocking readiness execution]
+    requiredFiles: [.nvmrc, package.json, pnpm-lock.yaml, pnpm-workspace.yaml, apps/backend-logging-verify/package.json, apps/backend-logging-verify/Dockerfile, .github/workflows/ci.yml, .github/dependabot.yml]
+    ownerEvidence: [packed SDK and Prisma peer consumers on Node 24, verification application image/runtime proof]
     checks:
       - { id: node-current, file: .nvmrc, format: text, operator: matches, expected: "^24\\.22\\.1\\s*$" }
       - { id: sdk-package-floor, file: package.json, format: json, path: engines.node, expectedFrom: platform.node.packageFloor }
@@ -167,17 +180,27 @@ profiles:
       - { id: lock-v9, file: pnpm-lock.yaml, format: pnpmLock, path: lockfileVersion, expectedFrom: platform.lockfileVersion }
       - { id: dependabot-root-lock, file: .github/dependabot.yml, format: yaml, path: "updates[0].package-ecosystem", expected: npm }
       - { id: dependabot-root-directory, file: .github/dependabot.yml, format: yaml, path: "updates[0].directory", expected: "/" }
-      - { id: ci-node22, file: .github/workflows, format: globText, operator: matches, expected: "(?:node-version|node):\\s*['\"]?22" }
+      - { id: ci-dispatch, file: .github/workflows/ci.yml, format: yaml, path: on.workflow_dispatch, operator: exists }
+      - { id: ci-required-job, file: .github/workflows/ci.yml, format: yaml, path: jobs.validate, operator: exists }
+      - { id: ci-required-always, file: .github/workflows/ci.yml, format: yaml, path: jobs.validate.if, operator: absent }
+      - { id: ci-required-matrix, file: .github/workflows/ci.yml, format: yaml, path: jobs.validate.strategy.matrix.node, expected: ["24.22.1"] }
+      - { id: ci-required-not-optional, file: .github/workflows/ci.yml, format: yaml, path: jobs.validate.continue-on-error, operator: absent }
+      - { id: ci-consumer-node22-runtime, file: .github/workflows/ci.yml, format: yaml, path: "jobs.packed-consumers.strategy.matrix.include[0].node", expected: "24.22.1" }
+      - { id: ci-consumer-node22-express4, file: .github/workflows/ci.yml, format: yaml, path: "jobs.packed-consumers.strategy.matrix.include[1].node", expected: "24.22.1" }
+      - { id: ci-consumer-node24-express5, file: .github/workflows/ci.yml, format: yaml, path: "jobs.packed-consumers.strategy.matrix.include[2].node", expected: "24.22.1" }
+      - { id: ci-packed-consumers-job, file: .github/workflows/ci.yml, format: yaml, path: jobs.packed-consumers, operator: exists }
+      - { id: ci-packed-consumers-required, file: .github/workflows/ci.yml, format: yaml, path: jobs.packed-consumers.continue-on-error, operator: absent }
+      - { id: ci-no-next-runtime, file: .github/workflows/ci.yml, format: yaml, path: jobs.next-runtime, operator: absent }
+      - { id: ci-concurrency-group, file: .github/workflows/ci.yml, format: yaml, path: concurrency.group, expected: "${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}" }
+      - { id: ci-concurrency-cancel, file: .github/workflows/ci.yml, format: yaml, path: concurrency.cancel-in-progress, expected: "${{ github.event_name == 'pull_request' }}" }
       - { id: ci-node24, file: .github/workflows, format: globText, operator: matches, expected: "(?:node-version|node):\\s*['\"]?24" }
-      - { id: ci-node26, file: .github/workflows, format: globText, operator: matches, expected: "(?:node-version|node):\\s*['\"]?26" }
-      - { id: ci-next-nonblocking, file: .github/workflows, format: globText, operator: matches, expected: "continue-on-error:\\s*true" }
 
   miso-azure:
     role: published-node-package
     canonicalSiblingRoot: ../aifabrix-miso
     forbiddenFiles: [Dockerfile]
-    requiredFiles: [.nvmrc, package.json, pnpm-lock.yaml, pnpm-workspace.yaml, .github/dependabot.yml]
-    ownerEvidence: [packed import/type/schema consumers on Node 22 and Node 24, mocked Azure Identity regressions, Node 26 non-blocking readiness execution, restricted provenance applicability decision]
+    requiredFiles: [.nvmrc, package.json, pnpm-lock.yaml, pnpm-workspace.yaml, .github/workflows/validate.yml, .github/dependabot.yml]
+    ownerEvidence: [packed import/type/schema consumers on Node 24, mocked Azure Identity regressions, restricted provenance applicability decision]
     checks:
       - { id: node-current, file: .nvmrc, format: text, operator: matches, expected: "^24\\.22\\.1\\s*$" }
       - { id: package-floor, file: package.json, format: json, path: engines.node, expectedFrom: platform.node.packageFloor }
@@ -191,16 +214,27 @@ profiles:
       - { id: lock-v9, file: pnpm-lock.yaml, format: pnpmLock, path: lockfileVersion, expectedFrom: platform.lockfileVersion }
       - { id: dependabot-root-lock, file: .github/dependabot.yml, format: yaml, path: "updates[0].package-ecosystem", expected: npm }
       - { id: dependabot-root-directory, file: .github/dependabot.yml, format: yaml, path: "updates[0].directory", expected: "/" }
-      - { id: ci-node22, file: .github/workflows, format: globText, operator: matches, expected: "(?:node-version|node):\\s*['\"]?22" }
+      - { id: ci-dispatch, file: .github/workflows/validate.yml, format: yaml, path: on.workflow_dispatch, operator: exists }
+      - { id: ci-supported-job, file: .github/workflows/validate.yml, format: yaml, path: jobs.supported-runtimes, operator: exists }
+      - { id: ci-supported-always, file: .github/workflows/validate.yml, format: yaml, path: jobs.supported-runtimes.if, operator: absent }
+      - { id: ci-current-node24-scoped, file: .github/workflows/validate.yml, format: yaml, path: "jobs.supported-runtimes.steps[2].with.node-version", expected: "24.22.1" }
+      - { id: ci-package-proof, file: .github/workflows/validate.yml, format: yaml, path: "jobs.supported-runtimes.steps[5].run", operator: matches, expected: "node scripts/pnpm/verify-package\\.mjs" }
+      - { id: ci-supported-required, file: .github/workflows/validate.yml, format: yaml, path: jobs.supported-runtimes.continue-on-error, operator: absent }
+      - { id: ci-no-next-runtime, file: .github/workflows/validate.yml, format: yaml, path: jobs.next-runtime, operator: absent }
+      - { id: ci-concurrency-group, file: .github/workflows/validate.yml, format: yaml, path: concurrency.group, expected: "${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}" }
+      - { id: ci-concurrency-cancel, file: .github/workflows/validate.yml, format: yaml, path: concurrency.cancel-in-progress, expected: "${{ github.event_name == 'pull_request' }}" }
       - { id: ci-node24, file: .github/workflows, format: globText, operator: matches, expected: "(?:node-version|node):\\s*['\"]?24" }
-      - { id: ci-node26, file: .github/workflows, format: globText, operator: matches, expected: "(?:node-version|node):\\s*['\"]?26" }
-      - { id: ci-next-nonblocking, file: .github/workflows, format: globText, operator: matches, expected: "continue-on-error:\\s*true" }
 
   builder:
     role: mixed-node-package-and-application
     canonicalSiblingRoot: ../aifabrix-miso
     requiredFiles: [.nvmrc, package.json, pnpm-lock.yaml, pnpm-workspace.yaml, packages/builder-api/package.json, builder/builder-api/Dockerfile, templates/applications/builder-api/Dockerfile, templates/typescript/Dockerfile.hbs, templates/python/Dockerfile.hbs, .github/workflows/ci.yml, .github/dependabot.yml]
-    ownerEvidence: [packed CLI proof on Node 22 and Node 24, builder-api staged-content and runtime tests, generated customer template tests, Node 26 non-blocking readiness execution]
+    ownerEvidence: [packed CLI proof on Node 24, builder-api staged-content and runtime tests, generated customer template tests]
+    actionPolicyExceptions:
+      - id: builder-workflow-actions-v4
+        files: [.github/workflows/ci.yml, .github/workflows/deploy.yml, .github/workflows/deploy-manual.yml]
+        allowed: [actions/checkout@v4, actions/setup-node@v4]
+        reReviewWhen: action maintenance or owner workflow redesign is required
     checks:
       - { id: node-current, file: .nvmrc, format: text, operator: matches, expected: "^24\\.22\\.1\\s*$" }
       - { id: root-package-floor, file: package.json, format: json, path: engines.node, expectedFrom: platform.node.packageFloor }
@@ -221,15 +255,28 @@ profiles:
       - { id: dependabot-root-lock, file: .github/dependabot.yml, format: yaml, path: "updates[0].package-ecosystem", expected: npm }
       - { id: dependabot-root-directory, file: .github/dependabot.yml, format: yaml, path: "updates[0].directory", expected: "/" }
       - { id: ci-current-uses-nvmrc, file: .github/workflows/ci.yml, format: text, operator: matches, expected: "node-version-file:\\s*['\"]?\\.nvmrc" }
-      - { id: ci-package-matrix, file: .github/workflows/ci.yml, format: yaml, path: jobs.package-compatibility.strategy.matrix.node, operator: containsAll, expected: ["22.0.0", "24.22.1"] }
-      - { id: ci-node26, file: .github/workflows, format: globText, operator: matches, expected: "(?:node-version|node):\\s*['\"]?26" }
-      - { id: ci-next-nonblocking, file: .github/workflows, format: globText, operator: matches, expected: "continue-on-error:\\s*true" }
+      - { id: ci-package-node24, file: .github/workflows/ci.yml, format: yaml, path: "jobs.package-compatibility.steps[1].with.node-version", expected: "24.22.1" }
+      - { id: ci-package-consumer-node24, file: .github/workflows/ci.yml, format: yaml, path: "jobs.package-compatibility.steps[6].with.node-version", expected: "24.22.1" }
+      - { id: ci-package-pack, file: .github/workflows/ci.yml, format: yaml, path: "jobs.package-compatibility.steps[5].run", operator: matches, expected: "pnpm pack" }
+      - { id: ci-package-packed-proof, file: .github/workflows/ci.yml, format: yaml, path: "jobs.package-compatibility.steps[7].run", operator: matches, flags: s, expected: "npm install.*aifabrix --version.*require\\('@aifabrix/builder'\\)" }
+      - { id: ci-dispatch, file: .github/workflows/ci.yml, format: yaml, path: on.workflow_dispatch, operator: exists }
+      - { id: ci-package-job, file: .github/workflows/ci.yml, format: yaml, path: jobs.package-compatibility, operator: exists }
+      - { id: ci-package-always, file: .github/workflows/ci.yml, format: yaml, path: jobs.package-compatibility.if, operator: absent }
+      - { id: ci-package-required, file: .github/workflows/ci.yml, format: yaml, path: jobs.package-compatibility.continue-on-error, operator: absent }
+      - { id: ci-current-required, file: .github/workflows/ci.yml, format: yaml, path: jobs.current-full-gate.continue-on-error, operator: absent }
+      - { id: ci-current-job, file: .github/workflows/ci.yml, format: yaml, path: jobs.current-full-gate, operator: exists }
+      - { id: ci-current-always, file: .github/workflows/ci.yml, format: yaml, path: jobs.current-full-gate.if, operator: absent }
+      - { id: ci-checkout-v4-exception, file: .github/workflows/ci.yml, format: yaml, path: "jobs.current-full-gate.steps[0].uses", expected: actions/checkout@v4 }
+      - { id: ci-setup-node-v4-exception, file: .github/workflows/ci.yml, format: yaml, path: "jobs.current-full-gate.steps[1].uses", expected: actions/setup-node@v4 }
+      - { id: ci-no-next-runtime, file: .github/workflows/ci.yml, format: yaml, path: jobs.node-next-readiness, operator: absent }
+      - { id: ci-concurrency-group, file: .github/workflows/ci.yml, format: yaml, path: concurrency.group, expected: "${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}" }
+      - { id: ci-concurrency-cancel, file: .github/workflows/ci.yml, format: yaml, path: concurrency.cancel-in-progress, expected: "${{ github.event_name == 'pull_request' }}" }
 
   dataplane:
     role: python-application-with-separate-node-projects
     canonicalSiblingRoot: ../aifabrix-miso
     requiredFiles: [.nvmrc, .python-version, pyproject.toml, pyrightconfig.json, scripts/pyrightconfig.json, .cursor/scripts/pyrightconfig.json, builder/dataplane/Dockerfile, .github/workflows/enterprise-deployment.yml, package.json, pnpm-lock.yaml, app-ui/package.json, app-ui/pnpm-lock.yaml, pnpm-workspace.yaml, .github/dependabot.yml]
-    ownerEvidence: [full Python UI OpenAPI and ABAC gates, Python 3.14 application image and health proof, Python 3.15 and Node 26 non-blocking readiness execution]
+    ownerEvidence: [full Python UI OpenAPI and ABAC gates, Python 3.14 application image and health proof]
     checks:
       - { id: node-current, file: .nvmrc, format: text, operator: matches, expected: "^24\\.22\\.1\\s*$" }
       - { id: root-node-line, file: package.json, format: json, path: engines.node, expectedFrom: platform.node.applicationLine }
@@ -253,16 +300,34 @@ profiles:
       - { id: dependabot-python-directory, file: .github/dependabot.yml, format: yaml, path: "updates[0].directory", expected: "/" }
       - { id: dependabot-root-directory, file: .github/dependabot.yml, format: yaml, path: "updates[1].directory", expected: "/" }
       - { id: dependabot-ui-directory, file: .github/dependabot.yml, format: yaml, path: "updates[2].directory", expected: "/app-ui" }
+      - { id: ci-dispatch, file: .github/workflows/enterprise-deployment.yml, format: yaml, path: on.workflow_dispatch, operator: exists }
+      - { id: ci-current-job, file: .github/workflows/enterprise-deployment.yml, format: yaml, path: jobs.test, operator: exists }
+      - { id: ci-current-always, file: .github/workflows/enterprise-deployment.yml, format: yaml, path: jobs.test.if, operator: absent }
+      - { id: ci-current-required, file: .github/workflows/enterprise-deployment.yml, format: yaml, path: jobs.test.continue-on-error, operator: absent }
+      - id: ci-ui-required
+        file: .github/workflows/enterprise-deployment.yml
+        format: yaml
+        path: "jobs.test.steps[12].run"
+        expected: |
+          make ui-lint
+          make ui-typecheck
+          make ui-test
+          make ui-build
+      - { id: ci-security-needs-current, file: .github/workflows/enterprise-deployment.yml, format: yaml, path: jobs.security-scan.needs, expected: test }
+      - { id: ci-docker-needs-current, file: .github/workflows/enterprise-deployment.yml, format: yaml, path: jobs.docker-test.needs, expected: test }
+      - { id: ci-python-current-scoped, file: .github/workflows/enterprise-deployment.yml, format: yaml, path: "jobs.test.steps[1].with.python-version", expected: "3.14" }
+      - { id: ci-no-python-next-runtime, file: .github/workflows/enterprise-deployment.yml, format: yaml, path: jobs.python-next-readiness, operator: absent }
+      - { id: ci-no-node-next-runtime, file: .github/workflows/enterprise-deployment.yml, format: yaml, path: jobs.node-next-readiness, operator: absent }
+      - { id: ci-concurrency-group, file: .github/workflows/enterprise-deployment.yml, format: yaml, path: concurrency.group, expected: "${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}" }
+      - { id: ci-concurrency-cancel, file: .github/workflows/enterprise-deployment.yml, format: yaml, path: concurrency.cancel-in-progress, expected: "${{ github.event_name == 'pull_request' }}" }
       - { id: ci-python-current, file: .github/workflows, format: globText, operator: matches, expected: "python-version:\\s*['\"]?3\\.14" }
-      - { id: ci-python-next, file: .github/workflows, format: globText, operator: matches, expected: "python-version:\\s*['\"]?3\\.15" }
-      - { id: ci-next-nonblocking, file: .github/workflows, format: globText, operator: matches, expected: "continue-on-error:\\s*true" }
 
   python-sdk:
     role: published-python-package-with-node-checker-tooling
     canonicalSiblingRoot: ../aifabrix-miso
     forbiddenFiles: [Dockerfile]
     requiredFiles: [.python-version, .nvmrc, pyproject.toml, setup.py, package.json, pnpm-lock.yaml, pnpm-workspace.yaml, .github/workflows/test.yml, .github/dependabot.yml]
-    ownerEvidence: [package import matrix on Python 3.11 through 3.14, Python 3.15 non-blocking readiness execution, published Python artifact has no Node runtime dependency]
+    ownerEvidence: [package import matrix on Python 3.11 through 3.14, Python 3.15 manual-only non-blocking readiness definition with execution evidence only when dispatched, published Python artifact has no Node runtime dependency]
     checks:
       - { id: python-current, file: .python-version, format: text, operator: matches, expected: "^3\\.14\\s*$" }
       - { id: python-package-floor, file: pyproject.toml, format: toml, path: project.requires-python, expectedFrom: platform.python.packageFloor }
@@ -280,6 +345,16 @@ profiles:
       - { id: setup-classifiers-static, file: setup.py, format: python, operator: matches, flags: s, expected: 'Python :: 3\.11.*Python :: 3\.12.*Python :: 3\.13.*Python :: 3\.14' }
       - { id: required-python-workflow-matrix, file: .github/workflows/test.yml, format: text, operator: matches, flags: s, expected: 'python-version:.*3\.11.*3\.12.*3\.13.*3\.14' }
       - { id: next-python-readiness, file: .github/workflows/test.yml, format: text, operator: matches, flags: s, expected: 'continue-on-error:.*3\.15' }
+      - { id: ci-dispatch, file: .github/workflows/test.yml, format: yaml, path: on.workflow_dispatch, operator: exists }
+      - { id: ci-supported-job, file: .github/workflows/test.yml, format: yaml, path: jobs.test, operator: exists }
+      - { id: ci-supported-always, file: .github/workflows/test.yml, format: yaml, path: jobs.test.if, operator: absent }
+      - { id: ci-supported-matrix, file: .github/workflows/test.yml, format: yaml, path: jobs.test.strategy.matrix.python-version, operator: containsAll, expected: ["3.11", "3.12", "3.13", "3.14"] }
+      - { id: ci-supported-required, file: .github/workflows/test.yml, format: yaml, path: jobs.test.continue-on-error, operator: absent }
+      - { id: ci-next-python315, file: .github/workflows/test.yml, format: yaml, path: "jobs.python-next-readiness.steps[1].with.python-version", expected: "3.15" }
+      - { id: ci-next-manual, file: .github/workflows/test.yml, format: yaml, path: jobs.python-next-readiness.if, expected: "github.event_name == 'workflow_dispatch'" }
+      - { id: ci-next-nonblocking, file: .github/workflows/test.yml, format: yaml, path: jobs.python-next-readiness.continue-on-error, expected: true }
+      - { id: ci-concurrency-group, file: .github/workflows/test.yml, format: yaml, path: concurrency.group, expected: "${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}" }
+      - { id: ci-concurrency-cancel, file: .github/workflows/test.yml, format: yaml, path: concurrency.cancel-in-progress, expected: "${{ github.event_name == 'pull_request' }}" }
       - { id: node-current, file: .nvmrc, format: text, operator: matches, expected: "^24\\.22\\.1\\s*$" }
       - { id: private-tooling, file: package.json, format: json, path: private, expected: true }
       - { id: package-manager, file: package.json, format: json, path: packageManager, expectedFrom: platform.packageManager }
@@ -295,7 +370,7 @@ profiles:
     role: mixed-node-application-and-package
     canonicalSiblingRoot: ../aifabrix-miso
     requiredFiles: [.nvmrc, package.json, pnpm-lock.yaml, pnpm-workspace.yaml, apps/ui/package.json, sdk/ts/package.json, builder/mori-controller/Dockerfile, .github/workflows/mori-pr.yml, .github/dependabot.yml]
-    ownerEvidence: [application full gate and image runtime proof on Node 24, SDK packed import/type proof on Node 22 and Node 24, Node 26 non-blocking readiness execution]
+    ownerEvidence: [application full gate and image runtime proof on Node 24, SDK packed import/type proof on Node 24]
     checks:
       - { id: node-current, file: .nvmrc, format: text, operator: matches, expected: "^24\\.22\\.1\\s*$" }
       - { id: root-application-floor, file: package.json, format: json, path: engines.node, expectedFrom: platform.node.applicationFloor }
@@ -317,16 +392,24 @@ profiles:
       - { id: dependabot-root-lock, file: .github/dependabot.yml, format: yaml, path: "updates[0].package-ecosystem", expected: npm }
       - { id: dependabot-root-directory, file: .github/dependabot.yml, format: yaml, path: "updates[0].directory", expected: "/" }
       - { id: ci-current-uses-nvmrc, file: .github/workflows, format: globText, operator: matches, expected: "node-version-file:\\s*['\"]?\\.nvmrc" }
-      - { id: ci-sdk-node22, file: .github/workflows/mori-pr.yml, format: yaml, path: "jobs.sdk-compatibility.strategy.matrix.include[0].node", expected: "22.0.0" }
-      - { id: ci-sdk-node24, file: .github/workflows/mori-pr.yml, format: yaml, path: "jobs.sdk-compatibility.strategy.matrix.include[1].node", expected: "24.22.1" }
-      - { id: ci-node26, file: .github/workflows, format: globText, operator: matches, expected: "(?:node-version|node):\\s*['\"]?26" }
-      - { id: ci-next-nonblocking, file: .github/workflows, format: globText, operator: matches, expected: "continue-on-error:\\s*true" }
+      - { id: ci-sdk-node24, file: .github/workflows/mori-pr.yml, format: yaml, path: "jobs.sdk-compatibility.steps[2].with.node-version", expected: "24.22.1" }
+      - { id: ci-sdk-package-proof, file: .github/workflows/mori-pr.yml, format: yaml, path: "jobs.sdk-compatibility.steps[4].run", operator: matches, expected: "pnpm run sdk:package-proof" }
+      - { id: ci-dispatch, file: .github/workflows/mori-pr.yml, format: yaml, path: on.workflow_dispatch, operator: exists }
+      - { id: ci-current-job, file: .github/workflows/mori-pr.yml, format: yaml, path: jobs.node-current, operator: exists }
+      - { id: ci-current-always, file: .github/workflows/mori-pr.yml, format: yaml, path: jobs.node-current.if, operator: absent }
+      - { id: ci-current-required, file: .github/workflows/mori-pr.yml, format: yaml, path: jobs.node-current.continue-on-error, operator: absent }
+      - { id: ci-sdk-job, file: .github/workflows/mori-pr.yml, format: yaml, path: jobs.sdk-compatibility, operator: exists }
+      - { id: ci-sdk-always, file: .github/workflows/mori-pr.yml, format: yaml, path: jobs.sdk-compatibility.if, operator: absent }
+      - { id: ci-sdk-required, file: .github/workflows/mori-pr.yml, format: yaml, path: jobs.sdk-compatibility.continue-on-error, operator: absent }
+      - { id: ci-no-next-runtime, file: .github/workflows/mori-pr.yml, format: yaml, path: jobs.node-next, operator: absent }
+      - { id: ci-concurrency-group, file: .github/workflows/mori-pr.yml, format: yaml, path: concurrency.group, expected: "${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}" }
+      - { id: ci-concurrency-cancel, file: .github/workflows/mori-pr.yml, format: yaml, path: concurrency.cancel-in-progress, expected: "${{ github.event_name == 'pull_request' }}" }
 
   setup:
     role: mixed-node-applications-and-package
     canonicalSiblingRoot: ../aifabrix-miso
-    requiredFiles: [.nvmrc, package.json, pnpm-lock.yaml, pnpm-workspace.yaml, builder-server/package.json, server-setup/package.json, builder/builder-server/Dockerfile, server-setup/assets/setup-install-init.sh, server-setup/assets/setup-dev-server-no-node.sh, .github/dependabot.yml]
-    ownerEvidence: [full repository gate on Node 24, server-setup packed proof on Node 22, unsupported-host rejection ordering regression tests, Node 26 non-blocking readiness execution, private-source provenance applicability decision]
+    requiredFiles: [.nvmrc, package.json, pnpm-lock.yaml, pnpm-workspace.yaml, builder-server/package.json, server-setup/package.json, builder/builder-server/Dockerfile, server-setup/assets/setup-install-init.sh, server-setup/assets/setup-dev-server-no-node.sh, .github/workflows/platform-ci.yml, .github/dependabot.yml]
+    ownerEvidence: [full repository gate on Node 24, server-setup packed and native SQLite proof on Node 24, unsupported-host rejection ordering regression tests, private-source provenance applicability decision]
     checks:
       - { id: node-current, file: .nvmrc, format: text, operator: matches, expected: "^24\\.22\\.1\\s*$" }
       - { id: root-application-floor, file: package.json, format: json, path: engines.node, expectedFrom: platform.node.applicationFloor }
@@ -347,7 +430,16 @@ profiles:
       - { id: server-setup-root-importer, file: pnpm-lock.yaml, format: pnpmLock, path: importers.server-setup, operator: exists }
       - { id: dependabot-root-lock, file: .github/dependabot.yml, format: yaml, path: "updates[0].package-ecosystem", expected: npm }
       - { id: dependabot-root-directory, file: .github/dependabot.yml, format: yaml, path: "updates[0].directory", expected: "/" }
-      - { id: ci-node22, file: .github/workflows, format: globText, operator: matches, expected: "(?:node-version|node):\\s*['\"]?22" }
+      - { id: ci-dispatch, file: .github/workflows/platform-ci.yml, format: yaml, path: on.workflow_dispatch, operator: exists }
+      - { id: ci-current-job, file: .github/workflows/platform-ci.yml, format: yaml, path: jobs.current, operator: exists }
+      - { id: ci-current-always, file: .github/workflows/platform-ci.yml, format: yaml, path: jobs.current.if, operator: absent }
+      - { id: ci-current-node24-scoped, file: .github/workflows/platform-ci.yml, format: yaml, path: "jobs.current.steps[1].with.node-version", expected: "24.22.1" }
+      - { id: ci-current-required, file: .github/workflows/platform-ci.yml, format: yaml, path: jobs.current.continue-on-error, operator: absent }
+      - { id: ci-current-pack-proof, file: .github/workflows/platform-ci.yml, format: yaml, path: "jobs.current.steps[8].run", operator: matches, expected: "pnpm --dir server-setup pack" }
+      - { id: ci-current-consumer-proof, file: .github/workflows/platform-ci.yml, format: yaml, path: "jobs.current.steps[8].run", operator: matches, expected: "npm install --no-audit --no-fund" }
+      - { id: ci-current-native-proof, file: .github/workflows/platform-ci.yml, format: yaml, path: "jobs.current.steps[8].run", operator: matches, expected: "require\\('better-sqlite3'\\)" }
+      - { id: ci-no-floor-job, file: .github/workflows/platform-ci.yml, format: yaml, path: jobs.cli-floor, operator: absent }
+      - { id: ci-no-next-runtime, file: .github/workflows/platform-ci.yml, format: yaml, path: jobs.next, operator: absent }
+      - { id: ci-concurrency-group, file: .github/workflows/platform-ci.yml, format: yaml, path: concurrency.group, expected: "${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}" }
+      - { id: ci-concurrency-cancel, file: .github/workflows/platform-ci.yml, format: yaml, path: concurrency.cancel-in-progress, expected: "${{ github.event_name == 'pull_request' }}" }
       - { id: ci-node24, file: .github/workflows, format: globText, operator: matches, expected: "(?:node-version|node):\\s*['\"]?24" }
-      - { id: ci-node26, file: .github/workflows, format: globText, operator: matches, expected: "(?:node-version|node):\\s*['\"]?26" }
-      - { id: ci-next-nonblocking, file: .github/workflows, format: globText, operator: matches, expected: "continue-on-error:\\s*true" }

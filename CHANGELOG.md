@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.2.2] - 2026-11-10
+
+### Changed
+
+- Made Python 3.15 readiness a manual-only, non-blocking CI check while retaining
+  required package validation on Python 3.11–3.14.
+- Cancelled superseded CI runs only within the same pull request; push and manual
+  runs remain isolated.
+
+### Technical
+
+- Aligned the shared platform policy with the approved Node 24 minimum where Node
+  packages apply. Node remains development-only checker tooling for this SDK and is
+  not required to install or use the Python package.
+- Updated deployment guidance and canonical baseline checks for the CI policy.
+
 ## [5.2.1] - 2026-10-23
 
 ### Fixed
