@@ -11,8 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Prevented HTTP debug and failure diagnostics for `/api/security/` endpoints from
   emitting request bodies, decrypt responses, raw exception text, or parameter names.
-  Default and fallback masking now also cover `plaintext`, `value`, and
-  `encryptionKey` fields while safe audit metadata remains available.
+  Default and fallback masking now also cover `plaintext`, exact normalized
+  `value`, and `encryptionKey` fields while safe audit metadata remains
+  available. Composite names such as `totalValue` remain visible unless
+  independently sensitive or explicitly configured.
 
 ## [5.2.2] - 2026-11-10
 

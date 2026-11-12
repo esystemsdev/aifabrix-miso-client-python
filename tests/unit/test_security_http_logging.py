@@ -31,6 +31,10 @@ REQUEST_MARKER = "synthetic-request-body-marker"
 RESPONSE_MARKER = "synthetic-response-body-marker"
 ERROR_MARKER = "synthetic-error-body-marker"
 CORRELATION = "synthetic-security-correlation"
+EXACT_VALUE_MARKER = "synthetic-exact-value-marker"
+TOTAL_VALUE_MARKER = "synthetic-total-value-marker"
+DEFAULT_VALUE_MARKER = "synthetic-default-value-marker"
+SECRET_VALUE_MARKER = "synthetic-secret-value-marker"
 
 
 class Wire:
@@ -225,24 +229,43 @@ def test_security_route_guard_uses_path_boundaries(url: str, expected: bool) -> 
     assert is_security_endpoint(url) is expected
 
 
-def test_nonsecurity_debug_still_contains_permitted_body_diagnostics() -> None:
-    """The body guard does not disable ordinary HTTP debug diagnostics."""
-    context = _prepare_debug_context(
-        method="POST",
-        url="/api/items",
-        response={"result": "visible-response"},
-        duration_ms=1,
-        status_code=200,
-        user_id=None,
-        request_data={"note": "visible-request", "secret": "hidden"},
-        request_headers=None,
-        base_url="https://controller.test",
-    )
-    assert context["requestBody"] == {
-        "note": "visible-request",
-        "secret": DataMasker.MASKED_VALUE,
+async def test_nonsecurity_final_logs_mask_only_sensitive_value_fields(
+    security_sdk: tuple[MisoClient, Wire, list[LogEntry]],
+) -> None:
+    """Ordinary final records retain benign composites and mask sensitive fields."""
+    client, wire, entries = security_sdk
+    payload = {
+        "value": EXACT_VALUE_MARKER,
+        "totalValue": TOTAL_VALUE_MARKER,
+        "defaultValue": DEFAULT_VALUE_MARKER,
+        "secretValue": SECRET_VALUE_MARKER,
     }
-    assert "visible-response" in context["responseBody"]
+
+    await client.http_client.post("/api/items", data=payload)
+    await client.http_client._wait_for_logging_tasks(timeout=2.0)
+
+    debug_entries = [
+        entry
+        for entry in entries
+        if entry.level == "debug" and entry.context and entry.context.get("url") == "/api/items"
+    ]
+    assert debug_entries
+    debug_context = debug_entries[-1].context
+    assert debug_context is not None
+    request_body = debug_context["requestBody"]
+    assert request_body["value"] == DataMasker.MASKED_VALUE
+    assert request_body["totalValue"] == TOTAL_VALUE_MARKER
+    assert request_body["defaultValue"] == DEFAULT_VALUE_MARKER
+    assert request_body["secretValue"] == DataMasker.MASKED_VALUE
+    assert json.loads(wire.requests[-1].content) == payload
+
+    final_entries = _serialized_entries(debug_entries)
+    delivery = _serialized_delivery(debug_entries)
+    for output in (final_entries, delivery):
+        assert EXACT_VALUE_MARKER not in output
+        assert SECRET_VALUE_MARKER not in output
+        assert TOTAL_VALUE_MARKER in output
+        assert DEFAULT_VALUE_MARKER in output
 
 
 def test_permissive_custom_masking_cannot_bypass_security_body_guard(
