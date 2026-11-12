@@ -4,6 +4,8 @@ Unit tests for DataMasker.
 
 from pathlib import Path
 
+import pytest
+
 from miso_client.utils.data_masker import DataMasker
 
 
@@ -199,6 +201,55 @@ class TestDataMasker:
         masked = DataMasker.mask_sensitive_data({"oauthAccessToken": "t0ken", "name": "x"})
         assert masked["oauthAccessToken"] == DataMasker.MASKED_VALUE
         assert masked["name"] == "x"
+
+    @pytest.mark.parametrize(
+        "field",
+        [
+            "plaintext",
+            "PlainText",
+            "encryptionKey",
+            "ENCRYPTION_KEY",
+            "value",
+            "VaLuE",
+            "secret",
+            "clientSecret",
+        ],
+    )
+    def test_security_defaults_mask_encryption_fields(self, field: str) -> None:
+        """Packaged defaults mask encryption fields case-insensitively."""
+        marker = "synthetic-security-marker"
+        original = {"nested": [{field: marker}], "safe": marker}
+
+        masked = DataMasker.mask_sensitive_data(original)
+
+        assert masked["nested"][0][field] == DataMasker.MASKED_VALUE
+        assert masked["safe"] == marker
+        assert original["nested"][0][field] == marker
+
+    def test_hardcoded_fallback_masks_encryption_fields(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Missing packaged configuration retains encryption-field protection."""
+        monkeypatch.setattr(
+            "miso_client.utils.data_masker.load_sensitive_fields_config", lambda *_: {}
+        )
+        monkeypatch.setattr(
+            "miso_client.utils.data_masker.get_sensitive_fields_array", lambda *_: []
+        )
+        DataMasker._config_loaded = False
+        DataMasker._sensitive_fields = None
+        try:
+            masked = DataMasker.mask_sensitive_data(
+                {
+                    "plaintext": "one",
+                    "encryptionKey": "two",
+                    "value": "three",
+                }
+            )
+            assert set(masked.values()) == {DataMasker.MASKED_VALUE}
+        finally:
+            DataMasker._config_loaded = False
+            DataMasker._sensitive_fields = None
 
     def test_mask_sensitive_data_config_path_isolated(self, tmp_path: Path) -> None:
         """Per-call config_path does not require set_config_path; neverMaskFields applies."""

@@ -76,7 +76,7 @@ packages = [
 ]
 
 [tool.setuptools.package-data]
-miso_client = ["py.typed"]
+miso_client = ["py.typed", "utils/sensitive_fields_config.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests/unit"]

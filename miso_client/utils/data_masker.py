@@ -39,6 +39,9 @@ class DataMasker:
         "refreshtoken",
         "privatekey",
         "secretkey",
+        "encryptionkey",
+        "plaintext",
+        "value",
     }
 
     _sensitive_fields: Optional[Set[str]] = None

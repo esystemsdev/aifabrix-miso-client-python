@@ -314,3 +314,10 @@ the selected controller; a key valid in another environment will be refused.
 Authentication strategies try the next method after an ordinary 401. Other HTTP
 statuses, connection failures, and controller bootstrap invalidation/expiry errors
 do not replay the operation. Terminal runtime identity restrictions remain enforced.
+
+When HTTP debug logging is enabled, security endpoint request and response bodies are
+omitted unconditionally. This protects plaintext, encrypted values, encryption keys,
+and future body fields even when custom field masking is permissive. Audit events keep
+safe method, status, duration, size, and correlation metadata; security failures use a
+generic diagnostic without raw controller exception text or parameter names. The SDK
+request payloads, returned plaintext, and raised error contract are unchanged.

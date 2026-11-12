@@ -49,6 +49,17 @@ def _cache_key_decrypt(value: str, parameter_name: str) -> str:
     return f"{DECRYPT_CACHE_PREFIX}{h}"
 
 
+def _safe_error_log_context(error: MisoClientError) -> dict[str, object]:
+    """Return non-secret metadata for encryption failure diagnostics."""
+    context: dict[str, object] = {}
+    correlation_id = extract_correlation_id_from_error(error)
+    if correlation_id:
+        context["correlationId"] = correlation_id
+    if error.status_code is not None:
+        context["statusCode"] = error.status_code
+    return context
+
+
 class EncryptionService:
     """Encryption service calling miso-controller for server-side encryption.
 
@@ -198,12 +209,9 @@ class EncryptionService:
 
     def _raise_encrypt_error(self, error: MisoClientError, parameter_name: str) -> NoReturn:
         """Raise normalized EncryptionError for encrypt failures."""
-        correlation_id = extract_correlation_id_from_error(error)
-        extra = {"correlationId": correlation_id} if correlation_id else None
         logger.error(
-            f"Encryption failed for parameter '{parameter_name}'",
-            exc_info=error,
-            extra=extra,
+            "Encryption request failed",
+            extra=_safe_error_log_context(error),
         )
         raise EncryptionError(
             str(error),
@@ -224,12 +232,9 @@ class EncryptionService:
             code = "PARAMETER_NOT_FOUND"
         elif error.status_code in (401, 403):
             code = "ACCESS_DENIED"
-        correlation_id = extract_correlation_id_from_error(error)
-        extra = {"correlationId": correlation_id} if correlation_id else None
         logger.error(
-            f"Decryption failed for parameter '{parameter_name}'",
-            exc_info=error,
-            extra=extra,
+            "Decryption request failed",
+            extra=_safe_error_log_context(error),
         )
         raise EncryptionError(
             str(error),

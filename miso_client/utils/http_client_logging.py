@@ -11,10 +11,13 @@ from typing import Any, Dict, Optional, cast
 from .http_log_formatter import build_audit_context, build_debug_context
 from .http_log_masker import (
     extract_and_mask_query_params,
+    is_security_endpoint,
     mask_error_message,
     mask_request_data,
     mask_response_data,
 )
+
+_SECURITY_ERROR_MESSAGE = "Security request failed"
 
 
 def should_skip_logging(url: str, config: Optional[Any] = None) -> bool:
@@ -114,7 +117,11 @@ def _prepare_audit_context(
     request_size, response_size = _resolve_request_response_sizes(
         audit_level, request_data, response
     )
-    error_message = mask_error_message(error) if error is not None else None
+    error_message = None
+    if error is not None:
+        error_message = (
+            _SECURITY_ERROR_MESSAGE if is_security_endpoint(url) else mask_error_message(error)
+        )
     return build_audit_context(
         method=method,
         url=url,
@@ -189,7 +196,7 @@ def _build_minimal_audit_context(
     if user_id:
         context["userId"] = user_id
     if error:
-        context["error"] = str(error)
+        context["error"] = _SECURITY_ERROR_MESSAGE if is_security_endpoint(url) else str(error)
     if correlation_id:
         context["correlationId"] = correlation_id
     return context
@@ -352,6 +359,13 @@ def _prepare_debug_context(
     correlation_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Prepare debug context for logging."""
+    if is_security_endpoint(url):
+        masked_headers, _ = mask_request_data(request_headers, None)
+        masked_body = None
+        masked_response = None
+    else:
+        masked_headers, masked_body = mask_request_data(request_headers, request_data)
+        masked_response = mask_response_data(response, max_size=max_response_size)
     return build_debug_context(
         method=method,
         url=url,
@@ -359,9 +373,9 @@ def _prepare_debug_context(
         duration_ms=duration_ms,
         base_url=base_url,
         user_id=user_id,
-        masked_headers=mask_request_data(request_headers, request_data)[0],
-        masked_body=mask_request_data(request_headers, request_data)[1],
-        masked_response=mask_response_data(response, max_size=max_response_size),
+        masked_headers=masked_headers,
+        masked_body=masked_body,
+        masked_response=masked_response,
         query_params=extract_and_mask_query_params(url),
         correlation_id=correlation_id,
     )

@@ -10,6 +10,17 @@ from urllib.parse import parse_qs, urlparse
 from .data_masker import DataMasker
 
 
+def is_security_endpoint(url: str) -> bool:
+    """Return whether the URL path contains the bounded ``/api/security`` route."""
+    try:
+        segments = [segment.lower() for segment in urlparse(url).path.split("/") if segment]
+    except Exception:
+        return False
+    return any(
+        segments[index : index + 2] == ["api", "security"] for index in range(len(segments) - 1)
+    )
+
+
 def mask_error_message(error: Optional[Exception]) -> Optional[str]:
     """Mask sensitive data in error message.
 
