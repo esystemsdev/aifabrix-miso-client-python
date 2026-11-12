@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.2.3] - 2026-11-12
+
 ### Fixed
 
 - Prevented HTTP debug and failure diagnostics for `/api/security/` endpoints from
@@ -15,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `value`, and `encryptionKey` fields while safe audit metadata remains
   available. Composite names such as `totalValue` remain visible unless
   independently sensitive or explicitly configured.
+
+### Technical
+
+- Included the sensitive-field configuration in wheel and source distributions,
+  and expanded regression and live-harness coverage for security-log omission,
+  safe encryption diagnostics, and exact normalized `value` matching.
 
 ## [5.2.2] - 2026-11-10
 
