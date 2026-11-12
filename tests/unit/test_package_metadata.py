@@ -68,3 +68,13 @@ def test_pyproject_declares_every_importable_package() -> None:
     }
 
     assert declared == discovered
+
+
+def test_sensitive_fields_config_is_packaged() -> None:
+    """Keep the runtime masking policy in both wheel and source manifests."""
+    config = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    package_data = set(config["tool"]["setuptools"]["package-data"]["miso_client"])
+    manifest = (ROOT / "MANIFEST.in").read_text(encoding="utf-8").splitlines()
+
+    assert "utils/sensitive_fields_config.json" in package_data
+    assert "include miso_client/utils/sensitive_fields_config.json" in manifest

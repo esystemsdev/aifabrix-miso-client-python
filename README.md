@@ -628,6 +628,13 @@ The default configuration includes ISO 27001 compliant sensitive fields:
 - PII: ssn, creditcard, cc, cvv, pin, otp
 - Security: apikey, accesstoken, refreshtoken, privatekey, secretkey, cookie, session
 
+Field-name matching is case-insensitive and ignores `_` and `-`. The sensitive
+token `value` matches only a complete normalized field name, so `VALUE` and
+`v_a_l_u_e` are masked while ordinary composite names such as `totalValue` and
+`defaultValue` remain visible unless they match another sensitive token. Add a
+genuinely sensitive composite name explicitly under `fields` in custom
+configuration. Python `DataMasker` does not currently consume `fieldPatterns`.
+
 **Masking JSON documents (for other projects):** Use `DataMasker` to mask sensitive fields in any JSON structure before logging or sending to external systems:
 
 ```python

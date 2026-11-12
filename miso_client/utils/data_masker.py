@@ -39,6 +39,16 @@ class DataMasker:
         "refreshtoken",
         "privatekey",
         "secretkey",
+        "encryptionkey",
+        "plaintext",
+        "value",
+    }
+
+    # Subset of the main hardcoded list for full normalized-name matching only;
+    # entries must also remain in the main list. This preserves roleValue,
+    # valueCount, dimensionValueId, and dimensionValuesProcessed.
+    _exact_match_only_fields_subset: Set[str] = {
+        "value",
     }
 
     _sensitive_fields: Optional[Set[str]] = None
@@ -83,6 +93,8 @@ class DataMasker:
         if nk in sensitive_fields:
             return True
         for sf in sensitive_fields:
+            if sf in cls._exact_match_only_fields_subset:
+                continue
             if len(sf) >= substr_min and sf in nk:
                 return True
         return False

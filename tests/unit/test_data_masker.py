@@ -1,8 +1,10 @@
-"""
-Unit tests for DataMasker.
-"""
+"""Unit tests for DataMasker."""
 
+import json
+from copy import deepcopy
 from pathlib import Path
+
+import pytest
 
 from miso_client.utils.data_masker import DataMasker
 
@@ -199,6 +201,125 @@ class TestDataMasker:
         masked = DataMasker.mask_sensitive_data({"oauthAccessToken": "t0ken", "name": "x"})
         assert masked["oauthAccessToken"] == DataMasker.MASKED_VALUE
         assert masked["name"] == "x"
+
+    @pytest.mark.parametrize(
+        "field",
+        [
+            "plaintext",
+            "PlainText",
+            "encryptionKey",
+            "ENCRYPTION_KEY",
+            "value",
+            "VaLuE",
+            "secret",
+            "clientSecret",
+        ],
+    )
+    def test_security_defaults_mask_encryption_fields(self, field: str) -> None:
+        """Packaged defaults mask encryption fields case-insensitively."""
+        marker = "synthetic-security-marker"
+        original = {"nested": [{field: marker}], "safe": marker}
+
+        masked = DataMasker.mask_sensitive_data(original)
+
+        assert masked["nested"][0][field] == DataMasker.MASKED_VALUE
+        assert masked["safe"] == marker
+        assert original["nested"][0][field] == marker
+
+    def test_value_token_matches_only_exact_normalized_field_names(self) -> None:
+        """Bare value masks exactly while benign composites remain observable."""
+        original = {
+            "nested": [
+                {
+                    "value": "lower",
+                    "Value": "title",
+                    "VALUE": "upper",
+                    "v_a_l_u_e": "separated",
+                    "totalValue": "total",
+                    "defaultValue": "default",
+                    "values": "plural",
+                    "valueCount": "count",
+                    "evaluation": "evaluation",
+                    "text": "text",
+                    "description": "description",
+                    "secretValue": "secret",
+                }
+            ]
+        }
+        snapshot = deepcopy(original)
+
+        masked = DataMasker.mask_sensitive_data(original)
+        nested = masked["nested"][0]
+
+        for field in ("value", "Value", "VALUE", "v_a_l_u_e", "secretValue"):
+            assert nested[field] == DataMasker.MASKED_VALUE
+        for field in (
+            "totalValue",
+            "defaultValue",
+            "values",
+            "valueCount",
+            "evaluation",
+            "text",
+            "description",
+        ):
+            assert nested[field] == original["nested"][0][field]
+        assert original == snapshot
+
+    def test_hardcoded_fallback_masks_encryption_fields(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Missing packaged configuration retains encryption-field protection."""
+        monkeypatch.setattr(
+            "miso_client.utils.data_masker.load_sensitive_fields_config", lambda *_: {}
+        )
+        monkeypatch.setattr(
+            "miso_client.utils.data_masker.get_sensitive_fields_array", lambda *_: []
+        )
+        DataMasker._config_loaded = False
+        DataMasker._sensitive_fields = None
+        try:
+            masked = DataMasker.mask_sensitive_data(
+                {
+                    "plaintext": "one",
+                    "encryptionKey": "two",
+                    "value": "three",
+                    "v_a_l_u_e": "four",
+                    "totalValue": "visible",
+                    "secretValue": "five",
+                }
+            )
+            for field in ("plaintext", "encryptionKey", "value", "v_a_l_u_e", "secretValue"):
+                assert masked[field] == DataMasker.MASKED_VALUE
+            assert masked["totalValue"] == "visible"
+        finally:
+            DataMasker._config_loaded = False
+            DataMasker._sensitive_fields = None
+
+    @pytest.mark.parametrize("never_value", [False, True])
+    def test_explicit_config_preserves_exact_and_never_mask_precedence(
+        self, tmp_path: Path, never_value: bool
+    ) -> None:
+        """Supported custom fields retain exact matching and never-mask precedence."""
+        cfg = tmp_path / "exact-value-mask.json"
+        cfg.write_text(
+            json.dumps(
+                {
+                    "mergeWithHardcodedDefaults": False,
+                    "neverMaskFields": ["value"] if never_value else [],
+                    "fields": {"custom": ["value", "totalValue"]},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        masked = DataMasker.mask_sensitive_data(
+            {"value": "exact", "totalValue": "configured", "defaultValue": "visible"},
+            config_path=str(cfg),
+        )
+
+        assert masked["value"] == ("exact" if never_value else DataMasker.MASKED_VALUE)
+        assert masked["totalValue"] == DataMasker.MASKED_VALUE
+        assert masked["defaultValue"] == "visible"
 
     def test_mask_sensitive_data_config_path_isolated(self, tmp_path: Path) -> None:
         """Per-call config_path does not require set_config_path; neverMaskFields applies."""
