@@ -1,6 +1,6 @@
 # Exact bootstrap/generator versions make lock regeneration reproducible.
-pip==26.2.2
-pip-tools==7.6.2
+pip==26.3
+pip-tools==7.7.0
 
 # Controlled PEP 517 build and distribution validation tools.
 setuptools==84.2.1
@@ -12,4 +12,4 @@ twine==7.0.0
 # hash lock remains installable across the supported Python 3.11–3.14 matrix.
 backports.tarfile==1.2.0
 importlib-metadata==9.0.1
-zipp==4.1.1
+zipp==4.1.2
